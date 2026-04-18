@@ -18,3 +18,19 @@ test("detectConnections returns a stable empty inventory when nothing is detecte
     recommendations: [],
   });
 });
+
+test("detectConnections normalizes falsey and malformed detector output to empty arrays", async () => {
+  const result = await detectConnections({
+    repoRoot: "/tmp/demo-repo",
+    detectAgentsImpl: async () => undefined,
+    detectModelsImpl: async () => ({ detected: true }),
+  });
+
+  assert.deepEqual(result, {
+    repo_root: "/tmp/demo-repo",
+    agents: [],
+    models: [],
+    warnings: [],
+    recommendations: [],
+  });
+});
