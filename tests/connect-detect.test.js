@@ -330,3 +330,31 @@ test("detectConnections detects Claude Code from config file evidence when CLI p
   assert.equal(claudeCode.detected, true);
   assert.equal(claudeCode.configured, true);
 });
+
+test("detectConnections detects Claude Code as configured when CLI is available and repo config is valid", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const claudeConfigPath = path.join(repoRoot, ".mcp.json");
+
+  await fs.writeFile(
+    claudeConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", repoRoot],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "heart-mcp\n", stderr: "" }),
+  });
+
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+  assert.equal(claudeCode.detected, true);
+  assert.equal(claudeCode.configured, true);
+});

@@ -56,48 +56,39 @@ export async function detectClaudeCode({
   execFileImpl = missingExecFile,
 } = {}) {
   const configLocations = resolveClaudeCodeConfigLocations({ repoRoot, env });
+  const repoConfigured = hasHeartClaudeConfig(
+    await readJsonFile(configLocations.repo),
+    repoRoot,
+  );
+  const userConfigured = configLocations.user
+    ? hasHeartClaudeConfig(await readJsonFile(configLocations.user), repoRoot)
+    : false;
+  const configured = repoConfigured || userConfigured;
+  let detectedFromCli = false;
 
   try {
     await execFileImpl("claude", ["mcp", "list"]);
-    return {
-      id: "claude-code",
-      display_name: "Claude Code",
-      supports_mcp: true,
-      supports_model_override: false,
-      install_modes: ["repo", "user"],
-      config_locations: configLocations,
-      detected: true,
-      configured: false,
-      discovery_confidence: "high",
-      warnings: [],
-    };
+    detectedFromCli = true;
   } catch {
-    const repoConfigured = hasHeartClaudeConfig(
-      await readJsonFile(configLocations.repo),
-      repoRoot,
-    );
-    const userConfigured = configLocations.user
-      ? hasHeartClaudeConfig(await readJsonFile(configLocations.user), repoRoot)
-      : false;
-    const configured = repoConfigured || userConfigured;
-
-    if (!configured) {
-      return null;
-    }
-
-    return {
-      id: "claude-code",
-      display_name: "Claude Code",
-      supports_mcp: true,
-      supports_model_override: false,
-      install_modes: ["repo", "user"],
-      config_locations: configLocations,
-      detected: true,
-      configured: true,
-      discovery_confidence: "high",
-      warnings: [],
-    };
+    // Fall back to allowlisted config evidence only.
   }
+
+  if (!detectedFromCli && !configured) {
+    return null;
+  }
+
+  return {
+    id: "claude-code",
+    display_name: "Claude Code",
+    supports_mcp: true,
+    supports_model_override: false,
+    install_modes: ["repo", "user"],
+    config_locations: configLocations,
+    detected: detectedFromCli || configured,
+    configured,
+    discovery_confidence: "high",
+    warnings: [],
+  };
 }
 
 export async function buildClaudeCodeInstallPlan({
