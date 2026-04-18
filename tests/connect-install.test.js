@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import {
   buildInstallPlan,
   detectConnections,
+  installConnection,
 } from "../packages/connect/src/index.js";
 import { createConnectTestContext } from "./helpers/connect-test-context.js";
 
@@ -128,4 +129,64 @@ test("buildInstallPlan warns when model binding is unsupported for Claude Code",
 
   assert.equal(plan.model_binding, null);
   assert.match(plan.warnings[0], /ignored/i);
+});
+
+test("installConnection writes Cursor repo config", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+
+  const result = await installConnection({
+    client: "cursor",
+    scope: "repo",
+    repoRoot,
+    env,
+    verifyImpl: async () => ({ status: "ready", warnings: [] }),
+  });
+
+  const payload = JSON.parse(
+    await fs.readFile(path.join(repoRoot, ".cursor", "mcp.json"), "utf8"),
+  );
+
+  assert.equal(payload.mcpServers["heart-mcp"].args.includes("--root"), true);
+  assert.equal(result.status, "ready");
+});
+
+test("installConnection shells out to Claude Code CLI", async (t) => {
+  const { repoRoot } = await createConnectTestContext(t);
+  const execFileCalls = [];
+
+  await installConnection({
+    client: "claude-code",
+    scope: "repo",
+    repoRoot: "/tmp/repo",
+    execFileImpl: async (command, args) => {
+      execFileCalls.push({ command, args });
+      return { stdout: "", stderr: "" };
+    },
+    verifyImpl: async () => ({ status: "ready", warnings: [] }),
+  });
+
+  assert.equal(execFileCalls[0].command, "claude");
+  assert.deepEqual(execFileCalls[0].args.slice(0, 2), ["mcp", "add-json"]);
+});
+
+test("installConnection creates a managed Continue config for Ollama only when the user config is absent", async (t) => {
+  const { repoRoot, env, homeRoot } = await createConnectTestContext(t);
+
+  const result = await installConnection({
+    client: "continue",
+    scope: "user",
+    repoRoot,
+    env,
+    model: "ollama",
+    verifyImpl: async () => ({ status: "ready", warnings: [] }),
+  });
+
+  const configText = await fs.readFile(
+    path.join(homeRoot, ".continue", "config.yaml"),
+    "utf8",
+  );
+
+  assert.match(configText, /provider: ollama/);
+  assert.match(configText, /model: qwen3.5-coder:latest/);
+  assert.equal(result.status, "ready");
 });

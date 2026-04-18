@@ -124,6 +124,7 @@ export async function buildCursorInstallPlan({
     client: "cursor",
     scope,
     repo_root: repoRoot,
+    target_file: targetPath,
     mcp_entry: buildHeartMcpEntry(repoRoot),
     model_binding: null,
     files_to_backup: existingTarget ? [targetPath] : [],

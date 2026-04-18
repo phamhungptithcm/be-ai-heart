@@ -126,6 +126,17 @@ export async function buildClaudeCodeInstallPlan({
       "--scope",
       claudeScope,
     ],
+    exec: {
+      command: "claude",
+      args: [
+        "mcp",
+        "add-json",
+        HEART_MCP_ID,
+        JSON.stringify(mcpEntry),
+        "--scope",
+        claudeScope,
+      ],
+    },
     config_locations: resolveClaudeCodeConfigLocations({ repoRoot, env }),
   };
 }

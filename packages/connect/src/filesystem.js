@@ -22,3 +22,13 @@ export async function fileExists(filePath) {
 export async function ensureParentDirectory(filePath) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 }
+
+export async function writeJsonFile(filePath, payload) {
+  await ensureParentDirectory(filePath);
+  await fs.writeFile(filePath, JSON.stringify(payload, null, 2));
+}
+
+export async function writeTextFile(filePath, text) {
+  await ensureParentDirectory(filePath);
+  await fs.writeFile(filePath, text);
+}

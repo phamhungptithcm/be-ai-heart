@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileExists, readJsonFile } from "../filesystem.js";
 
 const HEART_MCP_ID = "heart-mcp";
+const SUPPORTED_MODEL_RUNTIMES = new Set(["ollama", "lm-studio"]);
+const MANAGED_CONTINUE_CONFIG_HEADER = "name: BeHeart Local Config";
 
 function resolveHomeRoot(env = process.env) {
   return env.HOME || env.USERPROFILE || "";
@@ -17,6 +19,11 @@ function resolveContinueConfigLocations({ repoRoot, env = process.env } = {}) {
       ? path.join(homeRoot, ".continue", "mcpServers", `${HEART_MCP_ID}.json`)
       : null,
   };
+}
+
+export function resolveContinueManagedConfigPath(env = process.env) {
+  const homeRoot = resolveHomeRoot(env);
+  return homeRoot ? path.join(homeRoot, ".continue", "config.yaml") : null;
 }
 
 function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
@@ -96,24 +103,44 @@ export async function buildContinueInstallPlan({
   env = process.env,
   modelRuntime = null,
 } = {}) {
+  if (modelRuntime && !SUPPORTED_MODEL_RUNTIMES.has(modelRuntime)) {
+    throw new Error(`Unsupported Continue model runtime: ${modelRuntime}`);
+  }
+
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
   const targetPath =
     scope === "user" ? configLocations.user : configLocations.repo;
   const existingTarget = targetPath ? await fileExists(targetPath) : false;
+  const managedConfigPath = scope === "user" && modelRuntime
+    ? resolveContinueManagedConfigPath(env)
+    : null;
+  const existingManagedConfig = managedConfigPath
+    ? await fileExists(managedConfigPath)
+    : false;
 
   return {
     client: "continue",
     scope,
     repo_root: repoRoot,
+    target_file: targetPath,
+    managed_config_file: managedConfigPath,
     mcp_entry: {
       mcpServers: [buildHeartMcpEntry(repoRoot, modelRuntime)],
     },
     model_binding: modelRuntime,
-    files_to_backup: existingTarget ? [targetPath] : [],
-    files_to_modify: targetPath ? [targetPath] : [],
+    files_to_backup: [
+      ...(existingTarget ? [targetPath] : []),
+      ...(existingManagedConfig ? [managedConfigPath] : []),
+    ],
+    files_to_modify: [
+      ...(targetPath ? [targetPath] : []),
+      ...(managedConfigPath ? [managedConfigPath] : []),
+    ],
     warnings: [
       "Continue planning targets explicit repo or user MCP JSON files only.",
     ],
     actions: ["write-continue-mcp-json"],
   };
 }
+
+export { MANAGED_CONTINUE_CONFIG_HEADER };
