@@ -46,6 +46,8 @@ Become the standard context operating system for AI-assisted software teams:
 - [Document Ingestion Context Layer](./docs/12-document-ingestion-context-layer.md)
 - [Competitive Landscape](./docs/13-competitive-landscape.md)
 - [GitHub Delivery Plan](./docs/14-github-delivery-plan.md)
+- [Product Maturity Map](./docs/15-product-maturity-map.md)
+- [SMB Value Strategy](./docs/16-smb-value-strategy.md)
 
 ## Agent Layer
 

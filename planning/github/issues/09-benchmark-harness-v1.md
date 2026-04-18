@@ -25,12 +25,16 @@ Prove the product with repeatable measurements, not narrative claims.
 - baseline and assisted execution modes
 - scoring output
 - executive summary report format
+- technical breakdown and raw artifact export
+- document-memory scenario coverage
+- blind review workflow where practical
 
 ## Acceptance Criteria
 
 - at least three benchmark scenarios run repeatably
-- token, time, duplication, and quality metrics are captured
+- token, time, duplication, context retention, and quality metrics are captured
 - report output is usable in product demos and pilot reviews
+- raw artifacts are available for verification
 
 ## Dependencies
 

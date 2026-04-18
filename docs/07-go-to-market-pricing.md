@@ -7,6 +7,7 @@
 - AI-native software startups
 - platform engineering teams
 - teams already spending materially on AI coding
+- SMB software companies that want AI leverage without enterprise-scale token waste
 
 ### Expansion
 
@@ -31,6 +32,7 @@ The stronger narrative:
 - reduce duplicate work
 - reduce review cleanup
 - increase trust in AI-generated changes
+- preserve project intent from code and documents
 
 ## Pricing Model
 
@@ -57,6 +59,13 @@ Use:
 Indicative starting point:
 
 - `49-99 USD` per active developer per month
+
+For SMBs, pricing should feel obviously cheaper than the monthly waste from:
+
+- avoidable token burn
+- review cleanup
+- duplicate implementation
+- rework caused by missing requirements or architecture context
 
 ### Enterprise
 
@@ -128,6 +137,7 @@ Pilot success criteria:
 - less repetitive prompting
 - better reuse
 - faster onboarding into unfamiliar code
+- easier access to requirements and design intent while coding with AI
 
 ### Tech Lead
 
@@ -140,6 +150,7 @@ Pilot success criteria:
 - measurable productivity and cost gains
 - safer adoption
 - better team consistency
+- better economics for adopting AI without uncontrolled spend
 
 ### CTO / VP Engineering
 

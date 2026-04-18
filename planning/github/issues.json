@@ -94,5 +94,35 @@
     "labels": ["type:feature", "type:docs", "priority:p1", "track:enterprise"],
     "milestone": "M4 Enterprise Readiness",
     "path": "planning/github/issues/16-billing-crm-integration.md"
+  },
+  {
+    "title": "Link code, documents, domains, and architecture decisions into a unified heart model",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/17-entity-linking-v1.md"
+  },
+  {
+    "title": "Implement a practical policy DSL for module boundaries, reuse paths, and sensitive paths",
+    "labels": ["type:feature", "type:security", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/18-policy-dsl-v1.md"
+  },
+  {
+    "title": "Add context quality scoring and missing-context warnings to every context pack",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/19-context-quality-score.md"
+  },
+  {
+    "title": "Expand project-memory ingest to pdf, docx, ADRs, and ticket/spec exports",
+    "labels": ["type:feature", "type:docs", "priority:p1", "track:heart-core"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/20-document-extraction-expansion.md"
+  },
+  {
+    "title": "Implement true incremental indexing for code and project documents",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/21-incremental-indexing-v1.md"
   }
 ]

@@ -22,13 +22,16 @@ Produce context packs that reflect both implementation reality and documented in
 ## Scope
 
 - ranking inputs across code and document memory
+- context quality score output
 - compact context output schema
 - uncertainty and risk signaling
 - token-budget-aware packing
+- missing-context warnings
 
 ## Acceptance Criteria
 
 - context packs include relevant files, symbols, and document references
+- context packs include explicit quality signals for relevance, reuse confidence, architecture confidence, and missing-context warnings
 - ranking logic is test-covered
 - pack output remains compact and deterministic enough for agent tooling
 

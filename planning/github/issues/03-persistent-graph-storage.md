@@ -24,9 +24,11 @@ Persist graph and document-index outputs instead of rebuilding everything in-mem
 
 - storage adapter selection
 - graph snapshot persistence
+- document index persistence
 - scan metadata persistence
 - retrieval read path
 - local development mode
+- schema versioning for future linked entities
 
 ## Acceptance Criteria
 

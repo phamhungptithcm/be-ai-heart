@@ -10,6 +10,7 @@ The benchmark should answer:
 - Does it reuse existing code more often
 - Does it produce cleaner, more architecture-compliant changes
 - Does it reduce human cleanup time
+- Does it preserve project intent from requirements and design documents
 
 ## Core Hypotheses
 
@@ -47,6 +48,7 @@ Inputs:
 - Refactor duplicated logic
 - Add endpoint or service with architecture constraints
 - Update test coverage around a change
+- Implement a change that requires reading requirements or system-design context
 
 ## Measurement Dimensions
 
@@ -77,7 +79,13 @@ Inputs:
 - number of review corrections
 - tests passing or required follow-up
 
-### 5. Business Impact
+### 5. Context Retention
+
+- ability to continue a long-running task without repeated re-explanation
+- document memory successfully reused across repeated sessions
+- missing-context warnings raised when required documents are absent
+
+### 6. Business Impact
 
 - estimated token cost savings
 - estimated engineering review time saved
@@ -87,10 +95,11 @@ Inputs:
 
 Suggested weighted score:
 
-- `30%` context efficiency
-- `25%` code reuse quality
-- `25%` architecture quality
+- `25%` context efficiency
+- `20%` code reuse quality
+- `20%` architecture quality
 - `20%` delivery outcome
+- `15%` context retention and documented-intent alignment
 
 ## Example Formulas
 
@@ -134,6 +143,7 @@ Each scenario should define:
 - expected architectural boundaries
 - evaluation rubric
 - expected reuse targets
+- expected document references where relevant
 
 ### Runner Responsibilities
 
@@ -148,8 +158,9 @@ Each scenario should define:
 2. Run assisted task
 3. Diff outputs
 4. Run policy and duplication checks
-5. Score both runs
-6. Generate a report
+5. Run document-intent alignment checks where relevant
+6. Score both runs
+7. Generate a report
 
 ## Report Format
 
@@ -159,6 +170,7 @@ Executive summary:
 - cost reduction
 - architecture score delta
 - reuse improvement
+- context retention and document-intent alignment summary
 
 Engineering detail:
 
@@ -166,6 +178,16 @@ Engineering detail:
 - failed retrievals
 - false positives
 - recommendations
+- raw artifacts and scoring evidence
+
+## Review Method
+
+For the strongest benchmark, use blind review where practical:
+
+- reviewers should evaluate output quality without being told whether it is baseline or heart-assisted
+- review criteria should focus on correctness, reuse, architecture fit, and intent alignment
+
+This matters because a benchmark that only measures token reduction is not persuasive enough.
 
 ## How To Use in Sales
 
