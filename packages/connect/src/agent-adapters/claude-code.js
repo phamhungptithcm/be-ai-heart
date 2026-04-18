@@ -10,15 +10,21 @@ function resolveClaudeCodeConfigLocations({ repoRoot, env = process.env } = {}) 
   const homeRoot = resolveHomeRoot(env);
 
   return {
-    repo: path.join(repoRoot, ".claude", "mcp.json"),
-    user: homeRoot ? path.join(homeRoot, ".claude", "mcp.json") : null,
+    repo: path.join(repoRoot, ".mcp.json"),
+    user: homeRoot ? path.join(homeRoot, ".claude.json") : null,
   };
 }
 
 function buildHeartMcpEntry(repoRoot) {
   return {
     command: "node",
-    args: ["./bin/heart.js", "mcp", "serve", "--root", repoRoot],
+    args: [
+      path.resolve(repoRoot, "packages/cli/bin/heart.js"),
+      "mcp",
+      "serve",
+      "--root",
+      repoRoot,
+    ],
   };
 }
 
@@ -51,8 +57,17 @@ export async function buildClaudeCodeInstallPlan({
   repoRoot,
   scope,
   env = process.env,
+  modelRuntime = null,
 } = {}) {
   const mcpEntry = buildHeartMcpEntry(repoRoot);
+  const warnings = [];
+  const claudeScope = scope === "repo" ? "project" : "user";
+
+  if (modelRuntime) {
+    warnings.push(
+      `Model binding '${modelRuntime}' was ignored for claude-code because this client does not support model override.`,
+    );
+  }
 
   return {
     client: "claude-code",
@@ -62,7 +77,7 @@ export async function buildClaudeCodeInstallPlan({
     model_binding: null,
     files_to_backup: [],
     files_to_modify: [],
-    warnings: [],
+    warnings,
     actions: ["run-claude-mcp-add-json"],
     command: "claude",
     args: [
@@ -71,7 +86,7 @@ export async function buildClaudeCodeInstallPlan({
       HEART_MCP_ID,
       JSON.stringify(mcpEntry),
       "--scope",
-      scope,
+      claudeScope,
     ],
     config_locations: resolveClaudeCodeConfigLocations({ repoRoot, env }),
   };

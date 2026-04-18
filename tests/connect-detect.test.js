@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import fs from "node:fs/promises";
 
 import { detectConnections } from "../packages/connect/src/index.js";
+import { createConnectTestContext } from "./helpers/connect-test-context.js";
 
 function jsonResponse(payload, ok = true) {
   return {
@@ -143,4 +146,54 @@ test("detectConnections includes LM Studio when the OpenAI-compatible endpoint r
   assert.deepEqual(result.models[0].models_detected, [
     "qwen2.5-coder-7b-instruct",
   ]);
+});
+
+test("detectConnections does not count Cursor config for another repo as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(
+    cursorConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", "/tmp/other-repo"],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "", stderr: "" }),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.configured, false);
+});
+
+test("detectConnections does not count malformed Continue config as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(
+    repoRoot,
+    ".continue",
+    "mcpServers",
+    "heart-mcp.json",
+  );
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(continueConfigPath, "{not-json");
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "", stderr: "" }),
+  });
+
+  const continueAgent = result.agents.find((agent) => agent.id === "continue");
+  assert.equal(continueAgent.configured, false);
 });

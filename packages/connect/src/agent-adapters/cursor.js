@@ -20,13 +20,29 @@ function resolveCursorConfigLocations({ repoRoot, env = process.env } = {}) {
 function buildHeartMcpEntry(repoRoot) {
   return {
     command: "node",
-    args: ["./bin/heart.js", "mcp", "serve", "--root", repoRoot],
+    args: [
+      path.resolve(repoRoot, "packages/cli/bin/heart.js"),
+      "mcp",
+      "serve",
+      "--root",
+      repoRoot,
+    ],
   };
 }
 
 function hasHeartCursorConfig(payload, repoRoot) {
-  void repoRoot;
-  return Boolean(payload?.mcpServers?.[HEART_MCP_ID]);
+  const entry = payload?.mcpServers?.[HEART_MCP_ID];
+  if (!entry) {
+    return false;
+  }
+
+  const args = Array.isArray(entry.args) ? entry.args : [];
+  const rootFlagIndex = args.lastIndexOf("--root");
+  if (rootFlagIndex === -1) {
+    return true;
+  }
+
+  return args[rootFlagIndex + 1] === repoRoot;
 }
 
 async function configEvidence({ repoRoot, configLocations }) {
@@ -84,11 +100,19 @@ export async function buildCursorInstallPlan({
   repoRoot,
   scope,
   env = process.env,
+  modelRuntime = null,
 } = {}) {
   const configLocations = resolveCursorConfigLocations({ repoRoot, env });
   const targetPath =
     scope === "user" ? configLocations.user : configLocations.repo;
   const existingTarget = targetPath ? await fileExists(targetPath) : false;
+  const warnings = [];
+
+  if (modelRuntime) {
+    warnings.push(
+      `Model binding '${modelRuntime}' was ignored for cursor because this client does not support model override.`,
+    );
+  }
 
   return {
     client: "cursor",
@@ -98,7 +122,7 @@ export async function buildCursorInstallPlan({
     model_binding: null,
     files_to_backup: existingTarget ? [targetPath] : [],
     files_to_modify: targetPath ? [targetPath] : [],
-    warnings: [],
+    warnings,
     actions: ["write-mcp-json"],
   };
 }

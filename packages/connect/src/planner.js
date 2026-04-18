@@ -10,11 +10,11 @@ export async function buildInstallPlan({
   modelRuntime = null,
 } = {}) {
   if (client === "cursor") {
-    return buildCursorInstallPlan({ repoRoot, scope, env });
+    return buildCursorInstallPlan({ repoRoot, scope, env, modelRuntime });
   }
 
   if (client === "claude-code") {
-    return buildClaudeCodeInstallPlan({ repoRoot, scope, env });
+    return buildClaudeCodeInstallPlan({ repoRoot, scope, env, modelRuntime });
   }
 
   if (client === "continue") {

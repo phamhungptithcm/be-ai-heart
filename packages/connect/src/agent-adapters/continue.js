@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { fileExists } from "../filesystem.js";
+import { fileExists, readJsonFile } from "../filesystem.js";
 
 const HEART_MCP_ID = "heart-mcp";
 
@@ -23,9 +23,29 @@ function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
   return {
     name: HEART_MCP_ID,
     command: "node",
-    args: ["./bin/heart.js", "mcp", "serve", "--root", repoRoot],
+    args: [
+      path.resolve(repoRoot, "packages/cli/bin/heart.js"),
+      "mcp",
+      "serve",
+      "--root",
+      repoRoot,
+    ],
     ...(modelRuntime ? { modelRuntime } : {}),
   };
+}
+
+function hasValidHeartContinueConfig(payload) {
+  const entries = payload?.mcpServers;
+  if (!Array.isArray(entries)) {
+    return false;
+  }
+
+  return entries.some(
+    (entry) =>
+      entry?.name === HEART_MCP_ID &&
+      typeof entry.command === "string" &&
+      Array.isArray(entry.args),
+  );
 }
 
 export async function detectContinue({
@@ -33,9 +53,11 @@ export async function detectContinue({
   env = process.env,
 } = {}) {
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
-  const repoConfigured = await fileExists(configLocations.repo);
+  const repoConfigured = hasValidHeartContinueConfig(
+    await readJsonFile(configLocations.repo),
+  );
   const userConfigured = configLocations.user
-    ? await fileExists(configLocations.user)
+    ? hasValidHeartContinueConfig(await readJsonFile(configLocations.user))
     : false;
   const configured = repoConfigured || userConfigured;
 
