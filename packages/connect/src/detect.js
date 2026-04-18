@@ -5,6 +5,12 @@ import { detectCursor } from "./agent-adapters/cursor.js";
 import { detectLmStudio } from "./model-adapters/lm-studio.js";
 import { detectOllama } from "./model-adapters/ollama.js";
 
+function missingExecFile() {
+  const error = new Error("Command not found");
+  error.code = "ENOENT";
+  throw error;
+}
+
 function normalizeDetectionList(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -19,7 +25,7 @@ async function detectModels({ fetchImpl = globalThis.fetch } = {}) {
 export async function detectAgents({
   repoRoot,
   env = process.env,
-  execFileImpl = async () => ({ stdout: "", stderr: "" }),
+  execFileImpl = missingExecFile,
 } = {}) {
   return [
     await detectCursor({ repoRoot, env, execFileImpl }),
@@ -32,7 +38,7 @@ export async function detectConnections({
   repoRoot,
   env = process.env,
   fetchImpl = globalThis.fetch,
-  execFileImpl = async () => ({ stdout: "", stderr: "" }),
+  execFileImpl = missingExecFile,
   detectAgentsImpl = detectAgents,
   detectModelsImpl,
 } = {}) {

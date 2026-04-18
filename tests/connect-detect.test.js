@@ -148,6 +148,22 @@ test("detectConnections includes LM Studio when the OpenAI-compatible endpoint r
   ]);
 });
 
+test("detectConnections does not report Cursor or Claude Code as detected when CLI probing is unavailable and no config exists", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+
+  assert.equal(cursor.detected, false);
+  assert.equal(claudeCode, undefined);
+});
+
 test("detectConnections does not count Cursor config for another repo as configured", async (t) => {
   const { repoRoot, env } = await createConnectTestContext(t);
   const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");

@@ -4,6 +4,12 @@ import { fileExists, readJsonFile } from "../filesystem.js";
 
 const HEART_MCP_ID = "heart-mcp";
 
+function missingExecFile() {
+  const error = new Error("Command not found");
+  error.code = "ENOENT";
+  throw error;
+}
+
 function resolveHomeRoot(env = process.env) {
   return env.HOME || env.USERPROFILE || "";
 }
@@ -60,7 +66,7 @@ async function configEvidence({ repoRoot, configLocations }) {
 export async function detectCursor({
   repoRoot,
   env = process.env,
-  execFileImpl = async () => ({ stdout: "", stderr: "" }),
+  execFileImpl = missingExecFile,
 } = {}) {
   const configLocations = resolveCursorConfigLocations({ repoRoot, env });
   let detected = false;

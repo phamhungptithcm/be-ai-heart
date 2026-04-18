@@ -2,6 +2,12 @@ import path from "node:path";
 
 const HEART_MCP_ID = "heart-mcp";
 
+function missingExecFile() {
+  const error = new Error("Command not found");
+  error.code = "ENOENT";
+  throw error;
+}
+
 function resolveHomeRoot(env = process.env) {
   return env.HOME || env.USERPROFILE || "";
 }
@@ -31,7 +37,7 @@ function buildHeartMcpEntry(repoRoot) {
 export async function detectClaudeCode({
   repoRoot,
   env = process.env,
-  execFileImpl = async () => ({ stdout: "", stderr: "" }),
+  execFileImpl = missingExecFile,
 } = {}) {
   try {
     await execFileImpl("claude", ["mcp", "list"]);
