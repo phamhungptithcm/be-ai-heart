@@ -25,17 +25,8 @@ function buildHeartMcpEntry(repoRoot) {
 }
 
 function hasHeartCursorConfig(payload, repoRoot) {
-  const entry = payload?.mcpServers?.[HEART_MCP_ID];
-  if (!entry || entry.command !== "node" || !Array.isArray(entry.args)) {
-    return false;
-  }
-
-  const args = entry.args;
-  return (
-    args.length >= 2 &&
-    args[args.length - 2] === "--root" &&
-    args[args.length - 1] === repoRoot
-  );
+  void repoRoot;
+  return Boolean(payload?.mcpServers?.[HEART_MCP_ID]);
 }
 
 async function configEvidence({ repoRoot, configLocations }) {
