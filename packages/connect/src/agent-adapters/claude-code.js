@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { readJsonFile } from "../filesystem.js";
+
 const HEART_MCP_ID = "heart-mcp";
 
 function missingExecFile() {
@@ -34,29 +36,68 @@ function buildHeartMcpEntry(repoRoot) {
   };
 }
 
+function hasHeartClaudeConfig(payload, repoRoot) {
+  const entry = payload?.mcpServers?.[HEART_MCP_ID];
+  if (!entry || typeof entry.command !== "string" || !Array.isArray(entry.args)) {
+    return false;
+  }
+
+  const rootFlagIndex = entry.args.lastIndexOf("--root");
+  if (rootFlagIndex === -1) {
+    return false;
+  }
+
+  return entry.args[rootFlagIndex + 1] === repoRoot;
+}
+
 export async function detectClaudeCode({
   repoRoot,
   env = process.env,
   execFileImpl = missingExecFile,
 } = {}) {
+  const configLocations = resolveClaudeCodeConfigLocations({ repoRoot, env });
+
   try {
     await execFileImpl("claude", ["mcp", "list"]);
+    return {
+      id: "claude-code",
+      display_name: "Claude Code",
+      supports_mcp: true,
+      supports_model_override: false,
+      install_modes: ["repo", "user"],
+      config_locations: configLocations,
+      detected: true,
+      configured: false,
+      discovery_confidence: "high",
+      warnings: [],
+    };
   } catch {
-    return null;
-  }
+    const repoConfigured = hasHeartClaudeConfig(
+      await readJsonFile(configLocations.repo),
+      repoRoot,
+    );
+    const userConfigured = configLocations.user
+      ? hasHeartClaudeConfig(await readJsonFile(configLocations.user), repoRoot)
+      : false;
+    const configured = repoConfigured || userConfigured;
 
-  return {
-    id: "claude-code",
-    display_name: "Claude Code",
-    supports_mcp: true,
-    supports_model_override: false,
-    install_modes: ["repo", "user"],
-    config_locations: resolveClaudeCodeConfigLocations({ repoRoot, env }),
-    detected: true,
-    configured: false,
-    discovery_confidence: "high",
-    warnings: [],
-  };
+    if (!configured) {
+      return null;
+    }
+
+    return {
+      id: "claude-code",
+      display_name: "Claude Code",
+      supports_mcp: true,
+      supports_model_override: false,
+      install_modes: ["repo", "user"],
+      config_locations: configLocations,
+      detected: true,
+      configured: true,
+      discovery_confidence: "high",
+      warnings: [],
+    };
+  }
 }
 
 export async function buildClaudeCodeInstallPlan({

@@ -45,7 +45,7 @@ function hasHeartCursorConfig(payload, repoRoot) {
   const args = Array.isArray(entry.args) ? entry.args : [];
   const rootFlagIndex = args.lastIndexOf("--root");
   if (rootFlagIndex === -1) {
-    return true;
+    return false;
   }
 
   return args[rootFlagIndex + 1] === repoRoot;
@@ -70,13 +70,13 @@ export async function detectCursor({
 } = {}) {
   const configLocations = resolveCursorConfigLocations({ repoRoot, env });
   let detected = false;
-  let configuredFromCli = false;
+  let detectedFromCli = false;
 
   try {
     const result = await execFileImpl("cursor-agent", ["mcp", "list"]);
     const stdout = typeof result?.stdout === "string" ? result.stdout : "";
     detected = true;
-    configuredFromCli = stdout.includes(HEART_MCP_ID);
+    detectedFromCli = stdout.includes(HEART_MCP_ID);
   } catch {
     // Fall back to explicit config-file evidence only.
   }
@@ -85,8 +85,8 @@ export async function detectCursor({
     repoRoot,
     configLocations,
   });
-  const configured = configuredFromCli || repoConfigured || userConfigured;
-  detected = detected || configured;
+  const configured = repoConfigured || userConfigured;
+  detected = detected || detectedFromCli || configured;
 
   return {
     id: "cursor",

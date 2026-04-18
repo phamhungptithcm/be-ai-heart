@@ -191,6 +191,53 @@ test("detectConnections does not count Cursor config for another repo as configu
   assert.equal(cursor.configured, false);
 });
 
+test("detectConnections does not count Cursor CLI output alone as configured for this repo", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "heart-mcp\n", stderr: "" }),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.detected, true);
+  assert.equal(cursor.configured, false);
+});
+
+test("detectConnections does not count Cursor config without repo affinity as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(
+    cursorConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve"],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.configured, false);
+});
+
 test("detectConnections does not count malformed Continue config as configured", async (t) => {
   const { repoRoot, env } = await createConnectTestContext(t);
   const continueConfigPath = path.join(
@@ -212,4 +259,74 @@ test("detectConnections does not count malformed Continue config as configured",
 
   const continueAgent = result.agents.find((agent) => agent.id === "continue");
   assert.equal(continueAgent.configured, false);
+});
+
+test("detectConnections does not count Continue config for another repo as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(
+    repoRoot,
+    ".continue",
+    "mcpServers",
+    "heart-mcp.json",
+  );
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(
+    continueConfigPath,
+    JSON.stringify({
+      mcpServers: [
+        {
+          name: "heart-mcp",
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", "/tmp/other-repo"],
+        },
+      ],
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const continueAgent = result.agents.find((agent) => agent.id === "continue");
+  assert.equal(continueAgent.configured, false);
+});
+
+test("detectConnections detects Claude Code from config file evidence when CLI probing fails", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const claudeConfigPath = path.join(repoRoot, ".mcp.json");
+
+  await fs.writeFile(
+    claudeConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", repoRoot],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+  assert.equal(claudeCode.detected, true);
+  assert.equal(claudeCode.configured, true);
 });

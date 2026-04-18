@@ -34,17 +34,29 @@ function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
   };
 }
 
-function hasValidHeartContinueConfig(payload) {
+function hasValidHeartContinueConfig(payload, repoRoot) {
   const entries = payload?.mcpServers;
   if (!Array.isArray(entries)) {
     return false;
   }
 
   return entries.some(
-    (entry) =>
-      entry?.name === HEART_MCP_ID &&
-      typeof entry.command === "string" &&
-      Array.isArray(entry.args),
+    (entry) => {
+      if (
+        entry?.name !== HEART_MCP_ID ||
+        typeof entry.command !== "string" ||
+        !Array.isArray(entry.args)
+      ) {
+        return false;
+      }
+
+      const rootFlagIndex = entry.args.lastIndexOf("--root");
+      if (rootFlagIndex === -1) {
+        return false;
+      }
+
+      return entry.args[rootFlagIndex + 1] === repoRoot;
+    },
   );
 }
 
@@ -55,9 +67,10 @@ export async function detectContinue({
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
   const repoConfigured = hasValidHeartContinueConfig(
     await readJsonFile(configLocations.repo),
+    repoRoot,
   );
   const userConfigured = configLocations.user
-    ? hasValidHeartContinueConfig(await readJsonFile(configLocations.user))
+    ? hasValidHeartContinueConfig(await readJsonFile(configLocations.user), repoRoot)
     : false;
   const configured = repoConfigured || userConfigured;
 
