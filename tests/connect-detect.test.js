@@ -84,6 +84,39 @@ test("detectConnections includes Ollama models and running status", async () => 
   ]);
 });
 
+test("detectConnections keeps Ollama running when ps probing fails", async () => {
+  const fetchImpl = async (url) => {
+    if (url === "http://127.0.0.1:11434/api/tags") {
+      return jsonResponse({
+        models: [
+          {
+            name: "qwen3.5-coder:latest",
+            model: "qwen3.5-coder:latest",
+          },
+        ],
+      });
+    }
+
+    if (url === "http://127.0.0.1:11434/api/ps") {
+      throw new Error("ps unavailable");
+    }
+
+    throw new Error(`unexpected url: ${url}`);
+  };
+
+  const result = await detectConnections({
+    repoRoot: "/tmp/demo-repo",
+    fetchImpl,
+    detectAgentsImpl: async () => [],
+  });
+
+  assert.equal(result.models[0].id, "ollama");
+  assert.equal(result.models[0].running, true);
+  assert.deepEqual(result.models[0].models_detected, [
+    "qwen3.5-coder:latest",
+  ]);
+});
+
 test("detectConnections includes LM Studio when the OpenAI-compatible endpoint responds", async () => {
   const fetchImpl = async (url) => {
     if (url === "http://127.0.0.1:11434/api/tags") {

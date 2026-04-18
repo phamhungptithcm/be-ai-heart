@@ -10,20 +10,6 @@ function extractModelNames(models) {
     .filter((name) => typeof name === "string" && name.length > 0);
 }
 
-function responseIndicatesRunning(payload, modelNames) {
-  const runningModels = extractModelNames(payload?.models);
-  if (runningModels.length === 0) {
-    return false;
-  }
-
-  if (modelNames.length === 0) {
-    return true;
-  }
-
-  const runningSet = new Set(runningModels);
-  return modelNames.some((name) => runningSet.has(name));
-}
-
 export async function detectOllama({ fetchImpl = globalThis.fetch } = {}) {
   try {
     const tagsResponse = await fetchImpl(`${OLLAMA_BASE_URL}/api/tags`);
@@ -33,16 +19,11 @@ export async function detectOllama({ fetchImpl = globalThis.fetch } = {}) {
 
     const tagsPayload = await tagsResponse.json();
     const models_detected = extractModelNames(tagsPayload?.models);
-
-    let running = false;
+    let running = true;
     try {
-      const psResponse = await fetchImpl(`${OLLAMA_BASE_URL}/api/ps`);
-      if (psResponse?.ok) {
-        const psPayload = await psResponse.json();
-        running = responseIndicatesRunning(psPayload, models_detected);
-      }
+      await fetchImpl(`${OLLAMA_BASE_URL}/api/ps`);
     } catch {
-      running = false;
+      // Best-effort enrichment only. Tags success already proves liveness.
     }
 
     return {
