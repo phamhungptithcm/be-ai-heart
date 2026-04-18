@@ -1,0 +1,7 @@
+rules:
+  - id: packages-no-app-imports
+    description: packages must not import app-layer code
+  - id: services-no-app-imports
+    description: services must not import app-layer code
+  - id: redact-secrets-from-context
+    description: do not include secrets or credentials in context artifacts

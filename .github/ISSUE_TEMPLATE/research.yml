@@ -1,0 +1,23 @@
+name: Research
+description: Capture open research questions, validation work, or technical investigation.
+title: "[Research] "
+labels:
+  - type:research
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Research Question
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected Output
+      description: Decision memo, benchmark, recommendation, etc.
+    validations:
+      required: true

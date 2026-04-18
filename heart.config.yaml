@@ -1,0 +1,30 @@
+project:
+  name: be-ai-heart
+  language_priority:
+    - typescript
+    - javascript
+  entrypoints:
+    - packages
+    - apps
+    - services
+  ignore:
+    - node_modules
+    - dist
+    - coverage
+    - .git
+policies:
+  rules_file: .heart/policies.yaml
+indexing:
+  incremental: true
+  embeddings: disabled
+knowledge:
+  document_paths:
+    - docs
+mcp:
+  enabled_tools:
+    - project_overview
+    - symbol_lookup
+    - context_pack
+    - impact_analysis
+    - document_search
+    - policy_check

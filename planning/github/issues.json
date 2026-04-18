@@ -1,0 +1,98 @@
+[
+  {
+    "title": "Epic: Heart Core MVP for code and document memory",
+    "labels": ["type:epic", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/01-epic-heart-core-mvp.md"
+  },
+  {
+    "title": "Migrate the runtime scaffold from JavaScript to TypeScript",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/02-typescript-migration.md"
+  },
+  {
+    "title": "Implement persistent graph storage for scans, diffs, and retrieval",
+    "labels": ["type:feature", "type:backend", "type:infra", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/03-persistent-graph-storage.md"
+  },
+  {
+    "title": "Expand document ingestion into a first-class heart capability",
+    "labels": ["type:feature", "type:docs", "priority:p0", "track:heart-core"],
+    "milestone": "M1 Heart Core MVP",
+    "path": "planning/github/issues/04-document-ingestion.md"
+  },
+  {
+    "title": "Upgrade context compilation to combine code, documents, and policy signals",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/05-context-compiler-doc-aware.md"
+  },
+  {
+    "title": "Implement production-grade CLI commands for scan, find, deps, impact, and docs search",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/06-cli-scan-inspect.md"
+  },
+  {
+    "title": "Add deep contract and fixture tests for symbol_lookup and impact_analysis",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/07-contract-tests-symbol-impact.md"
+  },
+  {
+    "title": "Harden heart-mcp for reliable agent integration",
+    "labels": ["type:feature", "type:backend", "type:security", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/08-mcp-hardening.md"
+  },
+  {
+    "title": "Build the benchmark harness for baseline vs heart-assisted workflows",
+    "labels": ["type:feature", "type:research", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/09-benchmark-harness-v1.md"
+  },
+  {
+    "title": "Define and implement security controls for heart memory, MCP, and project documents",
+    "labels": ["type:security", "priority:p0", "track:enterprise"],
+    "milestone": "M4 Enterprise Readiness",
+    "path": "planning/github/issues/10-security-hardening.md"
+  },
+  {
+    "title": "Build the marketing website and docs shell in React/Next.js",
+    "labels": ["type:feature", "type:frontend", "priority:p1", "track:product-surface"],
+    "milestone": "M3 Product Surfaces",
+    "path": "planning/github/issues/11-website-nextjs.md"
+  },
+  {
+    "title": "Build the admin and customer-workspace skeleton in React/Next.js",
+    "labels": ["type:feature", "type:frontend", "priority:p1", "track:product-surface"],
+    "milestone": "M3 Product Surfaces",
+    "path": "planning/github/issues/12-admin-nextjs.md"
+  },
+  {
+    "title": "Finalize positioning, messaging, and pilot asset pack",
+    "labels": ["type:feature", "type:docs", "priority:p0", "track:product-surface"],
+    "milestone": "M0 Foundation",
+    "path": "planning/github/issues/13-positioning-and-gtm.md"
+  },
+  {
+    "title": "Design the first hosted deployment baseline on Google Cloud",
+    "labels": ["type:infra", "priority:p1", "track:enterprise"],
+    "milestone": "M4 Enterprise Readiness",
+    "path": "planning/github/issues/14-gcp-baseline.md"
+  },
+  {
+    "title": "Design the team workspace domain for repositories, members, policies, and benchmarks",
+    "labels": ["type:feature", "type:backend", "priority:p1", "track:enterprise"],
+    "milestone": "M4 Enterprise Readiness",
+    "path": "planning/github/issues/15-team-workspace-domain.md"
+  },
+  {
+    "title": "Plan billing, licensing, and CRM integration without overbuilding the back office",
+    "labels": ["type:feature", "type:docs", "priority:p1", "track:enterprise"],
+    "milestone": "M4 Enterprise Readiness",
+    "path": "planning/github/issues/16-billing-crm-integration.md"
+  }
+]
