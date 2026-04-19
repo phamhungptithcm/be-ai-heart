@@ -276,7 +276,7 @@ async function handleConnectInstall(flags, io) {
     }
 
     writeOutput(result, flags.json, io);
-    return 0;
+    return connectVerificationExitCode(result);
   } catch (error) {
     io.stderr.write(`Connect install failed: ${formatConnectInstallError(error)}\n`);
     return 1;
@@ -320,7 +320,7 @@ async function handleConnectVerify(flags, io) {
   });
 
   writeOutput(result, flags.json, io);
-  return 0;
+  return connectVerificationExitCode(result);
 }
 
 async function handleConnectDoctor(flags, io) {
@@ -515,6 +515,10 @@ function validateConnectScope(scope) {
   }
 
   return null;
+}
+
+function connectVerificationExitCode(result) {
+  return result?.status === "failed" ? 1 : 0;
 }
 
 function formatConnectClientError(error, client) {

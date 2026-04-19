@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { readJsonFile } from "../filesystem.js";
+import { resolveHeartCliPath } from "../heart-cli-path.js";
 
 const HEART_MCP_ID = "heart-mcp";
 
@@ -27,7 +28,7 @@ function buildHeartMcpEntry(repoRoot) {
   return {
     command: "node",
     args: [
-      path.resolve(repoRoot, "packages/cli/bin/heart.js"),
+      resolveHeartCliPath(),
       "mcp",
       "serve",
       "--root",

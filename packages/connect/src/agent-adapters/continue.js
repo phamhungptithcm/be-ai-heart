@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 import { fileExists, readJsonFile } from "../filesystem.js";
+import { resolveHeartCliPath } from "../heart-cli-path.js";
 
 const HEART_MCP_ID = "heart-mcp";
 const SUPPORTED_MODEL_RUNTIMES = new Set(["ollama", "lm-studio"]);
@@ -117,7 +118,7 @@ function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
     name: HEART_MCP_ID,
     command: "node",
     args: [
-      path.resolve(repoRoot, "packages/cli/bin/heart.js"),
+      resolveHeartCliPath(),
       "mcp",
       "serve",
       "--root",

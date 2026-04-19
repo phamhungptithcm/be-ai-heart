@@ -10,6 +10,8 @@ import {
 } from "../packages/connect/src/index.js";
 import { createConnectTestContext } from "./helpers/connect-test-context.js";
 
+const workspaceCliPath = path.resolve("packages/cli/bin/heart.js");
+
 test("detectConnections marks Cursor as configured when .cursor/mcp.json contains heart-mcp", async (t) => {
   const { repoRoot, env } = await createConnectTestContext(t);
   const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
@@ -67,21 +69,41 @@ test("buildInstallPlan returns a Continue repo-scope file plan", async (t) => {
   );
 });
 
-test("buildInstallPlan uses an absolute CLI path in generated MCP entries", async (t) => {
+test("buildInstallPlan points generated MCP entries at the current workspace CLI", async (t) => {
   const { repoRoot, env } = await createConnectTestContext(t);
+  const expectedRepoCliPath = path.resolve(repoRoot, "packages/cli/bin/heart.js");
+  const plans = await Promise.all([
+    buildInstallPlan({
+      client: "cursor",
+      scope: "repo",
+      repoRoot,
+      env,
+    }),
+    buildInstallPlan({
+      client: "claude-code",
+      scope: "repo",
+      repoRoot,
+      env,
+    }),
+    buildInstallPlan({
+      client: "continue",
+      scope: "repo",
+      repoRoot,
+      env,
+    }),
+  ]);
 
-  const cursorPlan = await buildInstallPlan({
-    client: "cursor",
-    scope: "repo",
-    repoRoot,
-    env,
-  });
+  const cliArgs = [
+    plans[0].mcp_entry.args,
+    plans[1].mcp_entry.args,
+    plans[2].mcp_entry.mcpServers[0].args,
+  ];
 
-  assert.equal(path.isAbsolute(cursorPlan.mcp_entry.args[0]), true);
-  assert.equal(
-    cursorPlan.mcp_entry.args[0],
-    path.resolve(repoRoot, "packages/cli/bin/heart.js"),
-  );
+  for (const args of cliArgs) {
+    assert.equal(path.isAbsolute(args[0]), true);
+    assert.equal(args[0], workspaceCliPath);
+    assert.notEqual(args[0], expectedRepoCliPath);
+  }
 });
 
 test("buildInstallPlan maps Claude Code repo scope to project scope and correct config locations", async (t) => {

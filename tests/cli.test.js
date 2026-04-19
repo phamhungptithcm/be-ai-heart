@@ -9,24 +9,15 @@ const cliPath = path.resolve("packages/cli/bin/heart.js");
 const fixtureRoot = path.resolve("tests/fixtures/sample-repo");
 
 async function createCliConnectRepo(t) {
-  const { repoRoot } = await createConnectTestContext(t);
+  const context = await createConnectTestContext(t);
+  const { repoRoot } = context;
   await fs.cp(fixtureRoot, repoRoot, { recursive: true });
-  return { repoRoot };
+  return context;
 }
 
-async function createCliConnectInstallRepo(t) {
-  const { repoRoot } = await createConnectTestContext(t);
-  const workspaceRoot = path.resolve(".");
-
-  await fs.cp(fixtureRoot, repoRoot, { recursive: true });
-  await fs.symlink(path.join(workspaceRoot, "packages"), path.join(repoRoot, "packages"), "dir");
-
-  return { repoRoot };
-}
-
-function runCliExpectFailure(args) {
+function runCliExpectFailure(args, options = {}) {
   try {
-    execFileSync("node", args, { encoding: "utf8" });
+    execFileSync("node", args, { encoding: "utf8", ...options });
     assert.fail("expected command to fail");
   } catch (error) {
     return error;
@@ -117,6 +108,7 @@ test("CLI connect install dry-run returns a plan", async (t) => {
   assert.equal(result.plan.repo_root, repoRoot);
   assert.equal(result.plan.files_to_modify[0], targetPath);
   assert.equal(result.plan.mcp_entry.mcpServers[0].name, "heart-mcp");
+  assert.equal(result.plan.mcp_entry.mcpServers[0].args[0], cliPath);
   await assert.rejects(fs.stat(targetPath));
 });
 
@@ -205,7 +197,7 @@ test("CLI connect verify reports unsupported clients as a CLI error", async (t) 
 });
 
 test("CLI connect install creates backups when requested", async (t) => {
-  const { repoRoot } = await createCliConnectInstallRepo(t);
+  const { repoRoot } = await createCliConnectRepo(t);
   const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
   const originalConfig = JSON.stringify(
     {
@@ -253,7 +245,7 @@ test("CLI connect install creates backups when requested", async (t) => {
 });
 
 test("CLI connect install reports backup failures without a stack trace", async (t) => {
-  const { repoRoot } = await createCliConnectInstallRepo(t);
+  const { repoRoot } = await createCliConnectRepo(t);
   const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
 
   await fs.mkdir(cursorConfigPath, { recursive: true });
@@ -274,6 +266,74 @@ test("CLI connect install reports backup failures without a stack trace", async 
 
   assert.match(error.stderr, /^Connect install failed: /m);
   assert.doesNotMatch(error.stderr, /at .*index\.js/);
+});
+
+test("CLI connect verify exits non-zero and prints a failed JSON report", async (t) => {
+  const { tempRoot } = await createConnectTestContext(t);
+  const badRoot = path.join(tempRoot, "not-a-directory");
+
+  await fs.writeFile(badRoot, "not a directory", "utf8");
+
+  const error = runCliExpectFailure(
+    [
+      cliPath,
+      "connect",
+      "verify",
+      "--json",
+      "--client",
+      "cursor",
+      "--root",
+      badRoot,
+    ],
+  );
+  const result = JSON.parse(error.stdout);
+
+  assert.equal(error.status, 1);
+  assert.equal(result.client, "cursor");
+  assert.equal(result.repo_root, badRoot);
+  assert.equal(result.status, "failed");
+  assert.equal(result.initialize_status, "failed");
+  assert.equal(result.tools_list_status, "failed");
+  assert.ok(Array.isArray(result.warnings));
+  assert.ok(result.warnings.length >= 1);
+});
+
+test("CLI connect install exits non-zero when verification fails after a user-scope install", async (t) => {
+  const { tempRoot, homeRoot, env } = await createConnectTestContext(t);
+  const badRoot = path.join(tempRoot, "not-a-directory");
+  const cursorConfigPath = path.join(homeRoot, ".cursor", "mcp.json");
+
+  await fs.writeFile(badRoot, "not a directory", "utf8");
+
+  const error = runCliExpectFailure(
+    [
+      cliPath,
+      "connect",
+      "install",
+      "--json",
+      "--client",
+      "cursor",
+      "--scope",
+      "user",
+      "--root",
+      badRoot,
+    ],
+    {
+      env: {
+        ...process.env,
+        ...env,
+      },
+    },
+  );
+  const result = JSON.parse(error.stdout);
+  const payload = JSON.parse(await fs.readFile(cursorConfigPath, "utf8"));
+
+  assert.equal(error.status, 1);
+  assert.equal(result.client, "cursor");
+  assert.equal(result.scope, "user");
+  assert.equal(result.status, "failed");
+  assert.equal(result.plan.target_file, cursorConfigPath);
+  assert.equal(payload.mcpServers["heart-mcp"].args[0], cliPath);
 });
 
 test("CLI connect doctor returns repo diagnostics", async (t) => {
