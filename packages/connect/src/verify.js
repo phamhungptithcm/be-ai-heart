@@ -98,7 +98,7 @@ export async function verifyConnection({ client, repoRoot, plan } = {}) {
 
 export async function runConnectDoctor(options = {}) {
   const detectImpl = options.detectImpl ?? detectConnections;
-  const detection = await detectImpl(options);
+  const detection = await detectImpl();
   const warnings = Array.isArray(detection?.warnings)
     ? [...detection.warnings]
     : [];
