@@ -194,11 +194,6 @@ async function handleConnect(subcommand, flags, io) {
     return handleConnectDoctor(flags, io);
   }
 
-  if (subcommand === "help") {
-    writeOutput(connectHelpText(), flags.json, io);
-    return 0;
-  }
-
   io.stderr.write(connectHelpText());
   return 1;
 }
@@ -227,6 +222,13 @@ async function handleConnectInstall(flags, io) {
     return 1;
   }
 
+  if (flags.backup) {
+    io.stderr.write(
+      "Unsupported flag: --backup is not available in the CLI install flow.\n",
+    );
+    return 1;
+  }
+
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const scope = flags.scope ?? "repo";
 
@@ -237,7 +239,7 @@ async function handleConnectInstall(flags, io) {
       repoRoot,
       modelRuntime: flags.model,
     });
-    writeOutput(plan, flags.json, io);
+    writeOutput({ plan }, flags.json, io);
     return 0;
   }
 
@@ -259,8 +261,15 @@ async function handleConnectInstall(flags, io) {
 }
 
 async function handleConnectVerify(flags, io) {
+  if (!flags.client) {
+    io.stderr.write(
+      "Usage: heart connect verify --client CLIENT [--json] [--root PATH]\n",
+    );
+    return 1;
+  }
+
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
-  const client = flags.client ?? "cursor";
+  const client = flags.client;
   const plan = await buildInstallPlan({
     client,
     scope: flags.scope ?? "repo",
@@ -389,7 +398,7 @@ Usage:
   heart pack [--json] [--root PATH] <task description>
   heart docs search [--json] [--root PATH] <query>
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
   heart connect verify [--client CLIENT] [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
   heart mcp tools [--json]
@@ -402,7 +411,7 @@ function connectHelpText() {
 
 Usage:
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
   heart connect verify [--client CLIENT] [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
 `;

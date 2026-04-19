@@ -93,11 +93,11 @@ test("CLI connect install dry-run returns a plan", async (t) => {
   );
   const result = JSON.parse(raw);
 
-  assert.equal(result.client, "continue");
-  assert.equal(result.scope, "repo");
-  assert.equal(result.repo_root, repoRoot);
-  assert.equal(result.files_to_modify[0], targetPath);
-  assert.equal(result.mcp_entry.mcpServers[0].name, "heart-mcp");
+  assert.equal(result.plan.client, "continue");
+  assert.equal(result.plan.scope, "repo");
+  assert.equal(result.plan.repo_root, repoRoot);
+  assert.equal(result.plan.files_to_modify[0], targetPath);
+  assert.equal(result.plan.mcp_entry.mcpServers[0].name, "heart-mcp");
   await assert.rejects(fs.stat(targetPath));
 });
 
@@ -119,6 +119,45 @@ test("CLI connect verify returns a ready report", async (t) => {
   assert.equal(result.tools_list_status, "ok");
 });
 
+test("CLI connect verify requires a client", () => {
+  assert.throws(
+    () => {
+      execFileSync("node", [cliPath, "connect", "verify", "--json", "--root", path.resolve(".")], {
+        encoding: "utf8",
+      });
+    },
+    /Usage: heart connect verify --client CLIENT/,
+  );
+});
+
+test("CLI connect install rejects unsupported backup flag", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+
+  assert.throws(
+    () => {
+      execFileSync(
+        "node",
+        [
+          cliPath,
+          "connect",
+          "install",
+          "--json",
+          "--dry-run",
+          "--backup",
+          "--client",
+          "continue",
+          "--root",
+          repoRoot,
+        ],
+        {
+          encoding: "utf8",
+        },
+      );
+    },
+    /Unsupported flag: --backup/,
+  );
+});
+
 test("CLI connect doctor returns repo diagnostics", async (t) => {
   const repoRoot = path.resolve(".");
   const raw = execFileSync("node", [cliPath, "connect", "doctor", "--json", "--root", repoRoot], {
@@ -130,6 +169,17 @@ test("CLI connect doctor returns repo diagnostics", async (t) => {
   assert.equal(result.status, "ready");
   assert.ok(Array.isArray(result.warnings));
   assert.equal(result.warnings.length, 0);
+});
+
+test("CLI connect help is not a subcommand", () => {
+  assert.throws(
+    () => {
+      execFileSync("node", [cliPath, "connect", "help"], {
+        encoding: "utf8",
+      });
+    },
+    /heart connect detect/,
+  );
 });
 
 test("CLI help includes connect commands", () => {
