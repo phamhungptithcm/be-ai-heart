@@ -1,11 +1,33 @@
 # Implementation Blueprint
 
+## Status Note
+
+This document captures the original implementation blueprint for the first local-first buildout.
+
+For the current execution path, use [Implementation Blueprint v2](./11-implementation-blueprint-v2.md) as the primary planning reference.
+
+Use this document for:
+
+- original package framing
+- initial sprint sequencing context
+- historical comparison against the current `v2` plan
+
+Use `v2` for:
+
+- current milestone ordering
+- typed graph evolution
+- context compiler `v2`
+- diagram engine `v2`
+- document memory `v2`
+- benchmark runner `v2`
+
 ## Recommended Monorepo Structure
 
 ```text
 be-ai-heart/
   apps/
     website/
+    portal/
     docs/
     admin/
   packages/

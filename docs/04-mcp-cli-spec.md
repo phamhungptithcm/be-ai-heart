@@ -116,6 +116,7 @@ mcp:
   enabled_tools:
     - project_overview
     - symbol_lookup
+    - dependency_explain
     - context_pack
     - impact_analysis
     - duplicate_detector
@@ -145,6 +146,19 @@ Returns:
 - signatures
 - related symbols
 - usage notes
+
+### `dependency_explain`
+
+Inputs:
+
+- file path or symbol name
+
+Returns:
+
+- incoming and outgoing imports
+- incoming and outgoing calls
+- inheritance or implementation edges
+- related tests
 
 ### `context_pack`
 

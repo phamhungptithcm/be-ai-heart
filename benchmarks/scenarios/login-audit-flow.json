@@ -1,0 +1,24 @@
+{
+  "id": "login-audit-flow",
+  "repo": "be-ai-heart",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "baseline": {
+    "tokens": 2400,
+    "minutes": 34,
+    "duplicates": 3,
+    "policy_violations": 2,
+    "review_edits": 8,
+    "memory_refreshes": 5,
+    "token_cost_usd": 0.48
+  },
+  "assisted": {
+    "tokens": 1450,
+    "minutes": 20,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.29
+  }
+}

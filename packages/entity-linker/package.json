@@ -1,0 +1,7 @@
+{
+  "name": "@be-ai-heart/entity-linker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js"
+}

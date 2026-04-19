@@ -1,0 +1,24 @@
+{
+  "id": "duplicate-refactor",
+  "repo": "be-ai-heart",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "baseline": {
+    "tokens": 2800,
+    "minutes": 38,
+    "duplicates": 5,
+    "policy_violations": 2,
+    "review_edits": 9,
+    "memory_refreshes": 4,
+    "token_cost_usd": 0.56
+  },
+  "assisted": {
+    "tokens": 1500,
+    "minutes": 23,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.3
+  }
+}

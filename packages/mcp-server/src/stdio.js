@@ -149,6 +149,7 @@ async function handleToolRequest(state, params) {
     args: argumentsObject,
     graph: workspaceState.graph,
     documentIndex: workspaceState.documentIndex,
+    heartModel: workspaceState.heartModel,
     scanResult: workspaceState.scanResult,
     policyReport: workspaceState.policyReport,
   });

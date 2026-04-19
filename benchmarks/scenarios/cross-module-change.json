@@ -1,0 +1,24 @@
+{
+  "id": "cross-module-change",
+  "repo": "be-ai-heart",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "baseline": {
+    "tokens": 3600,
+    "minutes": 52,
+    "duplicates": 4,
+    "policy_violations": 3,
+    "review_edits": 10,
+    "memory_refreshes": 7,
+    "token_cost_usd": 0.72
+  },
+  "assisted": {
+    "tokens": 2050,
+    "minutes": 31,
+    "duplicates": 1,
+    "policy_violations": 1,
+    "review_edits": 4,
+    "memory_refreshes": 2,
+    "token_cost_usd": 0.41
+  }
+}

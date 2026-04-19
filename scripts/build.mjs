@@ -4,7 +4,7 @@ import path from "node:path";
 
 const ROOT_DIR = process.cwd();
 const WORKSPACE_GROUPS = ["apps", "packages", "services"];
-const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "coverage", ".git"]);
+const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "coverage", ".git", ".next"]);
 const CHECK_EXTENSIONS = new Set([".js", ".mjs"]);
 
 async function main() {

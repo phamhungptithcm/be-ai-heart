@@ -1,8 +1,8 @@
-# Issue 12: Admin and Customer Workspace Skeleton
+# Issue 12: Portal and Admin Skeleton
 
 ## Title
 
-Build the admin and customer-workspace skeleton in React/Next.js
+Build the customer portal and internal admin skeleton in React/Next.js
 
 ## Labels
 
@@ -17,11 +17,12 @@ Build the admin and customer-workspace skeleton in React/Next.js
 
 ## Objective
 
-Prepare the foundation for organization, repo, benchmark, and license visibility.
+Prepare the foundation for customer workspace access and internal business operations visibility.
 
 ## Scope
 
 - admin layout
+- customer portal layout
 - org overview shell
 - benchmark report shell
 - usage and license placeholder views

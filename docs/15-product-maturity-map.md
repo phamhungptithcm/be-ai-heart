@@ -175,7 +175,7 @@ Reasons:
 - persistent storage does not exist yet
 - full TypeScript migration does not exist yet
 - benchmark system is still too light for customer-proof ROI
-- website/admin are still shells, not real product surfaces
+- website/portal/admin are still shells, not real product surfaces
 
 Short version:
 

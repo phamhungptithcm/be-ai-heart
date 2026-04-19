@@ -1,12 +1,24 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { parseSimpleYaml } from "../../shared-schema/src/index.js";
 
 export const DEFAULT_CONFIG = Object.freeze({
   project: {
     name: "be-ai-heart",
     language_priority: ["typescript", "javascript"],
     entrypoints: ["packages", "apps", "services"],
-    ignore: ["node_modules", "dist", "coverage", ".git"],
+    ignore: [
+      "node_modules",
+      "dist",
+      "coverage",
+      ".git",
+      ".next",
+      "output",
+      ".playwright-cli",
+      ".heart/cache",
+      ".heart/diagrams",
+      ".heart/published",
+    ],
   },
   policies: {
     rules_file: ".heart/policies.yaml",
@@ -22,6 +34,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     enabled_tools: [
       "project_overview",
       "symbol_lookup",
+      "dependency_explain",
       "context_pack",
       "impact_analysis",
       "document_search",
@@ -55,6 +68,12 @@ export function createDefaultConfigYaml(projectName = "be-ai-heart") {
     - dist
     - coverage
     - .git
+    - .next
+    - output
+    - .playwright-cli
+    - .heart/cache
+    - .heart/diagrams
+    - .heart/published
 policies:
   rules_file: .heart/policies.yaml
 indexing:
@@ -67,6 +86,7 @@ mcp:
   enabled_tools:
     - project_overview
     - symbol_lookup
+    - dependency_explain
     - context_pack
     - impact_analysis
     - document_search
@@ -79,13 +99,14 @@ export async function loadHeartConfig(repoRoot) {
 
   try {
     const raw = await fs.readFile(configPath, "utf8");
-    const projectName = raw.match(/^\s*name:\s*(.+)$/m)?.[1]?.trim() ?? path.basename(repoRoot);
+    const parsed = parseSimpleYaml(raw);
+    const projectName = parsed?.project?.name ?? path.basename(repoRoot);
 
     return {
       exists: true,
       path: configPath,
       raw,
-      config: createDefaultConfig(projectName),
+      config: mergeConfig(createDefaultConfig(projectName), parsed),
     };
   } catch {
     return {
@@ -95,4 +116,34 @@ export async function loadHeartConfig(repoRoot) {
       config: createDefaultConfig(path.basename(repoRoot)),
     };
   }
+}
+
+function mergeConfig(base, overrides) {
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return base;
+  }
+
+  const merged = { ...base };
+
+  for (const [key, overrideValue] of Object.entries(overrides)) {
+    const baseValue = merged[key];
+
+    if (Array.isArray(overrideValue)) {
+      merged[key] = [...overrideValue];
+      continue;
+    }
+
+    if (isPlainObject(baseValue) && isPlainObject(overrideValue)) {
+      merged[key] = mergeConfig(baseValue, overrideValue);
+      continue;
+    }
+
+    merged[key] = overrideValue;
+  }
+
+  return merged;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
