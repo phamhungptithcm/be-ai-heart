@@ -1,3 +1,6 @@
+export const WEBSITE_SERVICE_DESCRIPTOR_MAX_LENGTH = 72;
+export const WEBSITE_SERVICE_TRUST_TAG_MAX_LENGTH = 16;
+
 export const WEBSITE_SERVICES = Object.freeze([
   {
     slug: "code-graph",
