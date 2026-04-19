@@ -289,14 +289,20 @@ test("CLI connect doctor returns repo diagnostics", async (t) => {
   assert.equal(result.warnings.length, 0);
 });
 
-test("CLI connect help aliases are rejected", () => {
-  const helpError = runCliExpectFailure([cliPath, "connect", "help"]);
-  const aliasError = runCliExpectFailure([cliPath, "connect", "--help"]);
+test("CLI connect help aliases return connect usage", () => {
+  const helpOutput = execFileSync("node", [cliPath, "connect", "help"], {
+    encoding: "utf8",
+  });
+  const aliasOutput = execFileSync("node", [cliPath, "connect", "--help"], {
+    encoding: "utf8",
+  });
 
-  assert.match(helpError.stderr, /Unknown connect subcommand: help/);
-  assert.match(aliasError.stderr, /Unknown connect subcommand: --help/);
-  assert.doesNotMatch(helpError.stderr, /heart connect detect/);
-  assert.doesNotMatch(aliasError.stderr, /heart connect detect/);
+  assert.match(helpOutput, /heart connect detect/);
+  assert.match(aliasOutput, /heart connect detect/);
+  assert.match(helpOutput, /heart connect verify --client CLIENT/);
+  assert.match(aliasOutput, /heart connect verify --client CLIENT/);
+  assert.doesNotMatch(helpOutput, /Unknown connect subcommand/);
+  assert.doesNotMatch(aliasOutput, /Unknown connect subcommand/);
 });
 
 test("CLI help includes connect commands", () => {

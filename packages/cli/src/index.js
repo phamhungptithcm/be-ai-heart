@@ -179,8 +179,8 @@ async function handleDocs(subcommand, flags, positional, io) {
 
 async function handleConnect(subcommand, flags, io) {
   if (flags.help || subcommand === "help") {
-    io.stderr.write(`Unknown connect subcommand: ${subcommand ?? "--help"}\n`);
-    return 1;
+    io.stdout.write(`${connectHelpText()}\n`);
+    return 0;
   }
 
   if (subcommand === "detect") {
