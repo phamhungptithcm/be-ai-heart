@@ -1,16 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import fs from "node:fs/promises";
 
-import {
-  buildInstallPlan,
-  detectConnections,
-  doctorConnections,
-  installConnection,
-  verifyConnection,
-} from "../packages/connect/src/index.js";
+import { detectConnections } from "../packages/connect/src/index.js";
+import { createConnectTestContext } from "./helpers/connect-test-context.js";
+
+function jsonResponse(payload, ok = true) {
+  return {
+    ok,
+    async json() {
+      return payload;
+    },
+  };
+}
 
 test("detectConnections returns a stable empty inventory when nothing is detected", async () => {
   const result = await detectConnections({
@@ -24,41 +27,47 @@ test("detectConnections returns a stable empty inventory when nothing is detecte
     agents: [],
     models: [],
     warnings: [],
-    recommendations: ["heart connect install --client cursor --scope repo --root /tmp/demo-repo"],
+    recommendations: [],
   });
 });
 
-test("doctorConnections reports binary readiness and next actions", async () => {
-  const result = await doctorConnections({
+test("detectConnections normalizes falsey and malformed detector output to empty arrays", async () => {
+  const result = await detectConnections({
     repoRoot: "/tmp/demo-repo",
-    binaryPath: "/tmp/demo-repo/packages/cli/bin/heart.js",
-    detectAgentsImpl: async () => [],
-    detectModelsImpl: async () => [],
+    detectAgentsImpl: async () => undefined,
+    detectModelsImpl: async () => ({ detected: true }),
   });
 
-  assert.equal(result.repo_root, "/tmp/demo-repo");
-  assert.equal(result.heart_binary.available, true);
-  assert.equal(result.inventory.agents.length, 0);
-  assert.ok(result.actions.length >= 1);
+  assert.deepEqual(result, {
+    repo_root: "/tmp/demo-repo",
+    agents: [],
+    models: [],
+    warnings: [],
+    recommendations: [],
+  });
 });
 
-test("detectConnections includes Ollama and LM Studio runtimes when local endpoints respond", async () => {
+test("detectConnections includes Ollama models and running status", async () => {
   const fetchImpl = async (url) => {
-    if (String(url) === "http://127.0.0.1:11434/api/tags") {
-      return createJsonResponse({
-        models: [{ name: "qwen3.5-coder:latest" }],
+    if (url === "http://127.0.0.1:11434/api/tags") {
+      return jsonResponse({
+        models: [
+          {
+            name: "qwen3.5-coder:latest",
+            model: "qwen3.5-coder:latest",
+          },
+        ],
       });
     }
 
-    if (String(url) === "http://127.0.0.1:11434/api/ps") {
-      return createJsonResponse({
-        models: [{ name: "qwen3.5-coder:latest" }],
-      });
-    }
-
-    if (String(url) === "http://127.0.0.1:1234/v1/models") {
-      return createJsonResponse({
-        data: [{ id: "deepseek-coder-6.7b" }],
+    if (url === "http://127.0.0.1:11434/api/ps") {
+      return jsonResponse({
+        models: [
+          {
+            name: "qwen3.5-coder:latest",
+            model: "qwen3.5-coder:latest",
+          },
+        ],
       });
     }
 
@@ -67,84 +76,269 @@ test("detectConnections includes Ollama and LM Studio runtimes when local endpoi
 
   const result = await detectConnections({
     repoRoot: "/tmp/demo-repo",
-    detectAgentsImpl: async () => [],
     fetchImpl,
+    detectAgentsImpl: async () => [],
   });
 
-  assert.deepEqual(
-    result.models.map((model) => model.id),
-    ["lm-studio", "ollama"],
-  );
+  assert.equal(result.models[0].id, "ollama");
   assert.equal(result.models[0].running, true);
-  assert.ok(result.recommendations.length >= 1);
+  assert.deepEqual(result.models[0].models_detected, ["qwen3.5-coder:latest"]);
 });
 
-test("buildInstallPlan returns a repo-scoped cursor plan with MCP entry", async (t) => {
-  const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-connect-plan-"));
-  t.after(async () => {
-    await fs.rm(repoRoot, { recursive: true, force: true });
-  });
+test("detectConnections keeps Ollama running when ps probing fails", async () => {
+  const fetchImpl = async (url) => {
+    if (url === "http://127.0.0.1:11434/api/tags") {
+      return jsonResponse({
+        models: [
+          {
+            name: "qwen3.5-coder:latest",
+            model: "qwen3.5-coder:latest",
+          },
+        ],
+      });
+    }
 
-  const plan = await buildInstallPlan({
-    client: "cursor",
-    scope: "repo",
-    repoRoot,
-  });
+    if (url === "http://127.0.0.1:11434/api/ps") {
+      throw new Error("ps unavailable");
+    }
 
-  assert.equal(plan.client, "cursor");
-  assert.equal(plan.scope, "repo");
-  assert.equal(plan.config_path, path.join(repoRoot, ".cursor", "mcp.json"));
-  assert.equal(plan.mcp_entry.command, "node");
-  assert.deepEqual(plan.mcp_entry.args.slice(-2), ["--root", repoRoot]);
-});
-
-test("installConnection writes config and verifyConnection completes a real MCP handshake", async (t) => {
-  const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-connect-install-"));
-  const homeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-connect-home-"));
-
-  t.after(async () => {
-    await fs.rm(repoRoot, { recursive: true, force: true });
-    await fs.rm(homeRoot, { recursive: true, force: true });
-  });
-
-  const installResult = await installConnection({
-    client: "cursor",
-    scope: "repo",
-    repoRoot,
-    env: {
-      ...process.env,
-      HOME: homeRoot,
-      USERPROFILE: homeRoot,
-    },
-  });
-
-  assert.equal(installResult.status, "ready");
-  assert.equal(installResult.verification.status, "ready");
-
-  const configPath = path.join(repoRoot, ".cursor", "mcp.json");
-  const raw = await fs.readFile(configPath, "utf8");
-  const config = JSON.parse(raw);
-  assert.ok(config.mcpServers?.["heart-mcp"]);
-
-  const verification = await verifyConnection({
-    client: "cursor",
-    repoRoot,
-    env: {
-      ...process.env,
-      HOME: homeRoot,
-      USERPROFILE: homeRoot,
-    },
-  });
-
-  assert.equal(verification.status, "ready");
-  assert.equal(verification.tools_list_status, "ready");
-});
-
-function createJsonResponse(payload) {
-  return {
-    ok: true,
-    async json() {
-      return payload;
-    },
+    throw new Error(`unexpected url: ${url}`);
   };
-}
+
+  const result = await detectConnections({
+    repoRoot: "/tmp/demo-repo",
+    fetchImpl,
+    detectAgentsImpl: async () => [],
+  });
+
+  assert.equal(result.models[0].id, "ollama");
+  assert.equal(result.models[0].running, true);
+  assert.deepEqual(result.models[0].models_detected, ["qwen3.5-coder:latest"]);
+});
+
+test("detectConnections includes LM Studio when the OpenAI-compatible endpoint responds", async () => {
+  const fetchImpl = async (url) => {
+    if (url === "http://127.0.0.1:11434/api/tags") {
+      throw new Error("ollama offline");
+    }
+
+    if (url === "http://127.0.0.1:1234/v1/models") {
+      return jsonResponse({
+        data: [{ id: "qwen2.5-coder-7b-instruct" }],
+      });
+    }
+
+    throw new Error(`unexpected url: ${url}`);
+  };
+
+  const result = await detectConnections({
+    repoRoot: "/tmp/demo-repo",
+    fetchImpl,
+    detectAgentsImpl: async () => [],
+  });
+
+  assert.equal(result.models[0].id, "lm-studio");
+  assert.equal(result.models[0].running, true);
+  assert.deepEqual(result.models[0].models_detected, ["qwen2.5-coder-7b-instruct"]);
+});
+
+test("detectConnections does not report Cursor or Claude Code as detected when CLI probing is unavailable and no config exists", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+
+  assert.equal(cursor.detected, false);
+  assert.equal(claudeCode, undefined);
+});
+
+test("detectConnections does not count Cursor config for another repo as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(
+    cursorConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", "/tmp/other-repo"],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "", stderr: "" }),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.configured, false);
+});
+
+test("detectConnections does not count Cursor CLI output alone as configured for this repo", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "heart-mcp\n", stderr: "" }),
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.detected, true);
+  assert.equal(cursor.configured, false);
+});
+
+test("detectConnections does not count Cursor config without repo affinity as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(
+    cursorConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve"],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const cursor = result.agents.find((agent) => agent.id === "cursor");
+  assert.equal(cursor.configured, false);
+});
+
+test("detectConnections does not count malformed Continue config as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(repoRoot, ".continue", "mcpServers", "heart-mcp.json");
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(continueConfigPath, "{not-json");
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "", stderr: "" }),
+  });
+
+  const continueAgent = result.agents.find((agent) => agent.id === "continue");
+  assert.equal(continueAgent.configured, false);
+});
+
+test("detectConnections does not count Continue config for another repo as configured", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(repoRoot, ".continue", "mcpServers", "heart-mcp.json");
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(
+    continueConfigPath,
+    JSON.stringify({
+      mcpServers: [
+        {
+          name: "heart-mcp",
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", "/tmp/other-repo"],
+        },
+      ],
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const continueAgent = result.agents.find((agent) => agent.id === "continue");
+  assert.equal(continueAgent.configured, false);
+});
+
+test("detectConnections detects Claude Code from config file evidence when CLI probing fails", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const claudeConfigPath = path.join(repoRoot, ".mcp.json");
+
+  await fs.writeFile(
+    claudeConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", repoRoot],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => {
+      const error = new Error("not found");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+  assert.equal(claudeCode.detected, true);
+  assert.equal(claudeCode.configured, true);
+});
+
+test("detectConnections detects Claude Code as configured when CLI is available and repo config is valid", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const claudeConfigPath = path.join(repoRoot, ".mcp.json");
+
+  await fs.writeFile(
+    claudeConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        "heart-mcp": {
+          command: "node",
+          args: ["/tmp/heart.js", "mcp", "serve", "--root", repoRoot],
+        },
+      },
+    }),
+  );
+
+  const result = await detectConnections({
+    repoRoot,
+    env,
+    fetchImpl: async () => jsonResponse({}, false),
+    execFileImpl: async () => ({ stdout: "heart-mcp\n", stderr: "" }),
+  });
+
+  const claudeCode = result.agents.find((agent) => agent.id === "claude-code");
+  assert.equal(claudeCode.detected, true);
+  assert.equal(claudeCode.configured, true);
+});

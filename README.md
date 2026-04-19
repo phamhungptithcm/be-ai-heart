@@ -52,6 +52,10 @@ Think of it like reusable notes for AI.
 
 BeHeart is not another coding assistant.
 
+It also treats project documents as first-class context inputs so the heart can preserve business intent, requirements, and system design alongside code.
+
+It includes a local `heart connect` workflow for detecting, installing, verifying, and diagnosing external MCP client wiring.
+
 It sits underneath tools like Codex, Cursor, Claude Code, or Copilot and helps them work with better memory.
 
 It helps people and teams use AI in a smarter, more cost-aware way.
@@ -81,6 +85,14 @@ Task: add login audit logging
 
 ![BeHeart CLI demo](./docs/assets/readme-cli-demo.svg)
 
+## Current MVP
+
+- code graph, context compiler, policy engine, CLI, MCP, and benchmark workflow
+- document-aware memory with local-first publishing into website, portal, and admin surfaces
+- hosted auth, session, observability, benchmark, and tenant-control APIs under `services/api`
+- separated `website`, `portal`, and `admin` Next.js surfaces for public, customer, and internal use
+- deterministic local validation with `npm test`
+
 ## Quick Start
 
 ### Requirements
@@ -108,6 +120,16 @@ node ./packages/cli/bin/heart.js overview --json
 node ./packages/cli/bin/heart.js pack --json "improve login audit flow"
 node ./packages/cli/bin/heart.js find symbol loginUser
 node ./packages/cli/bin/heart.js deps src/auth/login.ts
+```
+
+### Try Additional Workflows
+
+```bash
+node ./packages/cli/bin/heart.js doctor --json
+node ./packages/cli/bin/heart.js connect detect --json
+node ./packages/cli/bin/heart.js connect verify --json --client cursor
+node ./packages/cli/bin/heart.js auth provider-session --url https://portal.example.com --id-token <jwt>
+node ./packages/cli/bin/heart.js service export --json
 ```
 
 ## Integration

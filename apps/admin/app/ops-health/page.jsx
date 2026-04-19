@@ -1,4 +1,4 @@
-import { AdminOpsHealthSummaryClient } from "../../components/AdminProfilesClient.jsx";
+import { AdminOpsHealthCommandCenterClient, AdminOpsHealthSummaryClient } from "../../components/AdminProfilesClient.jsx";
 import { AdminShell, AdminSection } from "../../components/AdminShell.jsx";
 import { createAdminMetadata } from "../../src/metadata.js";
 
@@ -11,52 +11,86 @@ export const metadata = createAdminMetadata({
 export default function AdminOpsHealthPage() {
   return (
     <AdminShell title="Ops health" description="Platform operations, sync depth, and supportability need an internal surface separate from customer-facing portal pages.">
-      <AdminSection eyebrow="Reliability" title="Operational health indicators" subtitle="Current scaffold">
+      <AdminSection eyebrow="Reliability" title="Operational health indicators" subtitle="Internal command center">
         <AdminOpsHealthSummaryClient />
       </AdminSection>
-      <AdminSection eyebrow="Owner watchlist" title="Operational scope" subtitle="What the owner monitors here">
-        <div className="admin-control-grid">
-          <article>
-            <span>Freshness</span>
-            <h3>Sync reliability</h3>
-            <p>Know when customer repository profiles stop updating or become partially stale.</p>
-          </article>
-          <article>
-            <span>Quality</span>
-            <h3>Artifact quality</h3>
-            <p>Inspect whether diagram, document, and heart-link generation still produces usable support output.</p>
-          </article>
-          <article>
-            <span>Readiness</span>
-            <h3>Platform readiness</h3>
-            <p>Separate pre-GTM scaffolding from the controls that will be required before enterprise rollout.</p>
-          </article>
-        </div>
+      <AdminSection eyebrow="Owner watchlist" title="Command center" subtitle="Freshness, quality, rollout safety">
+        <AdminOpsHealthCommandCenterClient />
       </AdminSection>
 
       <AdminSection eyebrow="Escalation lanes" title="Use ops health to decide where the next intervention belongs" subtitle="Internal routing logic">
-        <div className="admin-rail-list">
-          <article>
-            <span>Customer</span>
-            <div>
-              <h3>Support intervention</h3>
-              <p>When sync or diagram output is weak for one tenant, route the issue through customer success and support, not a generic platform backlog.</p>
+        <div className="admin-command-grid">
+          <section className="admin-command-panel">
+            <header className="admin-command-head">
+              <div>
+                <span>Routing logic</span>
+                <h3>Where the next intervention belongs</h3>
+                <p>Ops health exists to separate tenant-specific blockers from broad platform reliability work.</p>
+              </div>
+            </header>
+            <div className="admin-risk-list">
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>Customer lane</strong>
+                  <span>One repo or one tenant is stale, under-documented, or missing benchmark proof.</span>
+                </div>
+                <div className="admin-risk-meta">
+                  <b>Support</b>
+                  <small>Tenant scoped</small>
+                </div>
+              </article>
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>Product lane</strong>
+                  <span>Multiple customers show the same missing signal, weak visualization, or recurring trust friction.</span>
+                </div>
+                <div className="admin-risk-meta">
+                  <b>Product</b>
+                  <small>Pattern driven</small>
+                </div>
+              </article>
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>Platform lane</strong>
+                  <span>Auth, storage, sync host, or publish infrastructure is failing broadly.</span>
+                </div>
+                <div className="admin-risk-meta">
+                  <b>Platform</b>
+                  <small>Systemic</small>
+                </div>
+              </article>
             </div>
-          </article>
-          <article>
-            <span>Product</span>
-            <div>
-              <h3>Capability gap</h3>
-              <p>When multiple customers show the same missing signal, convert the pattern into a product backlog item tied to ROI or trust.</p>
+          </section>
+
+          <section className="admin-command-panel">
+            <header className="admin-command-head">
+              <div>
+                <span>Operational review order</span>
+                <h3>What the owner should verify every pass</h3>
+                <p>Healthy internal review starts with sync truth, then evidence quality, then expansion readiness.</p>
+              </div>
+            </header>
+            <div className="admin-risk-list">
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>1. Sync freshness</strong>
+                  <span>Make sure repository and document mirrors are current before any decision is made from them.</span>
+                </div>
+              </article>
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>2. Evidence quality</strong>
+                  <span>Confirm diagrams, policy warnings, and benchmark artifacts are still useful and readable.</span>
+                </div>
+              </article>
+              <article className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>3. Rollout pressure</strong>
+                  <span>Only push broader adoption when support debt and benchmark gaps are visible and manageable.</span>
+                </div>
+              </article>
             </div>
-          </article>
-          <article>
-            <span>Platform</span>
-            <div>
-              <h3>Systemic platform risk</h3>
-              <p>When auth, publish, or storage paths fail broadly, treat it as a platform reliability issue before new GTM push.</p>
-            </div>
-          </article>
+          </section>
         </div>
       </AdminSection>
     </AdminShell>

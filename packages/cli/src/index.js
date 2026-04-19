@@ -5,6 +5,13 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
+  buildInstallPlan,
+  detectConnections,
+  installConnection,
+  runConnectDoctor,
+  verifyConnection,
+} from "../../connect/src/index.js";
+import {
   compareBenchmarkRuns,
   loadBenchmarkScenario,
   loadBenchmarkReport,
@@ -26,13 +33,6 @@ import {
   resolveEnabledMcpTools,
   runWorkspaceDoctor,
 } from "../../core/src/index.js";
-import {
-  buildInstallPlan,
-  detectConnections,
-  doctorConnections,
-  installConnection,
-  verifyConnection,
-} from "../../connect/src/index.js";
 import { compileContextPack } from "../../context-compiler/src/index.js";
 import {
   generateDiagramBundle,
@@ -109,6 +109,8 @@ export async function runCli(argv, io = defaultIo()) {
       return handleAgent(subcommand, flags, positional, io);
     case "docs":
       return handleDocs(subcommand, flags, positional, io);
+    case "connect":
+      return handleConnect(subcommand, flags, io);
     case "auth":
       return handleAuth(subcommand, flags, positional, io);
     case "sync":
@@ -117,8 +119,6 @@ export async function runCli(argv, io = defaultIo()) {
       return handleService(subcommand, flags, io);
     case "mcp":
       return handleMcp(subcommand, flags, io);
-    case "connect":
-      return handleConnect(subcommand, flags, io);
     case "help":
     case undefined:
       writeOutput(helpText(), flags.json, io);
@@ -419,93 +419,6 @@ async function handleMcp(subcommand, flags, io) {
   }
 
   io.stderr.write(`Unknown mcp subcommand: ${subcommand}\n`);
-  return EXIT_USAGE_ERROR;
-}
-
-async function handleConnect(subcommand, flags, io) {
-  const repoRoot = resolveRepoRoot(flags.root, io.cwd);
-
-  if (subcommand === "detect") {
-    const payload = await detectConnections({
-      repoRoot,
-      detectAgentsImpl: flags.models ? async () => [] : undefined,
-      detectModelsImpl: flags.agents ? async () => [] : undefined,
-    });
-    writeOutput(flags.json ? payload : formatConnectDetectOutput(payload), flags.json, io);
-    return 0;
-  }
-
-  if (subcommand === "install") {
-    if (!flags.client) {
-      io.stderr.write(
-        "Usage: heart connect install --client NAME [--scope user|repo] [--model NAME] [--dry-run] [--backup] [--json] [--root PATH]\n",
-      );
-      return EXIT_USAGE_ERROR;
-    }
-
-    const plan = await buildInstallPlan({
-      client: flags.client,
-      scope: flags.scope ?? "repo",
-      repoRoot,
-      env: process.env,
-      modelRuntime: flags.model ?? null,
-    });
-
-    if (flags.dryRun) {
-      writeOutput(flags.json ? { plan } : formatConnectInstallPlanOutput(plan), flags.json, io);
-      return 0;
-    }
-
-    const payload = await installConnection({
-      client: flags.client,
-      scope: flags.scope ?? "repo",
-      repoRoot,
-      env: process.env,
-      model: flags.model ?? null,
-      backup: flags.backup === true,
-      plan,
-    });
-    writeOutput(flags.json ? payload : formatConnectInstallOutput(payload), flags.json, io);
-    return payload.status === "ready" ? 0 : 1;
-  }
-
-  if (subcommand === "verify") {
-    if (!flags.client) {
-      io.stderr.write("Usage: heart connect verify --client NAME [--scope user|repo] [--json] [--root PATH]\n");
-      return EXIT_USAGE_ERROR;
-    }
-
-    const payload = await verifyConnection({
-      client: flags.client,
-      repoRoot,
-      env: process.env,
-      plan: await buildInstallPlan({
-        client: flags.client,
-        scope: flags.scope ?? "repo",
-        repoRoot,
-        env: process.env,
-        modelRuntime: flags.model ?? null,
-      }),
-    });
-    writeOutput(flags.json ? payload : formatConnectVerifyOutput(payload), flags.json, io);
-    return payload.status === "ready" ? 0 : 1;
-  }
-
-  if (subcommand === "doctor") {
-    const payload = await doctorConnections({
-      repoRoot,
-      binaryPath: process.argv[1] ?? null,
-    });
-    writeOutput(flags.json ? payload : formatConnectDoctorOutput(payload), flags.json, io);
-    return 0;
-  }
-
-  io.stderr.write("Usage: heart connect detect [--json] [--agents] [--models] [--root PATH]\n");
-  io.stderr.write(
-    "       heart connect install --client NAME [--scope user|repo] [--model NAME] [--dry-run] [--backup] [--json] [--root PATH]\n",
-  );
-  io.stderr.write("       heart connect verify --client NAME [--scope user|repo] [--json] [--root PATH]\n");
-  io.stderr.write("       heart connect doctor [--json] [--root PATH]\n");
   return EXIT_USAGE_ERROR;
 }
 
@@ -894,6 +807,176 @@ async function handleDocs(subcommand, flags, positional, io) {
   return 1;
 }
 
+async function handleConnect(subcommand, flags, io) {
+  if (flags.help || subcommand === "help") {
+    io.stdout.write(`${connectHelpText()}\n`);
+    return 0;
+  }
+
+  if (subcommand === "detect") {
+    return handleConnectDetect(flags, io);
+  }
+
+  if (subcommand === "install") {
+    return handleConnectInstall(flags, io);
+  }
+
+  if (subcommand === "verify") {
+    return handleConnectVerify(flags, io);
+  }
+
+  if (subcommand === "doctor") {
+    return handleConnectDoctor(flags, io);
+  }
+
+  io.stderr.write(connectHelpText());
+  return 1;
+}
+
+async function handleConnectDetect(flags, io) {
+  const repoRoot = resolveRepoRoot(flags.root, io.cwd);
+  const result = await detectConnections({ repoRoot });
+  const payload = normalizeConnectDetectionForCli(result, repoRoot);
+
+  if (flags.agents && !flags.models) {
+    payload.models = [];
+  }
+
+  if (flags.models && !flags.agents) {
+    payload.agents = [];
+  }
+
+  writeOutput(payload, flags.json, io);
+  return 0;
+}
+
+async function handleConnectInstall(flags, io) {
+  if (!flags.client) {
+    io.stderr.write(
+      "Usage: heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]\n",
+    );
+    return 1;
+  }
+
+  const repoRoot = resolveRepoRoot(flags.root, io.cwd);
+  const scope = flags.scope ?? "repo";
+  const scopeError = validateConnectScope(scope);
+  if (scopeError) {
+    io.stderr.write(`${scopeError}\n`);
+    return 1;
+  }
+
+  let plan;
+  try {
+    plan = await buildInstallPlan({
+      client: flags.client,
+      scope,
+      repoRoot,
+      modelRuntime: flags.model,
+    });
+  } catch (error) {
+    io.stderr.write(`${formatConnectClientError(error, flags.client)}\n`);
+    return 1;
+  }
+
+  if (flags.dryRun) {
+    writeOutput({ plan }, flags.json, io);
+    return 0;
+  }
+
+  try {
+    const backups = flags.backup
+      ? await createPlanBackups(plan.files_to_backup ?? [])
+      : [];
+
+    const result = await installConnection({
+      client: flags.client,
+      scope,
+      repoRoot,
+      model: flags.model,
+      verifyImpl: async (installPlan) =>
+        verifyConnection({
+          client: flags.client,
+          repoRoot,
+          plan: normalizeVerificationPlan(installPlan),
+        }),
+    });
+    const payload = normalizeConnectVerificationForCli(result);
+
+    if (flags.backup) {
+      payload.backups = backups;
+    }
+
+    writeOutput(payload, flags.json, io);
+    return connectVerificationExitCode(payload);
+  } catch (error) {
+    io.stderr.write(`Connect install failed: ${formatConnectInstallError(error)}\n`);
+    return 1;
+  }
+}
+
+async function handleConnectVerify(flags, io) {
+  if (!flags.client) {
+    io.stderr.write(
+      "Usage: heart connect verify --client CLIENT [--json] [--root PATH]\n",
+    );
+    return 1;
+  }
+
+  const repoRoot = resolveRepoRoot(flags.root, io.cwd);
+  const client = flags.client;
+  const scope = flags.scope ?? "repo";
+  const scopeError = validateConnectScope(scope);
+  if (scopeError) {
+    io.stderr.write(`${scopeError}\n`);
+    return 1;
+  }
+
+  let plan;
+  try {
+    plan = await buildInstallPlan({
+      client,
+      scope,
+      repoRoot,
+      modelRuntime: flags.model,
+    });
+  } catch (error) {
+    io.stderr.write(`${formatConnectClientError(error, client)}\n`);
+    return 1;
+  }
+
+  const result = await verifyConnection({
+    client,
+    repoRoot,
+    plan: normalizeVerificationPlan(plan),
+  });
+
+  const payload = normalizeConnectVerificationForCli(result);
+  writeOutput(payload, flags.json, io);
+  return connectVerificationExitCode(payload);
+}
+
+async function handleConnectDoctor(flags, io) {
+  const repoRoot = resolveRepoRoot(flags.root, io.cwd);
+  const detection = await detectConnections({ repoRoot });
+  const inventory = normalizeConnectDetectionForCli(detection, repoRoot);
+  const result = {
+    repo_root: repoRoot,
+    heart_binary: {
+      command: "heart",
+      resolved_path: process.argv[1] ?? null,
+      available: Boolean(process.argv[1]),
+    },
+    inventory,
+    warnings: inventory.warnings,
+    actions: buildConnectDoctorActions(inventory),
+    status: inventory.warnings.length > 0 ? "partial" : "ready",
+  };
+
+  writeOutput(result, flags.json, io);
+  return 0;
+}
+
 async function handleService(subcommand, flags, io) {
   if (subcommand !== "export" && subcommand !== undefined) {
     io.stderr.write("Usage: heart service export [--json] [--root PATH] [--out PATH]\n");
@@ -1264,6 +1347,17 @@ Examples:
 `;
 }
 
+function connectHelpText() {
+  return `heart connect
+
+Usage:
+  heart connect detect [--json] [--root PATH] [--agents] [--models]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
+  heart connect verify --client CLIENT [--json] [--root PATH]
+  heart connect doctor [--json] [--root PATH]
+`;
+}
+
 function defaultIo() {
   return {
     cwd: process.cwd(),
@@ -1287,6 +1381,137 @@ async function countSkillFiles(skillsRoot) {
     return entries.filter((entry) => entry.isDirectory()).length;
   } catch {
     return 0;
+  }
+}
+
+function normalizeVerificationPlan(plan) {
+  const directEntry = plan?.mcp_entry;
+  if (isSpawnableMcpEntry(directEntry)) {
+    return plan;
+  }
+
+  const firstEntry = directEntry?.mcpServers?.find?.((entry) => isSpawnableMcpEntry(entry));
+  if (firstEntry) {
+    return {
+      ...plan,
+      mcp_entry: firstEntry,
+    };
+  }
+
+  return plan;
+}
+
+function isSpawnableMcpEntry(entry) {
+  return entry && typeof entry.command === "string" && Array.isArray(entry.args);
+}
+
+function toFlagKey(flagName) {
+  return flagName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function validateConnectScope(scope) {
+  if (scope !== "repo" && scope !== "user") {
+    return `Invalid --scope value: ${scope}. Expected repo or user.`;
+  }
+
+  return null;
+}
+
+function connectVerificationExitCode(result) {
+  return result?.status === "failed" ? 1 : 0;
+}
+
+function normalizeConnectDetectionForCli(result, repoRoot) {
+  const agents = Array.isArray(result?.agents)
+    ? result.agents.filter((agent) => agent?.detected || agent?.configured)
+    : [];
+  const models = Array.isArray(result?.models) ? result.models : [];
+  const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+  const recommendations =
+    Array.isArray(result?.recommendations) && result.recommendations.length > 0
+      ? result.recommendations
+      : agents.length === 0 && models.length === 0
+        ? [`heart connect install --client cursor --scope repo --root ${repoRoot}`]
+        : [];
+
+  return {
+    repo_root: result?.repo_root ?? repoRoot,
+    agents,
+    models,
+    warnings,
+    recommendations,
+  };
+}
+
+function normalizeConnectVerificationForCli(result) {
+  const normalizeStep = (value) => (value === "ok" ? "ready" : value);
+  return {
+    ...result,
+    config_status: normalizeStep(result?.config_status),
+    spawn_status: normalizeStep(result?.spawn_status),
+    initialize_status: normalizeStep(result?.initialize_status),
+    tools_list_status: normalizeStep(result?.tools_list_status),
+    model_runtime_status: normalizeStep(result?.model_runtime_status),
+  };
+}
+
+function buildConnectDoctorActions(inventory) {
+  if ((inventory?.agents?.length ?? 0) === 0) {
+    return [`Run ${inventory.recommendations?.[0] ?? "heart connect install --client cursor --scope repo"}`];
+  }
+
+  if (!inventory.agents.some((agent) => agent.configured)) {
+    const firstAgent = inventory.agents[0];
+    return [
+      `Install BeHeart MCP for ${firstAgent.display_name ?? firstAgent.id} before running verification.`,
+      `Run heart connect install --client ${firstAgent.id} --scope repo --root ${inventory.repo_root}`,
+    ];
+  }
+
+  const configured = inventory.agents.find((agent) => agent.configured) ?? inventory.agents[0];
+  return [
+    `Run heart connect verify --client ${configured.id} --scope repo --root ${inventory.repo_root}`,
+  ];
+}
+
+function formatConnectClientError(error, client) {
+  if (error instanceof Error && error.message.startsWith("Unsupported install client:")) {
+    return `Unsupported connect client: ${client}.`;
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+function formatConnectInstallError(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function createPlanBackups(filePaths) {
+  const backups = [];
+
+  for (const source of filePaths) {
+    const backup = await createDeterministicBackupPath(source);
+    await fs.mkdir(path.dirname(backup), { recursive: true });
+    await fs.copyFile(source, backup);
+    backups.push({ source, backup });
+  }
+
+  return backups;
+}
+
+async function createDeterministicBackupPath(source) {
+  let suffix = "";
+  let attempt = 0;
+
+  while (true) {
+    const backup = `${source}.bak${suffix}`;
+    try {
+      await fs.access(backup);
+      attempt += 1;
+      suffix = `.${attempt}`;
+    } catch {
+      return backup;
+    }
   }
 }
 
@@ -1644,6 +1869,7 @@ function sanitizeSlug(value) {
 function createFlagDefinitions() {
   return {
     "--json": { key: "json", type: "boolean" },
+    "--help": { key: "help", type: "boolean" },
     "--force": { key: "force", type: "boolean" },
     "--rebuild": { key: "rebuild", type: "boolean" },
     "--all": { key: "all", type: "boolean" },

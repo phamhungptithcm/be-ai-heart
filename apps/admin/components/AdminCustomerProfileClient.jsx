@@ -112,12 +112,33 @@ export function AdminCustomerProfileClient({ slug }) {
           </div>
         </div>
         <div className="admin-command-metrics">
-          <div className="admin-command-metric"><span>Readiness</span><strong>{readinessScore}%</strong><p>Support confidence in the current mirrored profile and evidence set.</p></div>
-          <div className="admin-command-metric"><span>Files</span><strong>{profile.overview.file_count}</strong><p>Repository footprint currently mirrored into the control plane.</p></div>
-          <div className="admin-command-metric"><span>Documents</span><strong>{documentCount}</strong><p>Business and requirement memory currently attached to this repo.</p></div>
-          <div className="admin-command-metric"><span>Warnings</span><strong>{profile.overview.policy_warnings}</strong><p>Architecture or policy issues visible in the latest profile build.</p></div>
-          <div className="admin-command-metric"><span>Heart links</span><strong>{profile.heart.relationship_count}</strong><p>Cross-code and document relationships available for support reasoning.</p></div>
+          <div className="admin-command-metric">
+            <span>Readiness</span>
+            <strong>{readinessScore}%</strong>
+            <p>Support confidence in the current mirrored profile and evidence set.</p>
+          </div>
+          <div className="admin-command-metric">
+            <span>Files</span>
+            <strong>{profile.overview.file_count}</strong>
+            <p>Repository footprint currently mirrored into the control plane.</p>
+          </div>
+          <div className="admin-command-metric">
+            <span>Documents</span>
+            <strong>{documentCount}</strong>
+            <p>Business and requirement memory currently attached to this repo.</p>
+          </div>
+          <div className="admin-command-metric">
+            <span>Warnings</span>
+            <strong>{profile.overview.policy_warnings}</strong>
+            <p>Architecture or policy issues visible in the latest profile build.</p>
+          </div>
+          <div className="admin-command-metric">
+            <span>Heart links</span>
+            <strong>{profile.heart.relationship_count}</strong>
+            <p>Cross-code and document relationships available for support reasoning.</p>
+          </div>
         </div>
+      </section>
 
       <div className="admin-command-grid">
         <section className="admin-command-panel">

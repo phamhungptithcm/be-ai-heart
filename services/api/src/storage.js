@@ -78,6 +78,7 @@ export function getServiceStoragePaths(options = {}) {
     llmCallsRoot: path.join(root, "telemetry", "llm-calls"),
     profilesRoot: path.join(root, "profiles"),
     profileRepositoryFilesRoot: path.join(root, "profiles", "repositories"),
+    profileServiceArtifactsRoot: path.join(root, "profiles", "service-artifacts"),
     documentsRoot: path.join(root, "documents"),
     documentRepositoryFilesRoot: path.join(root, "documents", "repositories"),
     documentSubmissionsRoot: path.join(root, "document-submissions"),
@@ -125,6 +126,47 @@ export async function writeRepositoryProfileArtifactRecord({
     database_path: resolveServiceDatabasePath({ serviceStorageRoot: paths.root }),
     profile_path: filePath,
   };
+}
+
+export async function writeRepositoryServiceArtifactRecord({
+  serviceStorageRoot,
+  profileSlug,
+  serviceKey,
+  variant = "default",
+  artifact,
+} = {}) {
+  const safeProfileSlug = sanitizeArtifactToken(profileSlug, "workspace");
+  const safeServiceKey = sanitizeArtifactToken(serviceKey, "artifact");
+  const safeVariant = sanitizeArtifactToken(variant, "default");
+  const paths = getServiceStoragePaths({ serviceStorageRoot });
+  const artifactDirectory = path.join(paths.profileServiceArtifactsRoot, safeProfileSlug);
+
+  await fs.mkdir(artifactDirectory, { recursive: true });
+
+  const filePath = path.join(artifactDirectory, `${safeServiceKey}.${safeVariant}.json`);
+  await fs.writeFile(filePath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+
+  return {
+    service_storage_root: paths.root,
+    artifact_path: filePath,
+  };
+}
+
+export async function loadRepositoryServiceArtifactRecord({
+  serviceStorageRoot,
+  profileSlug,
+  serviceKey,
+  variant = "default",
+} = {}) {
+  const safeProfileSlug = sanitizeArtifactToken(profileSlug, "workspace");
+  const safeServiceKey = sanitizeArtifactToken(serviceKey, "artifact");
+  const safeVariant = sanitizeArtifactToken(variant, "default");
+  const paths = getServiceStoragePaths({ serviceStorageRoot });
+
+  return readJsonOrDefault(
+    path.join(paths.profileServiceArtifactsRoot, safeProfileSlug, `${safeServiceKey}.${safeVariant}.json`),
+    null,
+  );
 }
 
 export async function publishProfilesToSurface({ serviceStorageRoot, surfaceRoot }) {
@@ -1027,10 +1069,9 @@ export async function writeBenchmarkLaunchRecord({ serviceStorageRoot, launch } 
   const paths = getServiceStoragePaths({ serviceStorageRoot });
   const normalized = normalizeBenchmarkLaunchRecord(launch);
   await fs.mkdir(paths.benchmarkLaunchesRoot, { recursive: true });
-  await fs.writeFile(
+  await writeJsonAtomically(
     path.join(paths.benchmarkLaunchesRoot, `${normalized.launch_id}.json`),
-    `${JSON.stringify(normalized, null, 2)}\n`,
-    "utf8",
+    normalized,
   );
 
   return normalized;
@@ -1576,6 +1617,13 @@ async function readJsonOrDefault(filePath, fallback) {
   } catch {
     return fallback;
   }
+}
+
+async function writeJsonAtomically(filePath, payload) {
+  const serialized = `${JSON.stringify(payload, null, 2)}\n`;
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+  await fs.writeFile(tempPath, serialized, "utf8");
+  await fs.rename(tempPath, filePath);
 }
 
 function pickLatestTimestamp(values) {
@@ -2203,4 +2251,13 @@ function parsePayload(value, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function sanitizeArtifactToken(value, fallback) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
 }

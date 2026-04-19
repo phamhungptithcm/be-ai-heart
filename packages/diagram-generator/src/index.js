@@ -3,12 +3,13 @@ import path from "node:path";
 
 import { compileContextPack } from "../../context-compiler/src/index.js";
 import { syncRepositoryDocumentsToSurfaces } from "../../document-sync/src/index.js";
-import { createProjectOverview } from "../../graph/src/index.js";
+import { createCodeGraphView, createProjectOverview } from "../../graph/src/index.js";
 import {
   publishProfilesToSurface,
   publishWorkspacesToSurface,
   resolveServiceStorageRoot,
   writeRepositoryProfileArtifactRecord,
+  writeRepositoryServiceArtifactRecord,
 } from "../../../services/api/src/storage.js";
 
 export const DIAGRAM_TYPES = Object.freeze({
@@ -154,6 +155,26 @@ export async function syncRepositoryProfile({
       },
     },
   });
+  await Promise.all([
+    writeRepositoryServiceArtifactRecord({
+      serviceStorageRoot: storageRoot,
+      profileSlug,
+      serviceKey: "code-graph",
+      variant: "focused",
+      artifact: createCodeGraphView(workspaceState.graph, {
+        mode: "focused",
+      }),
+    }),
+    writeRepositoryServiceArtifactRecord({
+      serviceStorageRoot: storageRoot,
+      profileSlug,
+      serviceKey: "code-graph",
+      variant: "full",
+      artifact: createCodeGraphView(workspaceState.graph, {
+        mode: "full",
+      }),
+    }),
+  ]);
   const publishedDocuments = await syncRepositoryDocumentsToSurfaces({
     repoRoot,
     profileSlug,

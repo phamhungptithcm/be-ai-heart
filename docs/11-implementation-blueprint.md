@@ -39,6 +39,7 @@ be-ai-heart/
     context-compiler/
     policy-engine/
     cli/
+    connect/
     mcp-server/
     benchmark/
     shared-schema/
@@ -98,6 +99,13 @@ be-ai-heart/
 - command surface
 - local UX
 - JSON output
+
+### `packages/connect`
+
+- agent-host discovery
+- local model-runtime discovery
+- install planning and patching
+- verification and connect-specific status reporting
 
 ### `packages/mcp-server`
 
@@ -201,6 +209,7 @@ The repository bootstrap currently uses:
 - `npm workspaces`
 - dependency-light Node.js modules
 - local `node --test` validation
+- a dedicated `packages/connect` layer for local agent and model integration
 
 This is intentional for fast iteration before adding a fuller TypeScript toolchain.
 
@@ -236,10 +245,11 @@ This is intentional for fast iteration before adding a fuller TypeScript toolcha
 ## First Demo Flow
 
 1. Initialize `heart` on a medium-size repo
-2. Run `heart scan`
-3. Show `heart overview`
-4. Ask for a feature context pack
-5. Connect an agent via MCP
-6. Compare benchmark without and with `be-ai-heart`
+2. Show `heart overview`
+3. Run `heart connect detect`
+4. Install and verify `heart-mcp` for a supported client
+5. Ask for a feature context pack
+6. Connect an agent via MCP
+7. Compare benchmark without and with `be-ai-heart`
 
 That demo should be the core of both product validation and sales.

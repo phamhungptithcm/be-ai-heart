@@ -3,7 +3,11 @@ import path from "node:path";
 
 import { resolveActorAccess } from "../../../packages/shared-schema/src/enterprise.js";
 import { ensureCustomer } from "./customer-registry.js";
-import { getServiceStoragePaths, loadWorkspaceCatalog } from "./storage.js";
+import {
+  getServiceStoragePaths,
+  loadRepositoryServiceArtifactRecord,
+  loadWorkspaceCatalog,
+} from "./storage.js";
 import { withServiceDatabase } from "./database.js";
 import {
   clearMembershipsForActorInPostgres,
@@ -245,6 +249,7 @@ export async function loadAccessibleRepositoryView({
   surface,
   actorSlug,
   profileSlug,
+  graphMode = "focused",
 } = {}) {
   const registry = await loadAccessRegistry({ serviceStorageRoot });
   const actor = resolveActorFromRegistry(registry, surface, actorSlug);
@@ -278,12 +283,32 @@ export async function loadAccessibleRepositoryView({
     { profile_slug: safeSlug, reports: [] },
   );
   const workspace = (workspaces.workspaces ?? []).find((entry) => entry.workspace_slug === (profile.workspace_slug ?? profile.profile_slug)) ?? null;
+  const normalizedGraphMode = normalizeCodeGraphMode(graphMode);
+  const codeGraphView =
+    (await loadRepositoryServiceArtifactRecord({
+      serviceStorageRoot,
+      profileSlug: safeSlug,
+      serviceKey: "code-graph",
+      variant: normalizedGraphMode,
+    })) ??
+    (await loadRepositoryServiceArtifactRecord({
+      serviceStorageRoot,
+      profileSlug: safeSlug,
+      serviceKey: "code-graph",
+      variant: "focused",
+    }));
 
   return {
     profile,
     documents,
     benchmark_history: benchmarkHistory,
     workspace,
+    code_graph: {
+      default_mode: "focused",
+      requested_mode: normalizedGraphMode,
+      available_modes: ["focused", "full"],
+      view: codeGraphView,
+    },
   };
 }
 
@@ -665,6 +690,10 @@ function sanitizeSlug(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeCodeGraphMode(mode) {
+  return String(mode ?? "focused").trim().toLowerCase() === "full" ? "full" : "focused";
 }
 
 async function loadActorsFromDatabase(serviceStorageRoot) {

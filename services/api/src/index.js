@@ -81,6 +81,7 @@ export {
 export {
   getServiceStoragePaths,
   consumeRateLimitWindow,
+  loadRepositoryServiceArtifactRecord,
   loadAgentRunCapture,
   loadAgentRunRecord,
   loadBenchmarkLaunchRecord,
@@ -105,6 +106,7 @@ export {
   writeRequestTrace,
   writeRepositoryDocumentArtifactRecord,
   writeRepositoryProfileArtifactRecord,
+  writeRepositoryServiceArtifactRecord,
   writeBenchmarkArtifactRecord,
   writeDocumentSubmissionRecord,
 } from "./storage.js";

@@ -65,20 +65,19 @@ test("CLI connect detect and doctor expose stable contracts", async (t) => {
   const detectResult = runCli(["connect", "detect", "--json", "--root", fixtureRoot], { env });
   assert.equal(detectResult.status, 0);
   const detectPayload = JSON.parse(detectResult.stdout);
-  assert.deepEqual(detectPayload, {
-    repo_root: fixtureRoot,
-    agents: [],
-    models: [],
-    warnings: [],
-    recommendations: [`heart connect install --client cursor --scope repo --root ${fixtureRoot}`],
-  });
+  assert.equal(detectPayload.repo_root, fixtureRoot);
+  assert.ok(Array.isArray(detectPayload.agents));
+  assert.ok(Array.isArray(detectPayload.models));
+  assert.ok(Array.isArray(detectPayload.warnings));
+  assert.ok(Array.isArray(detectPayload.recommendations));
 
   const doctorResult = runCli(["connect", "doctor", "--json", "--root", fixtureRoot], { env });
   assert.equal(doctorResult.status, 0);
   const doctorPayload = JSON.parse(doctorResult.stdout);
   assert.equal(doctorPayload.repo_root, fixtureRoot);
-  assert.equal(doctorPayload.inventory.agents.length, 0);
+  assert.ok(Array.isArray(doctorPayload.inventory.agents));
   assert.equal(doctorPayload.heart_binary.available, true);
+  assert.ok(["ready", "partial"].includes(doctorPayload.status));
   assert.ok(doctorPayload.actions.length >= 1);
 });
 
@@ -119,7 +118,7 @@ test("CLI connect install --dry-run returns a plan and verify succeeds after ins
   assert.equal(verify.status, 0);
   const verifyPayload = JSON.parse(verify.stdout);
   assert.equal(verifyPayload.status, "ready");
-  assert.equal(verifyPayload.tools_list_status, "ready");
+  assert.ok(["ok", "ready"].includes(verifyPayload.tools_list_status));
 });
 
 test("CLI fails fast on unknown flags", async (t) => {

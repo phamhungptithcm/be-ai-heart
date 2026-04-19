@@ -9,6 +9,90 @@ import {
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 const TYPE_RELATION_NODE_KINDS = new Set(["class", "interface"]);
+const CODE_GRAPH_INCLUDED_NODE_TYPES = new Set([
+  NODE_TYPES.file,
+  NODE_TYPES.class,
+  NODE_TYPES.interface,
+  NODE_TYPES.function,
+  NODE_TYPES.method,
+  NODE_TYPES.test,
+]);
+const CODE_GRAPH_INCLUDED_EDGE_TYPES = new Set([
+  EDGE_TYPES.contains,
+  EDGE_TYPES.imports,
+  EDGE_TYPES.calls,
+  EDGE_TYPES.extends,
+  EDGE_TYPES.implements,
+  EDGE_TYPES.testedBy,
+]);
+const CODE_GRAPH_TYPE_STYLES = Object.freeze({
+  file: {
+    label: "File",
+    color: "#ff7a1a",
+    radius: 24,
+    cluster: { x: 0.18, y: 0.34 },
+  },
+  class: {
+    label: "Class",
+    color: "#ffd31a",
+    radius: 19,
+    cluster: { x: 0.66, y: 0.74 },
+  },
+  interface: {
+    label: "Interface",
+    color: "#39ff14",
+    radius: 18,
+    cluster: { x: 0.64, y: 0.3 },
+  },
+  function: {
+    label: "Function",
+    color: "#4aa3ff",
+    radius: 15,
+    cluster: { x: 0.38, y: 0.58 },
+  },
+  method: {
+    label: "Method",
+    color: "#4aa3ff",
+    radius: 14,
+    cluster: { x: 0.44, y: 0.62 },
+  },
+  test: {
+    label: "Test",
+    color: "#ff6b8b",
+    radius: 16,
+    cluster: { x: 0.22, y: 0.78 },
+  },
+});
+const CODE_GRAPH_EDGE_STYLES = Object.freeze({
+  defines: {
+    label: "Defines",
+    color: "#28f1b1",
+  },
+  imports: {
+    label: "Imports",
+    color: "#2f7cff",
+  },
+  calls: {
+    label: "Calls",
+    color: "#30d3ff",
+  },
+  extends: {
+    label: "Extends",
+    color: "#ff6b8b",
+  },
+  implements: {
+    label: "Implements",
+    color: "#ff9f3d",
+  },
+  tested_by: {
+    label: "Tested by",
+    color: "#d16dff",
+  },
+});
+const CODE_GRAPH_VIEW_MODES = Object.freeze({
+  focused: "focused",
+  full: "full",
+});
 
 export function buildProjectGraph(scanResult, options = {}) {
   const repoName = options.repoName ?? path.basename(scanResult.rootDir);
@@ -484,6 +568,85 @@ export function createProjectOverview(
   };
 }
 
+export function createCodeGraphView(graph, options = {}) {
+  const mode = normalizeCodeGraphMode(options.mode);
+  const totalNodes = graph.nodes
+    .map((node) => createCodeGraphNodeCandidate(node))
+    .filter(Boolean);
+  const totalNodesById = new Map(totalNodes.map((node) => [node.id, node]));
+  const totalEdges = graph.edges
+    .map((edge) => createCodeGraphEdgeCandidate(edge, totalNodesById))
+    .filter(Boolean);
+  const totalAdjacency = buildAdjacency(totalEdges);
+  const totalDegrees = buildDegreeMap(totalEdges);
+  const selectedNodeIds =
+    mode === CODE_GRAPH_VIEW_MODES.full
+      ? new Set(totalNodes.map((node) => node.id))
+      : selectFocusedCodeGraphNodeIds(totalNodes, totalEdges, totalAdjacency, totalDegrees, {
+          maxNodes: Number(options.maxNodes ?? 54),
+        });
+  const selectedNodes = totalNodes.filter((node) => selectedNodeIds.has(node.id));
+  const selectedEdges = totalEdges.filter(
+    (edge) => selectedNodeIds.has(edge.from) && selectedNodeIds.has(edge.to),
+  );
+  const layout = createCodeGraphLayout(selectedNodes, selectedEdges, {
+    mode,
+    width: Number(options.width ?? 1360),
+    height: Number(options.height ?? 840),
+  });
+  const selectedDegrees = buildDegreeMap(selectedEdges);
+
+  return {
+    mode,
+    source_type: "repo_artifact",
+    node_count: selectedNodes.length,
+    edge_count: selectedEdges.length,
+    total_node_count: totalNodes.length,
+    total_edge_count: totalEdges.length,
+    is_truncated:
+      mode === CODE_GRAPH_VIEW_MODES.focused &&
+      (selectedNodes.length < totalNodes.length || selectedEdges.length < totalEdges.length),
+    layout: {
+      width: layout.width,
+      height: layout.height,
+      algorithm: layout.algorithm,
+    },
+    node_type_counts: summarizeCodeGraphTypes(selectedNodes, "type_key"),
+    edge_type_counts: summarizeCodeGraphTypes(selectedEdges, "type_key"),
+    total_node_type_counts: summarizeCodeGraphTypes(totalNodes, "type_key"),
+    total_edge_type_counts: summarizeCodeGraphTypes(totalEdges, "type_key"),
+    nodes: selectedNodes.map((node) => {
+      const position = layout.positions.get(node.id) ?? { x: layout.width / 2, y: layout.height / 2 };
+      const degree = selectedDegrees.get(node.id) ?? 0;
+      const style = CODE_GRAPH_TYPE_STYLES[node.type_key];
+
+      return {
+        id: node.id,
+        label: node.label,
+        secondary_label: node.secondary_label,
+        type_key: node.type_key,
+        type_label: style.label,
+        path: node.path,
+        search_text: node.search_text,
+        degree,
+        radius: style.radius + Math.min(7, Math.round(degree / 3)),
+        color: style.color,
+        position,
+        meta: node.meta,
+      };
+    }),
+    edges: selectedEdges.map((edge) => ({
+      id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      type_key: edge.type_key,
+      type_label: CODE_GRAPH_EDGE_STYLES[edge.type_key]?.label ?? edge.type_key,
+      color: CODE_GRAPH_EDGE_STYLES[edge.type_key]?.color ?? "#9cb2ab",
+      label: edge.label,
+    })),
+  };
+}
+
 export function createImpactAnalysis(graph, target) {
   const resolved = resolveImpactTarget(graph, target);
   if (!resolved.found) {
@@ -681,6 +844,367 @@ function resolveImpactTarget(graph, target) {
     file: resolvedFile,
     symbolIds,
   };
+}
+
+function createCodeGraphNodeCandidate(node) {
+  if (!CODE_GRAPH_INCLUDED_NODE_TYPES.has(node.type)) {
+    return null;
+  }
+
+  const type_key = mapCodeGraphNodeType(node.type);
+  if (!type_key) {
+    return null;
+  }
+
+  const isFile = type_key === "file";
+  const label = isFile ? shortFileLabel(node.path ?? node.name) : node.name;
+  const secondaryLabel = isFile ? node.path : node.metadata?.container ?? node.path ?? "";
+
+  return {
+    id: node.id,
+    type_key,
+    label,
+    secondary_label: secondaryLabel || "",
+    path: node.path ?? "",
+    search_text: [label, node.path, node.name, node.metadata?.container, node.metadata?.signature]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase(),
+    meta: {
+      container: node.metadata?.container ?? "",
+      signature: node.metadata?.signature ?? "",
+      exported: Boolean(node.metadata?.exported),
+      kind: node.metadata?.kind ?? "",
+    },
+  };
+}
+
+function shortFileLabel(filePath) {
+  const normalizedPath = String(filePath ?? "").replace(/\\/g, "/");
+  if (!normalizedPath) {
+    return "unknown-file";
+  }
+
+  const segments = normalizedPath.split("/").filter(Boolean);
+  if (segments.length <= 2) {
+    return normalizedPath;
+  }
+
+  return segments.slice(-2).join("/");
+}
+
+function createCodeGraphEdgeCandidate(edge, nodesById) {
+  if (!CODE_GRAPH_INCLUDED_EDGE_TYPES.has(edge.type)) {
+    return null;
+  }
+
+  const fromNode = nodesById.get(edge.from);
+  const toNode = nodesById.get(edge.to);
+  if (!fromNode || !toNode) {
+    return null;
+  }
+
+  let type_key = null;
+  if (edge.type === EDGE_TYPES.contains) {
+    if (fromNode.type_key !== "file") {
+      return null;
+    }
+    type_key = "defines";
+  } else if (edge.type === EDGE_TYPES.imports) {
+    type_key = "imports";
+  } else if (edge.type === EDGE_TYPES.calls) {
+    type_key = "calls";
+  } else if (edge.type === EDGE_TYPES.extends) {
+    type_key = "extends";
+  } else if (edge.type === EDGE_TYPES.implements) {
+    type_key = "implements";
+  } else if (edge.type === EDGE_TYPES.testedBy) {
+    type_key = "tested_by";
+  }
+
+  if (!type_key) {
+    return null;
+  }
+
+  return {
+    id: edge.id,
+    from: edge.from,
+    to: edge.to,
+    type_key,
+    label: CODE_GRAPH_EDGE_STYLES[type_key]?.label ?? type_key,
+  };
+}
+
+function mapCodeGraphNodeType(nodeType) {
+  switch (nodeType) {
+    case NODE_TYPES.file:
+      return "file";
+    case NODE_TYPES.class:
+      return "class";
+    case NODE_TYPES.interface:
+      return "interface";
+    case NODE_TYPES.function:
+      return "function";
+    case NODE_TYPES.method:
+      return "method";
+    case NODE_TYPES.test:
+      return "test";
+    default:
+      return null;
+  }
+}
+
+function normalizeCodeGraphMode(mode) {
+  return String(mode ?? CODE_GRAPH_VIEW_MODES.focused).trim() === CODE_GRAPH_VIEW_MODES.full
+    ? CODE_GRAPH_VIEW_MODES.full
+    : CODE_GRAPH_VIEW_MODES.focused;
+}
+
+function buildAdjacency(edges) {
+  const adjacency = new Map();
+
+  for (const edge of edges) {
+    appendToMapList(adjacency, edge.from, edge.to);
+    appendToMapList(adjacency, edge.to, edge.from);
+  }
+
+  return adjacency;
+}
+
+function buildDegreeMap(edges) {
+  const degrees = new Map();
+
+  for (const edge of edges) {
+    degrees.set(edge.from, (degrees.get(edge.from) ?? 0) + 1);
+    degrees.set(edge.to, (degrees.get(edge.to) ?? 0) + 1);
+  }
+
+  return degrees;
+}
+
+function summarizeCodeGraphTypes(entries, key) {
+  const counts = {};
+
+  for (const entry of entries) {
+    const typeKey = entry[key];
+    counts[typeKey] = (counts[typeKey] ?? 0) + 1;
+  }
+
+  return counts;
+}
+
+function selectFocusedCodeGraphNodeIds(nodes, edges, adjacency, degrees, options = {}) {
+  const maxNodes = Math.max(24, Number(options.maxNodes ?? 54));
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const rankedNodes = [...nodes].sort((left, right) => {
+    const scoreDiff = scoreFocusedGraphNode(right, degrees) - scoreFocusedGraphNode(left, degrees);
+    if (scoreDiff !== 0) {
+      return scoreDiff;
+    }
+    return left.id.localeCompare(right.id);
+  });
+  const selected = new Set();
+  const queue = [];
+
+  for (const candidate of rankedNodes) {
+    if (selected.size >= Math.min(14, maxNodes)) {
+      break;
+    }
+
+    if (selected.has(candidate.id)) {
+      continue;
+    }
+
+    selected.add(candidate.id);
+    queue.push(candidate.id);
+  }
+
+  while (queue.length > 0 && selected.size < maxNodes) {
+    const nodeId = queue.shift();
+    const neighbours = [...(adjacency.get(nodeId) ?? [])].sort((left, right) => {
+      const leftNode = nodesById.get(left);
+      const rightNode = nodesById.get(right);
+      const scoreDiff = scoreFocusedGraphNode(rightNode, degrees) - scoreFocusedGraphNode(leftNode, degrees);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+      return left.localeCompare(right);
+    });
+
+    for (const neighbourId of neighbours) {
+      if (selected.size >= maxNodes) {
+        break;
+      }
+      if (selected.has(neighbourId)) {
+        continue;
+      }
+      selected.add(neighbourId);
+      queue.push(neighbourId);
+    }
+  }
+
+  for (const edge of edges) {
+    if (edge.type_key !== "defines") {
+      continue;
+    }
+    if (selected.has(edge.to) && selected.size < maxNodes) {
+      selected.add(edge.from);
+    }
+  }
+
+  if (selected.size === 0) {
+    for (const candidate of rankedNodes.slice(0, maxNodes)) {
+      selected.add(candidate.id);
+    }
+  }
+
+  return selected;
+}
+
+function scoreFocusedGraphNode(node, degrees) {
+  if (!node) {
+    return -1;
+  }
+
+  const degree = degrees.get(node.id) ?? 0;
+  const typeBoost = {
+    file: 10,
+    class: 9,
+    interface: 8,
+    function: 7,
+    method: 6,
+    test: 4,
+  }[node.type_key] ?? 0;
+
+  return typeBoost + degree * 2 + (node.meta?.exported ? 2 : 0);
+}
+
+function createCodeGraphLayout(nodes, edges, options = {}) {
+  const width = Math.max(960, Number(options.width ?? 1360));
+  const height = Math.max(640, Number(options.height ?? 840));
+  const mode = normalizeCodeGraphMode(options.mode);
+  const positions = new Map();
+  const centers = new Map(
+    Object.entries(CODE_GRAPH_TYPE_STYLES).map(([key, style]) => [
+      key,
+      { x: style.cluster.x * width, y: style.cluster.y * height },
+    ]),
+  );
+
+  if (nodes.length === 0) {
+    return {
+      width,
+      height,
+      algorithm: "empty",
+      positions,
+    };
+  }
+
+  const layoutNodes = nodes.map((node, index) => {
+    const center = centers.get(node.type_key) ?? { x: width / 2, y: height / 2 };
+    const seed = hashGraphId(node.id);
+    const angle = ((seed % 360) * Math.PI) / 180;
+    const ring = 70 + (index % 11) * 18 + (seed % 31);
+    const point = {
+      id: node.id,
+      type_key: node.type_key,
+      x: center.x + Math.cos(angle) * ring,
+      y: center.y + Math.sin(angle) * ring,
+    };
+    positions.set(node.id, point);
+    return point;
+  });
+
+  const iterations =
+    mode === CODE_GRAPH_VIEW_MODES.full
+      ? Math.max(10, Math.min(24, Math.round(320 / Math.max(nodes.length, 12))))
+      : 72;
+  const repulsion = mode === CODE_GRAPH_VIEW_MODES.full ? 10_000 : 18_000;
+  const attraction = mode === CODE_GRAPH_VIEW_MODES.full ? 0.018 : 0.032;
+  const clusterPull = mode === CODE_GRAPH_VIEW_MODES.full ? 0.028 : 0.044;
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    const forces = new Map(layoutNodes.map((node) => [node.id, { x: 0, y: 0 }]));
+
+    for (let index = 0; index < layoutNodes.length; index += 1) {
+      const left = layoutNodes[index];
+      for (let offset = index + 1; offset < layoutNodes.length; offset += 1) {
+        const right = layoutNodes[offset];
+        const dx = left.x - right.x;
+        const dy = left.y - right.y;
+        const distanceSquared = Math.max(dx * dx + dy * dy, 64);
+        const distance = Math.sqrt(distanceSquared);
+        const force = repulsion / distanceSquared;
+        const forceX = (dx / distance) * force;
+        const forceY = (dy / distance) * force;
+        forces.get(left.id).x += forceX;
+        forces.get(left.id).y += forceY;
+        forces.get(right.id).x -= forceX;
+        forces.get(right.id).y -= forceY;
+      }
+    }
+
+    for (const edge of edges) {
+      const from = positions.get(edge.from);
+      const to = positions.get(edge.to);
+      const fromForce = forces.get(edge.from);
+      const toForce = forces.get(edge.to);
+      if (!from || !to || !fromForce || !toForce) {
+        continue;
+      }
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+      const idealLength = edge.type_key === "defines" ? 96 : 168;
+      const stretch = distance - idealLength;
+      const force = stretch * attraction;
+      const forceX = (dx / distance) * force;
+      const forceY = (dy / distance) * force;
+      fromForce.x += forceX;
+      fromForce.y += forceY;
+      toForce.x -= forceX;
+      toForce.y -= forceY;
+    }
+
+    for (const node of layoutNodes) {
+      const center = centers.get(node.type_key) ?? { x: width / 2, y: height / 2 };
+      const force = forces.get(node.id);
+      if (!force) {
+        continue;
+      }
+      force.x += (center.x - node.x) * clusterPull;
+      force.y += (center.y - node.y) * clusterPull;
+      node.x = clamp(node.x + force.x, 42, width - 42);
+      node.y = clamp(node.y + force.y, 42, height - 42);
+      positions.set(node.id, { x: node.x, y: node.y });
+    }
+  }
+
+  return {
+    width,
+    height,
+    algorithm: mode === CODE_GRAPH_VIEW_MODES.full ? "clustered-force-lite" : "clustered-force",
+    positions: new Map(layoutNodes.map((node) => [node.id, { x: round(node.x, 2), y: round(node.y, 2) }])),
+  };
+}
+
+function hashGraphId(value) {
+  let hash = 0;
+
+  for (const character of String(value)) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+
+  return hash;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function round(value, precision = 1) {
+  const factor = 10 ** precision;
+  return Math.round(value * factor) / factor;
 }
 
 function createNotFoundResult(target) {

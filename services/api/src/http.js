@@ -64,6 +64,7 @@ import {
   writeRepositoryProfileForActor,
 } from "./index.js";
 import { consumeRequestRateLimit } from "./rate-limit.js";
+import { buildRepositoryServicesView } from "./repository-services.js";
 
 const DEFAULT_REQUEST_LIMITS = Object.freeze({
   session: 16 * 1024,
@@ -1045,6 +1046,7 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
     return methodNotAllowed(["GET"]);
   }
 
+  const requestUrl = new URL(request.url);
   const authContext = await resolveRequestAuthContext({
     serviceStorageRoot: config.serviceStorageRoot,
     surface,
@@ -1056,12 +1058,92 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
     surface,
     actorSlug: authContext.actor_slug,
     profileSlug: slug,
+    graphMode: requestUrl.searchParams.get("graph_mode") ?? "focused",
   });
   if (!payload) {
     return jsonResponse({ error: "Repository view not found." }, { status: 404 });
   }
 
-  return jsonResponse(payload);
+  const runtimeSignals =
+    surface === "portal"
+      ? await loadRepositoryRuntimeSignals({
+          serviceStorageRoot: config.serviceStorageRoot,
+          authContext,
+          apiBaseUrl: config.apiBaseUrl,
+          profile: payload.profile,
+        })
+      : null;
+  const repositoryServices = buildRepositoryServicesView({
+    profile: payload.profile,
+    documents: payload.documents,
+    benchmarkHistory: payload.benchmark_history,
+    workspace: payload.workspace,
+    codeGraph: payload.code_graph,
+    runtimeSignals,
+  });
+
+  return jsonResponse({
+    ...payload,
+    runtime_signals: runtimeSignals,
+    repository_services: repositoryServices,
+  });
+}
+
+async function loadRepositoryRuntimeSignals({
+  serviceStorageRoot,
+  authContext,
+  apiBaseUrl,
+  profile,
+} = {}) {
+  const usage = await loadPortalUsageSummary({
+    serviceStorageRoot,
+    authContext,
+    apiBaseUrl,
+    windowDays: 30,
+  });
+  const workspaceSlug = String(profile?.workspace_slug ?? profile?.profile_slug ?? "");
+  const repo = String(profile?.repo ?? "");
+  const workspaceRow = (usage?.breakdowns?.workspaces ?? []).find(
+    (entry) => String(entry.workspace_slug ?? "") === workspaceSlug,
+  );
+  const repositoryRow = (usage?.breakdowns?.repositories ?? []).find(
+    (entry) => String(entry.repo ?? "") === repo,
+  );
+  const sourceType =
+    resolveMergedMetricSourceType(workspaceRow?.source_type, repositoryRow?.source_type) ??
+    usage?.summary?.metric_sources?.live_operational ??
+    "hosted_telemetry";
+
+  return {
+    source_type: sourceType,
+    summary: {
+      workspace_slug: workspaceSlug,
+      repo,
+      requests: Number(workspaceRow?.requests ?? repositoryRow?.requests ?? 0),
+      input_tokens: Number(workspaceRow?.input_tokens ?? repositoryRow?.input_tokens ?? 0),
+      output_tokens: Number(workspaceRow?.output_tokens ?? repositoryRow?.output_tokens ?? 0),
+      estimated_token_cost_usd: Number(
+        workspaceRow?.estimated_token_cost_usd ?? repositoryRow?.estimated_token_cost_usd ?? 0,
+      ),
+      avg_token_savings_pct: Number(
+        workspaceRow?.avg_token_savings_pct ?? repositoryRow?.avg_token_savings_pct ?? 0,
+      ),
+      benchmark_report_count: Number(
+        workspaceRow?.benchmark_report_count ?? repositoryRow?.benchmark_report_count ?? 0,
+      ),
+      estimated_cost_savings_usd: Number(
+        workspaceRow?.estimated_cost_savings_usd ?? repositoryRow?.estimated_cost_savings_usd ?? 0,
+      ),
+    },
+  };
+}
+
+function resolveMergedMetricSourceType(primary, secondary) {
+  if (primary && secondary && primary !== secondary) {
+    return "mixed";
+  }
+
+  return primary ?? secondary ?? null;
 }
 
 async function handleDocumentsRoute(request, config, surface) {

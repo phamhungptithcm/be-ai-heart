@@ -5,6 +5,7 @@ import path from "node:path";
 
 import {
   buildProjectGraph,
+  createCodeGraphView,
   createDependencyExplanation,
   createImpactAnalysis,
   diffProjectGraphSnapshots,
@@ -141,6 +142,27 @@ test("graph builder promotes typed nodes and collaboration edges", async (t) => 
   assert.equal(edgeIds.has("edge:implements:sym:class:src/auth/service.ts:AuthService:4:sym:interface:src/auth/base.ts:AuthWorkflow:3"), true);
   assert.equal(edgeIds.has("edge:calls:sym:method:src/auth/service.ts:authenticate:5:sym:function:src/auth/login.ts:loginUser:3"), true);
   assert.equal(edgeIds.has("edge:tested_by:sym:function:src/auth/login.ts:loginUser:3:test:src/auth/login.test.ts"), true);
+});
+
+test("code graph view exposes focused and full visual snapshots without absolute paths", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  await writeTypedGraphFixture(repoRoot);
+
+  const graph = buildProjectGraph(await scanSourceTree(repoRoot), { repoName: "sample-repo" });
+  const focused = createCodeGraphView(graph, { mode: "focused", maxNodes: 6 });
+  const full = createCodeGraphView(graph, { mode: "full" });
+
+  assert.equal(focused.mode, "focused");
+  assert.equal(full.mode, "full");
+  assert.equal(typeof focused.is_truncated, "boolean");
+  assert.ok(full.node_count >= focused.node_count);
+  assert.ok(full.edge_count >= focused.edge_count);
+  assert.ok(Object.keys(focused.node_type_counts).includes("file"));
+  assert.ok(Object.keys(full.edge_type_counts).includes("imports"));
+  assert.ok(focused.nodes.some((node) => node.type_key === "class"));
+  assert.ok(focused.edges.some((edge) => edge.type_key === "defines"));
+  assert.equal(focused.nodes.some((node) => String(node.path).includes(repoRoot)), false);
+  assert.equal(full.nodes.some((node) => String(node.path).includes(repoRoot)), false);
 });
 
 test("impact analysis uses call and test relationships for symbol targets", async (t) => {

@@ -337,6 +337,227 @@ export function AdminOpsHealthSummaryClient() {
   );
 }
 
+export function AdminOpsHealthCommandCenterClient() {
+  const { status, profiles, error } = useProfiles();
+
+  if (status !== "ready") {
+    return (
+      <AdminStateBlock
+        tone={status === "error" ? "error" : "loading"}
+        eyebrow="Operations"
+        title={status === "error" ? "Ops command center unavailable" : "Loading ops command center"}
+        description={
+          status === "error"
+            ? error
+            : "Admin is assembling platform reliability, memory depth, and support escalation signals."
+        }
+      />
+    );
+  }
+
+  const summary = summarizeProfiles(profiles);
+  const rows = profiles
+    .map((profile) => {
+      const syncStatus = String(profile.cache?.status ?? "unknown").toLowerCase();
+      const warningCount = Number(profile.overview?.policy_warnings ?? 0);
+      const relationshipCount = Number(profile.heart?.relationship_count ?? 0);
+      const documentCount = Number(profile.documents?.document_count ?? 0);
+      const benchmarkCount = Number(profile.benchmark_report_count ?? 0);
+      const healthScore = Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(
+            42 +
+              Math.min(20, relationshipCount / 36) +
+              Math.min(14, documentCount * 6) +
+              Math.min(12, benchmarkCount * 8) -
+              Math.min(24, warningCount * 8) -
+              (syncStatus === "stale" || syncStatus === "rebuild" ? 28 : 0),
+          ),
+        ),
+      );
+
+      return {
+        profile_slug: profile.profile_slug,
+        repo: profile.repo,
+        customer_slug: profile.customer_slug ?? "unknown",
+        syncStatus,
+        warningCount,
+        relationshipCount,
+        documentCount,
+        benchmarkCount,
+        healthScore,
+      };
+    })
+    .sort((left, right) => left.healthScore - right.healthScore);
+
+  const actions = [
+    {
+      label: "Stale or rebuilding repos",
+      count: summary.staleCount,
+      note:
+        summary.staleCount > 0
+          ? "These repositories need fresh sync or republish before trust and support decisions are made."
+          : "No mirrored repository is currently flagged stale.",
+      progress: Math.min(100, summary.staleCount * 18),
+    },
+    {
+      label: "Missing benchmark proof",
+      count: profiles.filter((profile) => Number(profile.benchmark_report_count ?? 0) === 0).length,
+      note:
+        "Repositories without benchmark proof are harder to defend during rollout or commercial expansion.",
+      progress: Math.min(
+        100,
+        profiles.filter((profile) => Number(profile.benchmark_report_count ?? 0) === 0).length * 14,
+      ),
+    },
+    {
+      label: "Low heart-link depth",
+      count: profiles.filter((profile) => Number(profile.heart?.relationship_count ?? 0) < 80).length,
+      note:
+        "Thin relationship graphs usually mean lower retrieval quality and weaker architecture understanding.",
+      progress: Math.min(
+        100,
+        profiles.filter((profile) => Number(profile.heart?.relationship_count ?? 0) < 80).length * 16,
+      ),
+    },
+  ];
+
+  return (
+    <div className="admin-stack-block">
+      <div className="admin-command-metrics">
+        <div className="admin-command-metric">
+          <span>Mirrored repos</span>
+          <strong>{summary.total}</strong>
+          <p>Repository surfaces the admin plane can actively support today.</p>
+        </div>
+        <div className="admin-command-metric">
+          <span>Stale repos</span>
+          <strong>{summary.staleCount}</strong>
+          <p>Repos that need refresh before ops or support should trust the published state.</p>
+        </div>
+        <div className="admin-command-metric">
+          <span>Heart links</span>
+          <strong>{summary.relationshipCount}</strong>
+          <p>Total code-to-doc relationships available across the mirrored inventory.</p>
+        </div>
+        <div className="admin-command-metric">
+          <span>Warnings</span>
+          <strong>{summary.warningCount}</strong>
+          <p>Policy or architecture signals still blocking cleaner enterprise rollout.</p>
+        </div>
+        <div className="admin-command-metric">
+          <span>Documents</span>
+          <strong>{summary.documentCount}</strong>
+          <p>Synced business and technical memory supporting the current tenant set.</p>
+        </div>
+      </div>
+
+      <div className="admin-command-grid">
+        <section className="admin-command-panel">
+          <header className="admin-command-head">
+            <div>
+              <span>Intervention lanes</span>
+              <h3>What platform ops should address next</h3>
+              <p>Operational pressure should be obvious before it leaks into support load or customer trust issues.</p>
+            </div>
+          </header>
+          <div className="admin-risk-list">
+            {actions.map((action) => (
+              <article key={action.label} className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>{action.label}</strong>
+                  <span>{action.note}</span>
+                </div>
+                <div className="admin-risk-meta">
+                  <b>{action.count}</b>
+                  <small>{action.progress}%</small>
+                </div>
+                <div className="admin-mini-track" aria-hidden="true">
+                  <i className="admin-mini-fill" style={{ width: `${action.progress}%` }} />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="admin-command-panel">
+          <header className="admin-command-head">
+            <div>
+              <span>Supportability heatmap</span>
+              <h3>Which mirrored repositories are currently the weakest</h3>
+              <p>The lowest-health repositories deserve intervention first because they combine sync risk, thin graph depth, or warning-heavy output.</p>
+            </div>
+          </header>
+          <div className="admin-risk-list">
+            {rows.slice(0, 4).map((row) => (
+              <article key={row.profile_slug} className="admin-risk-row">
+                <div className="admin-risk-copy">
+                  <strong>{row.repo}</strong>
+                  <span>{row.customer_slug} · {row.syncStatus}</span>
+                </div>
+                <div className="admin-risk-meta">
+                  <b>{row.healthScore}%</b>
+                  <small>{row.warningCount} warnings · {row.relationshipCount} links</small>
+                </div>
+                <div className="admin-mini-track" aria-hidden="true">
+                  <i className="admin-mini-fill" style={{ width: `${row.healthScore}%` }} />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="admin-data-table-shell">
+        <table className="admin-data-table">
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>Customer</th>
+              <th>Health</th>
+              <th>Sync</th>
+              <th>Warnings</th>
+              <th>Docs</th>
+              <th>Benchmarks</th>
+              <th>Heart links</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.profile_slug}>
+                <td className="admin-table-primary">
+                  <strong>{row.repo}</strong>
+                  <small>Ops health view</small>
+                </td>
+                <td>{row.customer_slug}</td>
+                <td>
+                  <div className="admin-table-stat">
+                    <strong>{row.healthScore}%</strong>
+                    <div className="admin-mini-track" aria-hidden="true">
+                      <i className="admin-mini-fill" style={{ width: `${row.healthScore}%` }} />
+                    </div>
+                  </div>
+                </td>
+                <td>{row.syncStatus}</td>
+                <td>{row.warningCount}</td>
+                <td>{row.documentCount}</td>
+                <td>{row.benchmarkCount}</td>
+                <td>{row.relationshipCount}</td>
+                <td className="admin-table-link">
+                  <Link href={`/customers/${row.profile_slug}`}>Inspect</Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function summarizeProfiles(profiles) {
   return {
     total: profiles.length,

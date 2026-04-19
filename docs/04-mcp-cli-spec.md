@@ -15,9 +15,11 @@ The command surface should be obvious and sparse. Do not overload the first rele
 - Machine-readable outputs when needed
 - Human-friendly defaults
 
-## Core CLI Commands
+## Current CLI Surface
 
-### Project Setup
+The shipped surface is intentionally small. Commands not listed here are not part of the current implementation.
+
+### Project Setup and Workspace Inspection
 
 ```bash
 heart init
@@ -64,13 +66,42 @@ Purpose:
 ```bash
 heart pack --token-budget 1200 "add SSO login audit logging"
 heart pack --json "refactor payment retry flow"
+heart mcp tools
 heart mcp serve
 ```
 
 Purpose:
 
 - `pack`: build a task-specific context bundle with reuse, policy, and risk signals
+- `mcp tools`: list the current MCP tool registry
 - `mcp serve`: expose the project through MCP
+
+### Connect Workflow
+
+```bash
+heart connect detect [--json] [--root PATH] [--agents] [--models]
+heart connect install --client <agent> [--root PATH] [--scope user|repo] [--model <runtime>] [--dry-run] [--backup]
+heart connect verify --client <agent> [--root PATH] [--json]
+heart connect doctor [--json] [--root PATH]
+heart connect help
+heart connect --help
+```
+
+Purpose:
+
+- `detect`: discover allowlisted agent hosts and local model runtimes without mutating files
+- `install`: wire a supported client to `heart mcp serve` and optionally bind a model runtime when the adapter supports it
+- `verify`: perform a real MCP handshake before claiming success
+- `doctor`: provide support-oriented diagnostics for the connect workflow
+- `help` and `--help`: print the connect usage block
+
+Connect output notes:
+
+- `detect` returns `repo_root`, `agents`, `models`, `warnings`, and `recommendations`
+- `install --dry-run` returns the generated plan
+- `install --backup` creates backups before mutation and returns `backups` metadata in the result when backups are created
+- `verify` returns a status report with handshake and spawn details
+- supported v1 install targets are `cursor`, `claude-code`, and `continue`
 
 ### Governance and Benchmark
 
@@ -118,7 +149,6 @@ Launcher pricing flags:
 - `--output-cost-per-1m`
 
 These flags are accepted by `heart agent run` and `heart benchmark capture` and are used to compute observed USD cost from provider usage totals when the upstream model API does not return cost directly.
-
 ## Recommended Output Style
 
 Human mode:

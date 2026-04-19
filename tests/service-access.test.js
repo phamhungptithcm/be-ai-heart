@@ -136,6 +136,13 @@ test("service access filters workspaces, repository views, and documents by acto
     actorSlug: "customer-alpha",
     profileSlug: "alpha-workspace",
   });
+  const alphaFullView = await loadAccessibleRepositoryView({
+    serviceStorageRoot,
+    surface: "portal",
+    actorSlug: "customer-alpha",
+    profileSlug: "alpha-workspace",
+    graphMode: "full",
+  });
   const betaView = await loadAccessibleRepositoryView({
     serviceStorageRoot,
     surface: "portal",
@@ -151,6 +158,9 @@ test("service access filters workspaces, repository views, and documents by acto
   assert.equal(workspaces.length, 1);
   assert.equal(workspaces[0].workspace_slug, "alpha-workspace");
   assert.equal(alphaView?.profile?.profile_slug, "alpha-workspace");
+  assert.equal(alphaView?.code_graph?.view?.mode, "focused");
+  assert.equal(alphaFullView?.code_graph?.view?.mode, "full");
+  assert.ok(alphaFullView?.code_graph?.view?.node_count >= alphaView?.code_graph?.view?.node_count);
   assert.equal(betaView, null);
   assert.equal(documentsView.repositories.length, 1);
   assert.equal(documentsView.repositories[0].profile_slug, "alpha-workspace");

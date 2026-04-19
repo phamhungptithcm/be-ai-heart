@@ -4638,9 +4638,389 @@ body {
   align-items: center;
 }
 
+.portal-inline-banner-danger {
+  border-color: rgba(255, 140, 115, 0.22);
+  background: linear-gradient(180deg, rgba(255, 246, 244, 0.98), rgba(255, 240, 235, 0.94));
+}
+
+.portal-repository-services-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.portal-service-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 22px;
+  background: var(--dashboard-surface-strong);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.portal-service-card:hover,
+.portal-service-card.is-active {
+  transform: translateY(-2px);
+  border-color: rgba(83, 110, 230, 0.2);
+  box-shadow: 0 20px 44px rgba(13, 26, 58, 0.08);
+}
+
+.portal-service-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.portal-service-card-head i,
+.portal-service-toolbar-label {
+  color: var(--dashboard-soft);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.portal-service-card-head i[data-state="ready"] {
+  color: #0c8b62;
+}
+
+.portal-service-card-head i[data-state="warning"] {
+  color: #bf8c00;
+}
+
+.portal-service-card-head strong,
+.portal-service-tab span,
+.portal-graph-toolbar h4,
+.portal-graph-filter strong,
+.portal-graph-neighbor strong {
+  font-family: "Space Grotesk", "Avenir Next Condensed", sans-serif;
+}
+
+.portal-service-card-head strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.08rem;
+  letter-spacing: -0.03em;
+}
+
+.portal-service-card-head p,
+.portal-graph-toolbar p,
+.portal-service-empty p,
+.portal-graph-stage-note p,
+.portal-graph-neighbor small {
+  margin: 0;
+  color: var(--portal-muted);
+  line-height: 1.6;
+}
+
+.portal-service-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portal-service-card-metrics div {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(22, 40, 78, 0.08);
+  border-radius: 18px;
+  background: rgba(247, 250, 255, 0.88);
+}
+
+.portal-service-card-metrics span,
+.portal-graph-canvas-meta span,
+.portal-graph-filter span,
+.portal-graph-neighbor span {
+  color: var(--dashboard-soft);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.69rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.portal-service-card-metrics strong {
+  font-family: "Space Grotesk", "Avenir Next Condensed", sans-serif;
+  font-size: 1rem;
+  letter-spacing: -0.03em;
+}
+
+.portal-service-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.portal-service-tab {
+  display: inline-grid;
+  gap: 4px;
+  min-width: 170px;
+  padding: 14px 16px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  text-align: left;
+  cursor: pointer;
+}
+
+.portal-service-tab.is-active {
+  border-color: rgba(83, 110, 230, 0.24);
+  background: linear-gradient(180deg, rgba(238, 244, 255, 0.98), rgba(248, 250, 255, 0.96));
+}
+
+.portal-service-tab strong {
+  color: var(--portal-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.portal-service-empty {
+  display: grid;
+  gap: 10px;
+  padding: 24px;
+  border: 1px dashed rgba(22, 40, 78, 0.14);
+  border-radius: 24px;
+  background: rgba(250, 252, 255, 0.88);
+}
+
+.portal-service-empty strong,
+.portal-graph-stage-note strong,
+.portal-graph-inspector strong,
+.portal-graph-canvas-meta {
+  font-family: "Space Grotesk", "Avenir Next Condensed", sans-serif;
+}
+
+.portal-summary-list-tight article {
+  padding: 14px 16px;
+}
+
+.portal-graph-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.portal-graph-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.portal-graph-toolbar h4 {
+  margin: 6px 0 8px;
+  font-size: 1.24rem;
+  letter-spacing: -0.04em;
+}
+
+.portal-graph-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.portal-graph-search {
+  display: grid;
+  gap: 6px;
+}
+
+.portal-graph-search input {
+  width: min(320px, 56vw);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(22, 40, 78, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dashboard-ink);
+  font: inherit;
+}
+
+.portal-graph-mode-group,
+.portal-graph-zoom-group {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.portal-graph-mode,
+.portal-graph-zoom-group button,
+.portal-graph-neighbor,
+.portal-graph-filter {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(22, 40, 78, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dashboard-ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.portal-graph-mode.is-active {
+  border-color: rgba(83, 110, 230, 0.28);
+  background: linear-gradient(180deg, rgba(236, 242, 255, 0.98), rgba(250, 251, 255, 0.96));
+}
+
+.portal-graph-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: start;
+}
+
+.portal-graph-sidebar,
+.portal-graph-inspector {
+  display: grid;
+  gap: 14px;
+}
+
+.portal-graph-sidebar-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 22px;
+  background: rgba(249, 251, 255, 0.9);
+}
+
+.portal-graph-filter-list,
+.portal-graph-neighbor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.portal-graph-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.portal-graph-filter.is-muted {
+  opacity: 0.42;
+}
+
+.portal-graph-filter strong,
+.portal-graph-neighbor strong {
+  font-size: 0.94rem;
+  letter-spacing: -0.03em;
+}
+
+.portal-graph-neighbor {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+}
+
+.portal-graph-canvas-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.portal-graph-canvas-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.portal-graph-canvas {
+  position: relative;
+  overflow: hidden;
+  min-height: 760px;
+  border: 1px solid rgba(28, 244, 182, 0.12);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at center, rgba(59, 255, 183, 0.08), transparent 28%),
+    radial-gradient(circle at top, rgba(135, 230, 255, 0.06), transparent 26%),
+    linear-gradient(180deg, #061110 0%, #0a1917 58%, #091311 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.portal-graph-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.portal-graph-stage-note {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  max-width: 300px;
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(4, 13, 11, 0.78);
+  backdrop-filter: blur(16px);
+}
+
+.portal-graph-stage-note strong,
+.portal-graph-stage-note p,
+.portal-graph-edge-label,
+.portal-graph-node-label,
+.portal-graph-node-sublabel {
+  fill: #edf5ef;
+  color: #edf5ef;
+}
+
+.portal-graph-edge-label {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-anchor: middle;
+  text-transform: uppercase;
+}
+
+.portal-graph-node {
+  cursor: pointer;
+}
+
+.portal-graph-node-label {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.portal-graph-node-label.is-active {
+  font-size: 14px;
+}
+
+.portal-graph-node-sublabel {
+  fill: rgba(237, 245, 239, 0.76);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  text-anchor: middle;
+}
+
 @media (max-width: 1180px) {
   .portal-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .portal-graph-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-graph-canvas {
+    min-height: 620px;
   }
 }
 
@@ -4656,6 +5036,23 @@ body {
 
   .portal-enterprise-panel-actions {
     justify-content: flex-start;
+  }
+
+  .portal-repository-services-grid,
+  .portal-service-card-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-graph-toolbar {
+    flex-direction: column;
+  }
+
+  .portal-graph-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .portal-graph-search input {
+    width: 100%;
   }
 }
 
@@ -4679,5 +5076,24 @@ body {
   .portal-action-meta {
     justify-items: flex-start;
     min-width: 0;
+  }
+
+  .portal-repository-services-grid,
+  .portal-service-card-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-service-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .portal-graph-mode-group,
+  .portal-graph-zoom-group {
+    flex-wrap: wrap;
+  }
+
+  .portal-graph-canvas {
+    min-height: 520px;
   }
 }

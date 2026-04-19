@@ -164,6 +164,36 @@ test("repository profile sync publishes diagrams and makes them readable by port
       "utf8",
     ),
   );
+  const focusedCodeGraph = JSON.parse(
+    await fs.readFile(
+      path.join(
+        workspaceRoot,
+        "services",
+        "api",
+        "data",
+        "profiles",
+        "service-artifacts",
+        "sample-profile",
+        "code-graph.focused.json",
+      ),
+      "utf8",
+    ),
+  );
+  const fullCodeGraph = JSON.parse(
+    await fs.readFile(
+      path.join(
+        workspaceRoot,
+        "services",
+        "api",
+        "data",
+        "profiles",
+        "service-artifacts",
+        "sample-profile",
+        "code-graph.full.json",
+      ),
+      "utf8",
+    ),
+  );
   const workspaceIndex = JSON.parse(
     await fs.readFile(path.join(workspaceRoot, "services", "api", "data", "workspaces", "index.json"), "utf8"),
   );
@@ -184,9 +214,14 @@ test("repository profile sync publishes diagrams and makes them readable by port
   assert.equal(serviceProfile.profile_slug, "sample-profile");
   assert.equal(serviceProfile.workspace_slug, "sample-profile");
   assert.equal(portalWebProfile.repo_root, undefined);
+  assert.equal(portalWebProfile.code_graph, undefined);
   assert.ok(portalWebProfile.diagrams.some((diagram) => diagram.content.includes("flowchart LR")));
   assert.ok(portalWebProfile.diagrams.every((diagram) => typeof diagram.confidence === "string"));
   assert.ok(portalWebProfile.diagrams.every((diagram) => typeof diagram.scope?.focus === "string"));
+  assert.equal(focusedCodeGraph.mode, "focused");
+  assert.equal(fullCodeGraph.mode, "full");
+  assert.ok(fullCodeGraph.node_count >= focusedCodeGraph.node_count);
+  assert.ok(fullCodeGraph.edge_count >= focusedCodeGraph.edge_count);
   assert.equal(portalIndex.profiles.length, 1);
   assert.equal(portalIndex.profiles[0].profile_slug, "sample-profile");
   assert.equal(workspaceIndex.workspaces.length, 1);
