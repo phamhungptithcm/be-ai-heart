@@ -179,8 +179,8 @@ async function handleDocs(subcommand, flags, positional, io) {
 
 async function handleConnect(subcommand, flags, io) {
   if (flags.help || subcommand === "help") {
-    writeOutput(connectHelpText(), flags.json, io);
-    return 0;
+    io.stderr.write(`Unknown connect subcommand: ${subcommand ?? "--help"}\n`);
+    return 1;
   }
 
   if (subcommand === "detect") {
@@ -253,29 +253,34 @@ async function handleConnectInstall(flags, io) {
     return 0;
   }
 
-  const backups = flags.backup
-    ? await createPlanBackups(plan.files_to_backup ?? [])
-    : [];
+  try {
+    const backups = flags.backup
+      ? await createPlanBackups(plan.files_to_backup ?? [])
+      : [];
 
-  const result = await installConnection({
-    client: flags.client,
-    scope,
-    repoRoot,
-    model: flags.model,
-    verifyImpl: async (plan) =>
-      verifyConnection({
-        client: flags.client,
-        repoRoot,
-        plan: normalizeVerificationPlan(plan),
-      }),
-  });
+    const result = await installConnection({
+      client: flags.client,
+      scope,
+      repoRoot,
+      model: flags.model,
+      verifyImpl: async (plan) =>
+        verifyConnection({
+          client: flags.client,
+          repoRoot,
+          plan: normalizeVerificationPlan(plan),
+        }),
+    });
 
-  if (flags.backup) {
-    result.backups = backups;
+    if (flags.backup) {
+      result.backups = backups;
+    }
+
+    writeOutput(result, flags.json, io);
+    return 0;
+  } catch (error) {
+    io.stderr.write(`Connect install failed: ${formatConnectInstallError(error)}\n`);
+    return 1;
   }
-
-  writeOutput(result, flags.json, io);
-  return 0;
 }
 
 async function handleConnectVerify(flags, io) {
@@ -517,6 +522,10 @@ function formatConnectClientError(error, client) {
     return `Unsupported connect client: ${client}.`;
   }
 
+  return error instanceof Error ? error.message : String(error);
+}
+
+function formatConnectInstallError(error) {
   return error instanceof Error ? error.message : String(error);
 }
 

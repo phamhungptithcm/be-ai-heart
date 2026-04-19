@@ -252,6 +252,30 @@ test("CLI connect install creates backups when requested", async (t) => {
   assert.ok(JSON.parse(await fs.readFile(cursorConfigPath, "utf8")).mcpServers["heart-mcp"]);
 });
 
+test("CLI connect install reports backup failures without a stack trace", async (t) => {
+  const { repoRoot } = await createCliConnectInstallRepo(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(cursorConfigPath, { recursive: true });
+
+  const error = runCliExpectFailure([
+    cliPath,
+    "connect",
+    "install",
+    "--json",
+    "--backup",
+    "--client",
+    "cursor",
+    "--scope",
+    "repo",
+    "--root",
+    repoRoot,
+  ]);
+
+  assert.match(error.stderr, /^Connect install failed: /m);
+  assert.doesNotMatch(error.stderr, /at .*index\.js/);
+});
+
 test("CLI connect doctor returns repo diagnostics", async (t) => {
   const repoRoot = path.resolve(".");
   const raw = execFileSync("node", [cliPath, "connect", "doctor", "--json", "--root", repoRoot], {
@@ -265,17 +289,14 @@ test("CLI connect doctor returns repo diagnostics", async (t) => {
   assert.equal(result.warnings.length, 0);
 });
 
-test("CLI connect help aliases print connect usage", () => {
-  const help = execFileSync("node", [cliPath, "connect", "help"], {
-    encoding: "utf8",
-  });
-  const alias = execFileSync("node", [cliPath, "connect", "--help"], {
-    encoding: "utf8",
-  });
+test("CLI connect help aliases are rejected", () => {
+  const helpError = runCliExpectFailure([cliPath, "connect", "help"]);
+  const aliasError = runCliExpectFailure([cliPath, "connect", "--help"]);
 
-  assert.match(help, /heart connect/);
-  assert.match(help, /heart connect verify --client CLIENT/);
-  assert.equal(alias, help);
+  assert.match(helpError.stderr, /Unknown connect subcommand: help/);
+  assert.match(aliasError.stderr, /Unknown connect subcommand: --help/);
+  assert.doesNotMatch(helpError.stderr, /heart connect detect/);
+  assert.doesNotMatch(aliasError.stderr, /heart connect detect/);
 });
 
 test("CLI help includes connect commands", () => {
