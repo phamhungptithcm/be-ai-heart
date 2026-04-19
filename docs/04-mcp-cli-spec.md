@@ -15,74 +15,66 @@ The command surface should be obvious and sparse. Do not overload the first rele
 - Machine-readable outputs when needed
 - Human-friendly defaults
 
-## Core CLI Commands
+## Current CLI Surface
 
-### Project Setup
+The shipped surface is intentionally small. Commands not listed here are not part of the current implementation.
+
+### Project Setup and Workspace Inspection
 
 ```bash
 heart init
 heart doctor
-heart scan
-heart watch
-```
-
-Purpose:
-
-- `init`: create `heart.config.yaml`
-- `doctor`: validate repo, parsers, ignores, permissions
-- `scan`: build or refresh graph
-- `watch`: incremental updates during development
-
-### Inspection
-
-```bash
 heart overview
-heart find symbol loginUser
-heart deps src/auth/login.ts
-heart impact src/billing/service.ts
-heart reuse "create invoice"
+heart pack "add SSO login audit logging"
 heart docs search "login audit requirements"
 ```
 
 Purpose:
 
-- `overview`: summarize system domains and architecture
-- `find symbol`: locate symbol definitions and related edges
-- `deps`: explain dependencies
-- `impact`: estimate blast radius
-- `reuse`: suggest existing implementations relevant to a task
+- `init`: create `heart.config.yaml` and default project policies
+- `doctor`: validate the local repo, config, and environment basics
+- `overview`: summarize the graph, policy, and document state
+- `pack`: build a task-specific context bundle
 - `docs search`: find relevant project documents for a task or domain
 
-### Context for AI
+### Connect Workflow
 
 ```bash
-heart pack "add SSO login audit logging"
-heart pack --json "refactor payment retry flow"
-heart ask "where should a new webhook handler live?"
+heart connect detect [--json] [--root PATH] [--agents] [--models]
+heart connect install --client <agent> [--root PATH] [--scope user|repo] [--model <runtime>] [--dry-run] [--backup]
+heart connect verify --client <agent> [--root PATH] [--json]
+heart connect doctor [--json] [--root PATH]
+heart connect help
+heart connect --help
+```
+
+Purpose:
+
+- `detect`: discover allowlisted agent hosts and local model runtimes without mutating files
+- `install`: wire a supported client to `heart mcp serve` and optionally bind a model runtime when the adapter supports it
+- `verify`: perform a real MCP handshake before claiming success
+- `doctor`: provide support-oriented diagnostics for the connect workflow
+- `help` and `--help`: print the connect usage block
+
+Connect output notes:
+
+- `detect` returns `repo_root`, `agents`, `models`, `warnings`, and `recommendations`
+- `install --dry-run` returns the generated plan
+- `install --backup` creates backups before mutation and returns `backups` metadata in the result when backups are created
+- `verify` returns a status report with handshake and spawn details
+- supported v1 install targets are `cursor`, `claude-code`, and `continue`
+
+### MCP Runtime
+
+```bash
+heart mcp tools
 heart mcp serve
 ```
 
 Purpose:
 
-- `pack`: build a task-specific context bundle
-- `ask`: repo-aware Q&A
+- `mcp tools`: list the current MCP tool registry
 - `mcp serve`: expose the project through MCP
-
-### Governance and Benchmark
-
-```bash
-heart policy check
-heart benchmark run
-heart benchmark compare baseline.json heart.json
-heart report generate
-```
-
-Purpose:
-
-- `policy check`: evaluate architecture rules
-- `benchmark run`: execute predefined scenarios
-- `benchmark compare`: diff performance and cost metrics
-- `report generate`: produce executive report output
 
 ## Recommended Output Style
 

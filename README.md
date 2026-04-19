@@ -72,6 +72,7 @@ Use this layer before scaling implementation so future AI work remains consisten
    Marketing website, docs portal, onboarding, licensing, self-serve trials, and enterprise sales support.
 
 It now also treats project documents as first-class context inputs so the heart can preserve business intent, requirements, and system design alongside code.
+The current branch also includes a local `heart connect` workflow for detecting, installing, verifying, and diagnosing external MCP client wiring.
 
 ## Recommended First Execution Order
 
@@ -111,7 +112,7 @@ This repository now contains:
 - the execution-grade planning and documentation package
 - a project-level agent/skill governance system
 - a dependency-light MVP monorepo scaffold
-- a minimal parser, graph, context compiler, policy engine, CLI, MCP tool registry, and benchmark layer
+- a minimal parser, graph, context compiler, policy engine, CLI, connect layer, MCP tool registry, and benchmark layer
 - basic tests that run locally with `npm test`
 
 ## Local Commands
@@ -120,6 +121,10 @@ This repository now contains:
 npm run build
 npm test
 npm run overview
+node ./packages/cli/bin/heart.js doctor --json
+node ./packages/cli/bin/heart.js connect detect --json
+node ./packages/cli/bin/heart.js connect install --json --client cursor --backup
+node ./packages/cli/bin/heart.js connect verify --json --client cursor
 npm run mcp:tools
 npm run mcp:serve
 node ./packages/cli/bin/heart.js pack --json "improve login audit flow"
