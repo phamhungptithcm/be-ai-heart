@@ -98,8 +98,9 @@ export async function verifyConnection({ client, repoRoot, plan, spawnImpl = spa
 
 export async function runConnectDoctor(options = {}) {
   const detectImpl = options.detectImpl ?? detectConnections;
+  const repoRoot = options.repoRoot ?? process.cwd();
   const detection = await detectImpl({
-    repoRoot: options.repoRoot,
+    repoRoot,
     env: options.env,
     fetchImpl: options.fetchImpl,
     execFileImpl: options.execFileImpl,
@@ -111,7 +112,7 @@ export async function runConnectDoctor(options = {}) {
     : [];
 
   return {
-    repo_root: detection?.repo_root ?? options.repoRoot,
+    repo_root: detection?.repo_root ?? repoRoot,
     agents: Array.isArray(detection?.agents) ? detection.agents : [],
     models: Array.isArray(detection?.models) ? detection.models : [],
     warnings,

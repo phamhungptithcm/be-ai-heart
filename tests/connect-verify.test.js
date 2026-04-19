@@ -154,6 +154,36 @@ test("runConnectDoctor forwards repo-root-aware detect options and reports parti
   ]);
 });
 
+test("runConnectDoctor defaults repoRoot to cwd when omitted", async () => {
+  const cwd = process.cwd();
+  const detectCalls = [];
+
+  const result = await runConnectDoctor({
+    detectImpl: async (options) => {
+      detectCalls.push(options);
+      return {
+        repo_root: options.repoRoot,
+        agents: [],
+        models: [],
+        warnings: [],
+      };
+    },
+  });
+
+  assert.deepEqual(detectCalls, [
+    {
+      repoRoot: cwd,
+      env: undefined,
+      fetchImpl: undefined,
+      execFileImpl: undefined,
+      detectAgentsImpl: undefined,
+      detectModelsImpl: undefined,
+    },
+  ]);
+  assert.equal(result.repo_root, cwd);
+  assert.equal(result.status, "ready");
+});
+
 test("verifyConnection escalates to SIGKILL when the child ignores SIGTERM", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   const fakeChild = createFakeMcpChild();
