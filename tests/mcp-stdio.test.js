@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import readline from "node:readline";
+import { createTempRepoCopy } from "./helpers/temp-repo.js";
 
 const cliPath = path.resolve("packages/cli/bin/heart.js");
-const fixtureRoot = path.resolve("tests/fixtures/sample-repo");
 
-test("MCP stdio server completes initialize, list, and call flow", async () => {
+test("MCP stdio server completes initialize, list, and call flow", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
   const child = spawn("node", [cliPath, "mcp", "serve", "--root", fixtureRoot], {
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -50,8 +51,8 @@ test("MCP stdio server completes initialize, list, and call flow", async () => {
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
 
   const toolsResponse = await nextMessage();
-  assert.equal(toolsResponse.result.tools.length, 6);
-  assert.equal(toolsResponse.result.tools[2].name, "context_pack");
+  assert.equal(toolsResponse.result.tools.length, 7);
+  assert.equal(toolsResponse.result.tools[3].name, "context_pack");
 
   child.stdin.write(
     `${JSON.stringify({

@@ -66,7 +66,7 @@
     "path": "planning/github/issues/11-website-nextjs.md"
   },
   {
-    "title": "Build the admin and customer-workspace skeleton in React/Next.js",
+    "title": "Build the customer portal and internal admin skeleton in React/Next.js",
     "labels": ["type:feature", "type:frontend", "priority:p1", "track:product-surface"],
     "milestone": "M3 Product Surfaces",
     "path": "planning/github/issues/12-admin-nextjs.md"
@@ -124,5 +124,35 @@
     "labels": ["type:feature", "type:backend", "priority:p0", "track:heart-core"],
     "milestone": "M1 Heart Core MVP",
     "path": "planning/github/issues/21-incremental-indexing-v1.md"
+  },
+  {
+    "title": "Capture bounded task-run history and outcome metrics for adaptive learning",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/22-adaptive-task-run-history.md"
+  },
+  {
+    "title": "Generate reflection summaries and stale-skill signals from repeated task runs",
+    "labels": ["type:feature", "type:backend", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/23-reflection-summary-v1.md"
+  },
+  {
+    "title": "Create a versioned skill and upgrade-proposal registry for governed evolution",
+    "labels": ["type:feature", "type:backend", "priority:p1", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/24-skill-proposal-registry.md"
+  },
+  {
+    "title": "Extend the benchmark harness for static-vs-adaptive workflow comparisons",
+    "labels": ["type:feature", "type:research", "priority:p0", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/25-adaptive-benchmark-mode.md"
+  },
+  {
+    "title": "Ship local-first CLI and MCP workflows for reflection review, proposal benchmark, and promotion",
+    "labels": ["type:feature", "type:backend", "priority:p1", "track:runtime"],
+    "milestone": "M2 Agent Runtime and Benchmark",
+    "path": "planning/github/issues/26-adaptive-cli-mcp-flow.md"
   }
 ]

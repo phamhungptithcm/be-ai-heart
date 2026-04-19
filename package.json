@@ -12,9 +12,19 @@
     "build": "node ./scripts/build.mjs",
     "test": "node --test",
     "check": "npm run build && npm run test",
+    "smoke:auth": "node ./scripts/hosted-auth-smoke.mjs",
     "overview": "node ./packages/cli/bin/heart.js overview --json",
     "mcp:tools": "node ./packages/cli/bin/heart.js mcp tools --json",
-    "mcp:serve": "node ./packages/cli/bin/heart.js mcp serve"
+    "mcp:serve": "node ./packages/cli/bin/heart.js mcp serve",
+    "api:dev": "npm run dev --workspace @be-ai-heart/api",
+    "api:start": "npm run start --workspace @be-ai-heart/api",
+    "mock-oidc:start": "node ./services/api/src/mock-oidc-provider.js",
+    "website:dev": "npm run dev --workspace @be-ai-heart/website",
+    "website:build": "npm run build --workspace @be-ai-heart/website",
+    "portal:dev": "npm run dev --workspace @be-ai-heart/portal",
+    "portal:build": "npm run build --workspace @be-ai-heart/portal",
+    "admin:dev": "npm run dev --workspace @be-ai-heart/admin",
+    "admin:build": "npm run build --workspace @be-ai-heart/admin"
   },
   "engines": {
     "node": ">=22"

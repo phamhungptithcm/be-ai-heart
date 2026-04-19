@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "profile_slug": "be-ai-heart-live",
+  "repo": "be-ai-heart",
+  "repo_root": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart",
+  "generated_at": "2026-04-18T20:18:14.517Z",
+  "overview": {
+    "repo": "be-ai-heart",
+    "parser_engine": "typescript-ast",
+    "file_count": 156,
+    "symbol_count": 790,
+    "import_count": 521,
+    "parse_warnings": 0,
+    "document_count": 20,
+    "document_categories": {
+      "technical": 9,
+      "requirements": 10,
+      "general": 1
+    },
+    "domain_count": 25,
+    "relationship_count": 905,
+    "top_directories": [
+      {
+        "name": "apps",
+        "count": 83
+      },
+      {
+        "name": "tests",
+        "count": 29
+      },
+      {
+        "name": "packages",
+        "count": 24
+      },
+      {
+        "name": "services",
+        "count": 19
+      },
+      {
+        "name": "scripts",
+        "count": 1
+      }
+    ],
+    "policy_warnings": 0,
+    "summary": "Indexed 156 source files, 790 symbols, 20 project documents, and 905 heart links for be-ai-heart using typescript-ast."
+  },
+  "heart": {
+    "domain_count": 25,
+    "relationship_count": 905,
+    "relationship_type_counts": {
+      "SYMBOL_TO_DOMAIN": 790,
+      "DOCUMENT_TO_MODULE": 60,
+      "DECISION_TO_IMPLEMENTATION": 55
+    },
+    "linked_document_count": 20,
+    "linked_target_count": 55
+  },
+  "diagrams": [
+    {
+      "type": "symbol-graph",
+      "title": "Symbol Graph",
+      "format": "mermaid",
+      "inference_mode": "static-ast-graph",
+      "artifact_file": "symbol-graph.mmd",
+      "summary": "Shows repository files and symbol nodes for classes, functions, constants, and other extracted symbols."
+    },
+    {
+      "type": "high-level",
+      "title": "High-Level Architecture",
+      "format": "mermaid",
+      "inference_mode": "static-heart-model",
+      "artifact_file": "high-level.mmd",
+      "summary": "Shows top domains, representative files, and project document count from the persisted heart model."
+    },
+    {
+      "type": "class",
+      "title": "Class Diagram",
+      "format": "mermaid",
+      "inference_mode": "static-type-shape",
+      "artifact_file": "class.mmd",
+      "summary": "Shows extracted classes, interfaces, enums, and basic inheritance or implementation relationships when available."
+    },
+    {
+      "type": "sequence",
+      "title": "Sequence Diagram",
+      "format": "mermaid",
+      "inference_mode": "static-context-heuristic",
+      "artifact_file": "sequence.mmd",
+      "summary": "Shows a best-effort interaction flow derived from relevant files, imports, linked documents, and reuse targets."
+    }
+  ],
+  "documents": {
+    "document_count": 20,
+    "category_counts": {
+      "technical": 9,
+      "requirements": 10,
+      "general": 1
+    }
+  },
+  "cache": {
+    "status": "hit",
+    "state_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/cache/workspace-state.json",
+    "source_changes": {
+      "reused_file_count": 156,
+      "reparsed_file_count": 0,
+      "added_file_count": 0,
+      "changed_file_count": 0,
+      "removed_file_count": 0
+    },
+    "document_changes": {
+      "reused_document_count": 20,
+      "reparsed_document_count": 0,
+      "added_document_count": 0,
+      "changed_document_count": 0,
+      "removed_document_count": 0
+    }
+  }
+}

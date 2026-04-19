@@ -1,0 +1,37 @@
+---
+title: Getting Started
+description: Install heart, scan one repository, and sync your first project memory into the portal.
+order: 10
+category: onboarding
+keywords:
+  - cli
+  - portal
+  - sync
+---
+
+# Start with one repository
+
+`be-ai-heart` should prove value on one active repository before you ask a team to trust it on everything else.
+
+## Install the CLI
+
+Use the local-first CLI first. That keeps the first proof close to the repo and avoids turning setup into a procurement exercise.
+
+```bash
+npm install
+heart scan
+heart overview
+```
+
+## Publish the first heart
+
+Once the repository has been scanned, generate diagrams and sync the profile to the portal so engineering and leadership can review the same project memory.
+
+```bash
+heart diagram generate high-level
+heart diagram sync --slug acme-billing
+```
+
+## What success looks like
+
+By the end of setup, the team should see code structure, document memory, and benchmark readiness without manually re-explaining the repo to every AI session.

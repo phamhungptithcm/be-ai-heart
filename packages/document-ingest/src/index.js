@@ -2,25 +2,69 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".json", ".yaml", ".yml"]);
-const DEFAULT_IGNORES = new Set(["node_modules", "dist", "coverage", ".git"]);
+const DEFAULT_IGNORES = new Set([
+  "node_modules",
+  "dist",
+  "coverage",
+  ".git",
+  ".next",
+  "output",
+  ".playwright-cli",
+  ".heart/cache",
+  ".heart/diagrams",
+  ".heart/published",
+]);
 
 export async function scanDocumentTree(rootDir, options = {}) {
   const configuredRoots = options.roots?.length ? options.roots : ["docs"];
   const ignore = new Set([...(options.ignore ?? []), ...DEFAULT_IGNORES]);
   const files = [];
+  const previousDocumentsByPath = new Map(
+    (options.previousDocumentIndex?.documents ?? []).map((document) => [document.path, document]),
+  );
 
   for (const configuredRoot of configuredRoots) {
     const absoluteRoot = path.resolve(rootDir, configuredRoot);
-    const found = await discoverDocuments(rootDir, absoluteRoot, ignore);
+    const found = await discoverDocuments(rootDir, absoluteRoot, ignore, absoluteRoot);
     files.push(...found);
   }
 
   const documents = [];
+  const currentPaths = new Set();
+  let reusedDocumentCount = 0;
+  let reparsedDocumentCount = 0;
+  let addedDocumentCount = 0;
+  let changedDocumentCount = 0;
 
   for (const filePath of dedupe(files)) {
-    const content = await fs.readFile(filePath, "utf8");
     const relativePath = normalizePath(path.relative(rootDir, filePath));
-    documents.push(createDocumentRecord(relativePath, content));
+    const fileStats = await fs.stat(filePath);
+    const statSummary = summarizeStat(fileStats);
+    const previousDocument = previousDocumentsByPath.get(relativePath);
+    currentPaths.add(relativePath);
+
+    if (canReuseDocument(previousDocument, statSummary)) {
+      documents.push(previousDocument);
+      reusedDocumentCount += 1;
+      continue;
+    }
+
+    const content = await fs.readFile(filePath, "utf8");
+    documents.push(createDocumentRecord(relativePath, content, statSummary));
+    reparsedDocumentCount += 1;
+
+    if (!previousDocument) {
+      addedDocumentCount += 1;
+    } else {
+      changedDocumentCount += 1;
+    }
+  }
+
+  let removedDocumentCount = 0;
+  for (const documentPath of previousDocumentsByPath.keys()) {
+    if (!currentPaths.has(documentPath)) {
+      removedDocumentCount += 1;
+    }
   }
 
   return {
@@ -30,6 +74,13 @@ export async function scanDocumentTree(rootDir, options = {}) {
     totals: {
       document_count: documents.length,
       category_counts: summarizeCategories(documents),
+    },
+    incremental: {
+      reused_document_count: reusedDocumentCount,
+      reparsed_document_count: reparsedDocumentCount,
+      added_document_count: addedDocumentCount,
+      changed_document_count: changedDocumentCount,
+      removed_document_count: removedDocumentCount,
     },
   };
 }
@@ -66,21 +117,29 @@ export function createDocumentOverview(documentIndex) {
   };
 }
 
-function createDocumentRecord(relativePath, content) {
+function createDocumentRecord(relativePath, content, statSummary) {
+  const structured = readStructuredDocument(content);
   const lines = content.split("\n");
-  const titleLine = lines.find((line) => /^#\s+/.test(line)) ?? lines.find((line) => line.trim().length > 0) ?? relativePath;
-  const title = titleLine.replace(/^#\s+/, "").trim();
-  const category = classifyDocument(relativePath, content);
+  const titleLine =
+    structured?.title ??
+    lines.find((line) => /^#\s+/.test(line)) ??
+    lines.find((line) => line.trim().length > 0) ??
+    relativePath;
+  const title = String(titleLine).replace(/^#\s+/, "").trim();
+  const category = structured?.category ?? classifyDocument(relativePath, content);
   const headings = lines
     .filter((line) => /^#{1,3}\s+/.test(line))
     .slice(0, 8)
     .map((line) => line.replace(/^#{1,3}\s+/, "").trim());
-  const summary = lines
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
-    .slice(0, 3)
-    .join(" ")
-    .slice(0, 320);
+  const summary =
+    structured?.summary ??
+    lines
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"))
+      .slice(0, 3)
+      .join(" ")
+      .slice(0, 320);
+  const contentPreview = structured?.body?.slice(0, 4000) ?? content.slice(0, 4000);
 
   return {
     path: relativePath,
@@ -88,6 +147,8 @@ function createDocumentRecord(relativePath, content) {
     category,
     headings,
     summary,
+    content_preview: contentPreview,
+    document_stats: statSummary,
   };
 }
 
@@ -117,10 +178,10 @@ function matchesAny(haystack, terms) {
   return terms.some((term) => haystack.includes(term));
 }
 
-async function discoverDocuments(rootDir, targetRoot, ignore) {
+async function discoverDocuments(rootDir, targetRoot, ignore, currentDir = targetRoot) {
   let entries;
   try {
-    entries = await fs.readdir(targetRoot, { withFileTypes: true });
+    entries = await fs.readdir(currentDir, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -128,7 +189,7 @@ async function discoverDocuments(rootDir, targetRoot, ignore) {
   const files = [];
 
   for (const entry of entries) {
-    const fullPath = path.join(targetRoot, entry.name);
+    const fullPath = path.join(currentDir, entry.name);
     const relativePath = normalizePath(path.relative(rootDir, fullPath));
 
     if (shouldIgnore(relativePath, ignore)) {
@@ -136,7 +197,7 @@ async function discoverDocuments(rootDir, targetRoot, ignore) {
     }
 
     if (entry.isDirectory()) {
-      files.push(...(await discoverDocuments(rootDir, fullPath, ignore)));
+      files.push(...(await discoverDocuments(rootDir, targetRoot, ignore, fullPath)));
       continue;
     }
 
@@ -149,8 +210,16 @@ async function discoverDocuments(rootDir, targetRoot, ignore) {
 }
 
 function shouldIgnore(relativePath, ignore) {
-  const segments = relativePath.split("/");
-  return segments.some((segment) => ignore.has(segment)) || ignore.has(relativePath);
+  const normalizedPath = normalizePath(relativePath);
+  const segments = normalizedPath.split("/");
+
+  for (const ignoredPath of ignore) {
+    if (ignoredPath.includes("/") && (normalizedPath === ignoredPath || normalizedPath.startsWith(`${ignoredPath}/`))) {
+      return true;
+    }
+  }
+
+  return segments.some((segment) => ignore.has(segment)) || ignore.has(normalizedPath);
 }
 
 function summarizeCategories(documents) {
@@ -179,4 +248,40 @@ function normalizePath(filePath) {
 
 function dedupe(items) {
   return [...new Set(items)].sort();
+}
+
+function summarizeStat(fileStats) {
+  return {
+    size: fileStats.size,
+    mtime_ms: fileStats.mtimeMs,
+  };
+}
+
+function canReuseDocument(previousDocument, statSummary) {
+  if (!previousDocument?.document_stats) {
+    return false;
+  }
+
+  return (
+    previousDocument.document_stats.size === statSummary.size &&
+    previousDocument.document_stats.mtime_ms === statSummary.mtime_ms
+  );
+}
+
+function readStructuredDocument(content) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    return {
+      title: parsed.title ? String(parsed.title) : "",
+      category: parsed.category ? String(parsed.category) : "",
+      summary: parsed.summary ? String(parsed.summary) : "",
+      body: parsed.body ? String(parsed.body) : "",
+    };
+  } catch {
+    return null;
+  }
 }

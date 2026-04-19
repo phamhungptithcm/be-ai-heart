@@ -1,6 +1,11 @@
 import { findRelevantDocuments } from "../../document-ingest/src/index.js";
 import { compileContextPack } from "../../context-compiler/src/index.js";
-import { createImpactAnalysis, createProjectOverview, searchSymbols } from "../../graph/src/index.js";
+import {
+  createDependencyExplanation,
+  createImpactAnalysis,
+  createProjectOverview,
+  searchSymbols,
+} from "../../graph/src/index.js";
 import { evaluatePolicyViolations } from "../../policy-engine/src/index.js";
 
 export function createToolRegistry() {
@@ -22,6 +27,21 @@ export function createToolRegistry() {
           },
         },
         required: ["query"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "dependency_explain",
+      description: "Explain import, call, inheritance, and test relationships for a file or symbol.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          target: {
+            type: "string",
+            description: "File path or symbol name to explain.",
+          },
+        },
+        required: ["target"],
         additionalProperties: false,
       },
     },
@@ -83,22 +103,31 @@ export function handleToolCall({
   args = {},
   graph,
   documentIndex = { documents: [], totals: { document_count: 0 } },
+  heartModel = { domains: [], links: [], summary: { relationship_count: 0 } },
   scanResult = graph.scanResult,
   policyReport,
 }) {
   switch (name) {
     case "project_overview":
-      return createProjectOverview(graph, policyReport ?? evaluatePolicyViolations(scanResult), documentIndex);
+      return createProjectOverview(
+        graph,
+        policyReport ?? evaluatePolicyViolations(scanResult),
+        documentIndex,
+        heartModel,
+      );
     case "symbol_lookup":
       return {
         query: args.query ?? "",
         matches: searchSymbols(graph, args.query ?? ""),
       };
+    case "dependency_explain":
+      return createDependencyExplanation(graph, args.target ?? "");
     case "context_pack":
       return compileContextPack({
         task: args.task ?? "",
         graph,
         documentIndex,
+        heartModel,
         policyReport: policyReport ?? evaluatePolicyViolations(scanResult),
       });
     case "impact_analysis":

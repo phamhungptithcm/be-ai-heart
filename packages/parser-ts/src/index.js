@@ -6,32 +6,85 @@ import path from "node:path";
 const require = createRequire(import.meta.url);
 
 const SUPPORTED_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"]);
-const DEFAULT_IGNORES = new Set(["node_modules", "dist", "coverage", ".git"]);
+const DEFAULT_IGNORES = new Set([
+  "node_modules",
+  "dist",
+  "coverage",
+  ".git",
+  ".next",
+  "output",
+  ".playwright-cli",
+  ".heart/cache",
+  ".heart/diagrams",
+  ".heart/published",
+]);
 
 let cachedTypeScriptModule;
 let hasTriedLoadingTypeScript = false;
 
 export async function scanSourceTree(rootDir, options = {}) {
   const ignore = new Set([...(options.ignore ?? []), ...DEFAULT_IGNORES]);
-  const discoveredFiles = await discoverSourceFiles(rootDir, ignore);
+  const discoveredFiles = await discoverSourceFiles(rootDir, ignore, rootDir);
+  const previousFilesByPath = new Map(
+    (options.previousScanResult?.files ?? []).map((file) => [file.relativePath, file]),
+  );
   const files = [];
   const warnings = [];
   const typescriptModule = options.typescriptModule ?? loadTypeScriptModule();
+  const currentPaths = new Set();
+  let reusedFileCount = 0;
+  let reparsedFileCount = 0;
+  let addedFileCount = 0;
+  let changedFileCount = 0;
 
   for (const fullPath of discoveredFiles) {
     const relativePath = normalizePath(path.relative(rootDir, fullPath));
+    const fileStats = await fs.stat(fullPath);
+    const statSummary = summarizeStat(fileStats);
+    const previousFile = previousFilesByPath.get(relativePath);
+    currentPaths.add(relativePath);
+
+    if (canReuseParsedFile(previousFile, statSummary)) {
+      files.push({
+        ...previousFile,
+        path: fullPath,
+      });
+      warnings.push(...(previousFile.warnings ?? []));
+      reusedFileCount += 1;
+      continue;
+    }
+
     const content = await fs.readFile(fullPath, "utf8");
     const fileFacts = extractFileFactsFromContent(content, relativePath, typescriptModule);
-
-    files.push({
+    const fileRecord = {
       path: fullPath,
       relativePath,
       imports: fileFacts.imports,
+      import_details: fileFacts.import_details,
       symbols: fileFacts.symbols,
+      calls: fileFacts.calls,
       hash: hashContent(content),
       parser: fileFacts.parser,
-    });
+      warnings: fileFacts.warnings,
+      file_stats: statSummary,
+    };
+
+    files.push(fileRecord);
     warnings.push(...fileFacts.warnings);
+    reparsedFileCount += 1;
+
+    if (!previousFile) {
+      addedFileCount += 1;
+    } else {
+      changedFileCount += 1;
+    }
+  }
+
+  let removedFileCount = 0;
+  for (const relativePath of previousFilesByPath.keys()) {
+    if (!currentPaths.has(relativePath)) {
+      removedFileCount += 1;
+    }
   }
 
   return {
@@ -44,6 +97,13 @@ export async function scanSourceTree(rootDir, options = {}) {
       symbol_count: files.reduce((count, file) => count + file.symbols.length, 0),
       import_count: files.reduce((count, file) => count + file.imports.length, 0),
       warning_count: warnings.length,
+    },
+    incremental: {
+      reused_file_count: reusedFileCount,
+      reparsed_file_count: reparsedFileCount,
+      added_file_count: addedFileCount,
+      changed_file_count: changedFileCount,
+      removed_file_count: removedFileCount,
     },
   };
 }
@@ -61,7 +121,9 @@ function extractFileFactsFromContent(content, relativePath, typescriptModule) {
     return {
       parser: "regex-fallback",
       imports: extractImportsWithRegex(content),
+      import_details: extractImportDetailsWithRegex(content),
       symbols: extractSymbolsWithRegex(content, relativePath),
+      calls: [],
       warnings: [],
     };
   }
@@ -72,7 +134,9 @@ function extractFileFactsFromContent(content, relativePath, typescriptModule) {
   return {
     parser: "typescript-ast",
     imports: extractImportsWithTypeScript(typescriptModule, sourceFile),
+    import_details: extractImportDetailsWithTypeScript(typescriptModule, sourceFile),
     symbols: extractSymbolsWithTypeScript(typescriptModule, sourceFile, relativePath),
+    calls: extractCallsWithTypeScript(typescriptModule, sourceFile, relativePath),
     warnings,
   };
 }
@@ -157,6 +221,83 @@ function extractImportsWithTypeScript(typescriptModule, sourceFile) {
   return [...imports];
 }
 
+function extractImportDetailsWithTypeScript(typescriptModule, sourceFile) {
+  const details = [];
+
+  visit(sourceFile, (node) => {
+    if (
+      typescriptModule.isImportDeclaration(node) &&
+      node.moduleSpecifier &&
+      typescriptModule.isStringLiteral(node.moduleSpecifier)
+    ) {
+      const importClause = node.importClause;
+      const namedBindings = importClause?.namedBindings;
+      const importedNames =
+        namedBindings && typescriptModule.isNamedImports(namedBindings)
+          ? namedBindings.elements.map((element) => element.name.text)
+          : [];
+
+      details.push({
+        specifier: node.moduleSpecifier.text,
+        imported_names: importedNames,
+        default_import: importClause?.name?.text ?? null,
+        namespace_import:
+          namedBindings && typescriptModule.isNamespaceImport(namedBindings) ? namedBindings.name.text : null,
+        source_kind: "import",
+      });
+      return;
+    }
+
+    if (
+      typescriptModule.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      typescriptModule.isStringLiteral(node.moduleSpecifier)
+    ) {
+      details.push({
+        specifier: node.moduleSpecifier.text,
+        imported_names: [],
+        default_import: null,
+        namespace_import: null,
+        source_kind: "export",
+      });
+      return;
+    }
+
+    if (
+      typescriptModule.isImportEqualsDeclaration(node) &&
+      typescriptModule.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      typescriptModule.isStringLiteral(node.moduleReference.expression)
+    ) {
+      details.push({
+        specifier: node.moduleReference.expression.text,
+        imported_names: [node.name.text],
+        default_import: null,
+        namespace_import: null,
+        source_kind: "import-equals",
+      });
+      return;
+    }
+
+    if (
+      typescriptModule.isCallExpression(node) &&
+      node.arguments.length > 0 &&
+      typescriptModule.isStringLiteral(node.arguments[0]) &&
+      (isRequireCall(typescriptModule, node) || node.expression.kind === typescriptModule.SyntaxKind.ImportKeyword)
+    ) {
+      details.push({
+        specifier: node.arguments[0].text,
+        imported_names: [],
+        default_import: null,
+        namespace_import: null,
+        source_kind: isRequireCall(typescriptModule, node) ? "require" : "dynamic-import",
+      });
+    }
+  });
+
+  return dedupeImportDetails(details);
+}
+
 function extractSymbolsWithTypeScript(typescriptModule, sourceFile, relativePath) {
   const symbols = [];
   const seen = new Set();
@@ -178,17 +319,62 @@ function extractSymbolsWithTypeScript(typescriptModule, sourceFile, relativePath
   return symbols;
 }
 
+function extractCallsWithTypeScript(typescriptModule, sourceFile, relativePath) {
+  const calls = [];
+  const seen = new Set();
+
+  visit(sourceFile, (node) => {
+    if (!typescriptModule.isCallExpression(node)) {
+      return;
+    }
+
+    const sourceSymbol = readEnclosingCallableSymbol(typescriptModule, sourceFile, node, relativePath);
+    const target = readCallTarget(typescriptModule, node.expression);
+
+    if (!sourceSymbol || !target) {
+      return;
+    }
+
+    const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+    const dedupeKey = `${sourceSymbol.id}:${target.name}:${line}`;
+
+    if (seen.has(dedupeKey)) {
+      return;
+    }
+
+    seen.add(dedupeKey);
+    calls.push({
+      from_symbol_id: sourceSymbol.id,
+      from_symbol_name: sourceSymbol.name,
+      from_kind: sourceSymbol.kind,
+      to_name: target.name,
+      expression: target.expression,
+      line,
+    });
+  });
+
+  return calls;
+}
+
 function createSymbolsFromNode(typescriptModule, sourceFile, node, parent, relativePath) {
   if (typescriptModule.isFunctionDeclaration(node) && node.name) {
     return [createSymbolRecord(typescriptModule, sourceFile, node, relativePath, node.name.text, "function")];
   }
 
   if (typescriptModule.isClassDeclaration(node) && node.name) {
-    return [createSymbolRecord(typescriptModule, sourceFile, node, relativePath, node.name.text, "class")];
+    return [
+      createSymbolRecord(typescriptModule, sourceFile, node, relativePath, node.name.text, "class", node, {
+        relations: readSymbolRelations(typescriptModule, node),
+      }),
+    ];
   }
 
   if (typescriptModule.isInterfaceDeclaration(node)) {
-    return [createSymbolRecord(typescriptModule, sourceFile, node, relativePath, node.name.text, "interface")];
+    return [
+      createSymbolRecord(typescriptModule, sourceFile, node, relativePath, node.name.text, "interface", node, {
+        relations: readSymbolRelations(typescriptModule, node),
+      }),
+    ];
   }
 
   if (typescriptModule.isTypeAliasDeclaration(node)) {
@@ -250,16 +436,26 @@ function createSymbolRecord(
   name,
   kind,
   exportOwner = node,
+  extra = {},
 ) {
-  const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+  const { id, line } = createSymbolIdentity(typescriptModule, sourceFile, node, relativePath, name, kind);
   return {
-    id: `sym:${kind}:${relativePath}:${name}:${line}`,
+    id,
     kind,
     name,
     exported: isNodeExported(typescriptModule, exportOwner),
     signature: summarizeNodeText(node.getText(sourceFile)),
     line,
     container: readContainerName(typescriptModule, node),
+    ...extra,
+  };
+}
+
+function createSymbolIdentity(typescriptModule, sourceFile, node, relativePath, name, kind) {
+  const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+  return {
+    id: `sym:${kind}:${relativePath}:${name}:${line}`,
+    line,
   };
 }
 
@@ -333,6 +529,127 @@ function readContainerName(typescriptModule, node) {
   return null;
 }
 
+function readEnclosingCallableSymbol(typescriptModule, sourceFile, node, relativePath) {
+  let current = node.parent;
+
+  while (current) {
+    if (typescriptModule.isMethodDeclaration(current)) {
+      const methodName = readPropertyName(typescriptModule, current.name);
+      if (methodName) {
+        return {
+          ...createSymbolIdentity(typescriptModule, sourceFile, current, relativePath, methodName, "method"),
+          kind: "method",
+          name: methodName,
+        };
+      }
+    }
+
+    if (typescriptModule.isFunctionDeclaration(current) && current.name) {
+      return {
+        ...createSymbolIdentity(typescriptModule, sourceFile, current, relativePath, current.name.text, "function"),
+        kind: "function",
+        name: current.name.text,
+      };
+    }
+
+    if (
+      (typescriptModule.isFunctionExpression(current) || typescriptModule.isArrowFunction(current)) &&
+      current.parent &&
+      typescriptModule.isVariableDeclaration(current.parent) &&
+      typescriptModule.isIdentifier(current.parent.name)
+    ) {
+      const variableStatement = findAncestorVariableStatement(typescriptModule, current.parent);
+      const declarationKind = variableStatement ? readVariableDeclarationKind(typescriptModule, variableStatement) : "const";
+      return {
+        ...createSymbolIdentity(
+          typescriptModule,
+          sourceFile,
+          current.parent,
+          relativePath,
+          current.parent.name.text,
+          declarationKind,
+        ),
+        kind: declarationKind,
+        name: current.parent.name.text,
+      };
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
+function findAncestorVariableStatement(typescriptModule, node) {
+  let current = node.parent;
+
+  while (current) {
+    if (typescriptModule.isVariableStatement(current)) {
+      return current;
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
+function readCallTarget(typescriptModule, expression) {
+  if (typescriptModule.isIdentifier(expression)) {
+    return {
+      name: expression.text,
+      expression: expression.text,
+    };
+  }
+
+  if (typescriptModule.isPropertyAccessExpression(expression)) {
+    return {
+      name: expression.name.text,
+      expression: expression.getText(),
+    };
+  }
+
+  if (
+    typescriptModule.isElementAccessExpression(expression) &&
+    expression.argumentExpression &&
+    typescriptModule.isStringLiteral(expression.argumentExpression)
+  ) {
+    return {
+      name: expression.argumentExpression.text,
+      expression: expression.getText(),
+    };
+  }
+
+  return null;
+}
+
+function readSymbolRelations(typescriptModule, node) {
+  const relations = {
+    extends: [],
+    implements: [],
+  };
+
+  if (!node.heritageClauses?.length) {
+    return relations;
+  }
+
+  for (const heritageClause of node.heritageClauses) {
+    const relationName =
+      heritageClause.token === typescriptModule.SyntaxKind.ExtendsKeyword ? "extends" : "implements";
+
+    for (const typeNode of heritageClause.types) {
+      const typeName = typeNode.expression?.getText?.() ?? null;
+      if (!typeName) {
+        continue;
+      }
+
+      relations[relationName].push(typeName);
+    }
+  }
+
+  return relations;
+}
+
 function summarizeNodeText(text) {
   return text.replace(/\s+/g, " ").trim().slice(0, 160);
 }
@@ -372,6 +689,10 @@ function extractSymbolsWithRegex(content, relativePath) {
         signature: readLineAt(content, match.index ?? 0),
         line,
         container: null,
+        relations: {
+          extends: [],
+          implements: [],
+        },
       });
     }
   }
@@ -396,12 +717,43 @@ function extractImportsWithRegex(content) {
   return [...new Set(imports)];
 }
 
-async function discoverSourceFiles(rootDir, ignore) {
-  const entries = await fs.readdir(rootDir, { withFileTypes: true });
+function extractImportDetailsWithRegex(content) {
+  return extractImportsWithRegex(content).map((specifier) => ({
+    specifier,
+    imported_names: [],
+    default_import: null,
+    namespace_import: null,
+    source_kind: "regex",
+  }));
+}
+
+function dedupeImportDetails(details) {
+  const seen = new Set();
+
+  return details.filter((detail) => {
+    const key = [
+      detail.specifier,
+      detail.source_kind,
+      detail.default_import ?? "",
+      detail.namespace_import ?? "",
+      ...(detail.imported_names ?? []),
+    ].join(":");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+async function discoverSourceFiles(rootDir, ignore, currentDir = rootDir) {
+  const entries = await fs.readdir(currentDir, { withFileTypes: true });
   const files = [];
 
   for (const entry of entries) {
-    const fullPath = path.join(rootDir, entry.name);
+    const fullPath = path.join(currentDir, entry.name);
     const relativePath = normalizePath(path.relative(rootDir, fullPath));
 
     if (shouldIgnore(relativePath, ignore)) {
@@ -409,7 +761,7 @@ async function discoverSourceFiles(rootDir, ignore) {
     }
 
     if (entry.isDirectory()) {
-      files.push(...(await discoverSourceFiles(fullPath, ignore)));
+      files.push(...(await discoverSourceFiles(rootDir, ignore, fullPath)));
       continue;
     }
 
@@ -422,8 +774,16 @@ async function discoverSourceFiles(rootDir, ignore) {
 }
 
 function shouldIgnore(relativePath, ignore) {
-  const segments = relativePath.split("/");
-  return segments.some((segment) => ignore.has(segment)) || ignore.has(relativePath);
+  const normalizedPath = normalizePath(relativePath);
+  const segments = normalizedPath.split("/");
+
+  for (const ignoredPath of ignore) {
+    if (ignoredPath.includes("/") && (normalizedPath === ignoredPath || normalizedPath.startsWith(`${ignoredPath}/`))) {
+      return true;
+    }
+  }
+
+  return segments.some((segment) => ignore.has(segment)) || ignore.has(normalizedPath);
 }
 
 function normalizePath(filePath) {
@@ -442,4 +802,22 @@ function countLines(content, index) {
 
 function hashContent(content) {
   return createHash("sha256").update(content).digest("hex");
+}
+
+function summarizeStat(fileStats) {
+  return {
+    size: fileStats.size,
+    mtime_ms: fileStats.mtimeMs,
+  };
+}
+
+function canReuseParsedFile(previousFile, statSummary) {
+  if (!previousFile?.file_stats) {
+    return false;
+  }
+
+  return (
+    previousFile.file_stats.size === statSummary.size &&
+    previousFile.file_stats.mtime_ms === statSummary.mtime_ms
+  );
 }

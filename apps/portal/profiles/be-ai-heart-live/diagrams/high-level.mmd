@@ -1,0 +1,52 @@
+flowchart LR
+  repo["Repo: be-ai-heart"]
+  docs["Docs: 20"]
+  repo --> docs
+  domain_admin["Domain: admin"]
+  repo --> domain_admin
+  hl_apps_admin_app_benchmarks_reportId_page_jsx["[reportId]/page.jsx"]
+  domain_admin --> hl_apps_admin_app_benchmarks_reportId_page_jsx
+  hl_apps_admin_app_benchmarks_page_jsx["benchmarks/page.jsx"]
+  domain_admin --> hl_apps_admin_app_benchmarks_page_jsx
+  hl_apps_admin_app_customers_slug_page_jsx["[slug]/page.jsx"]
+  domain_admin --> hl_apps_admin_app_customers_slug_page_jsx
+  domain_portal["Domain: portal"]
+  repo --> domain_portal
+  hl_apps_portal_app_auth_complete_page_jsx["complete/page.jsx"]
+  domain_portal --> hl_apps_portal_app_auth_complete_page_jsx
+  hl_apps_portal_app_benchmarks_reportId_page_jsx["[reportId]/page.jsx"]
+  domain_portal --> hl_apps_portal_app_benchmarks_reportId_page_jsx
+  hl_apps_portal_app_benchmarks_page_jsx["benchmarks/page.jsx"]
+  domain_portal --> hl_apps_portal_app_benchmarks_page_jsx
+  domain_tests["Domain: tests"]
+  repo --> domain_tests
+  hl_tests_auth_provider_test_js["tests/auth-provider.test.js"]
+  domain_tests --> hl_tests_auth_provider_test_js
+  hl_tests_benchmark_trends_test_js["tests/benchmark-trends.test.js"]
+  domain_tests --> hl_tests_benchmark_trends_test_js
+  hl_tests_benchmark_test_js["tests/benchmark.test.js"]
+  domain_tests --> hl_tests_benchmark_test_js
+  domain_website["Domain: website"]
+  repo --> domain_website
+  hl_apps_website_app_benchmark_page_jsx["benchmark/page.jsx"]
+  domain_website --> hl_apps_website_app_benchmark_page_jsx
+  hl_apps_website_app_book_demo_page_jsx["book-demo/page.jsx"]
+  domain_website --> hl_apps_website_app_book_demo_page_jsx
+  hl_apps_website_app_customers_page_jsx["customers/page.jsx"]
+  domain_website --> hl_apps_website_app_customers_page_jsx
+  domain_api["Domain: api"]
+  repo --> domain_api
+  hl_services_api_src_access_js["src/access.js"]
+  domain_api --> hl_services_api_src_access_js
+  hl_services_api_src_auth_provider_js["src/auth-provider.js"]
+  domain_api --> hl_services_api_src_auth_provider_js
+  hl_services_api_src_auth_transactions_js["src/auth-transactions.js"]
+  domain_api --> hl_services_api_src_auth_transactions_js
+  domain_core["Domain: core"]
+  repo --> domain_core
+  hl_packages_core_src_config_js["src/config.js"]
+  domain_core --> hl_packages_core_src_config_js
+  hl_packages_core_src_index_js["src/index.js"]
+  domain_core --> hl_packages_core_src_index_js
+  hl_packages_core_src_monorepo_root_js["src/monorepo-root.js"]
+  domain_core --> hl_packages_core_src_monorepo_root_js
