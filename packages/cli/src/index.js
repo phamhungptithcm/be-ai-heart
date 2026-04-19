@@ -8,6 +8,7 @@ import {
   runConnectDoctor,
   verifyConnection,
 } from "../../connect/src/index.js";
+import { resolveConnectRemoteUrl } from "../../connect/src/mcp-transport.js";
 import {
   compareBenchmarkRuns,
   loadBenchmarkReport,
@@ -589,13 +590,17 @@ async function handleConnectDetect(flags, io) {
 async function handleConnectInstall(flags, io) {
   if (!flags.client) {
     io.stderr.write(
-      "Usage: heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]\n",
+      "Usage: heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--dry-run] [--backup]\n",
     );
     return 1;
   }
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const scope = flags.scope ?? "repo";
+  const remoteUrl = flags.url ? resolveConnectRemoteUrl(flags.url, flags.surface ?? "portal") : null;
+  const detectedModelsByRuntime = flags.model
+    ? await loadDetectedModelsByRuntime(repoRoot)
+    : {};
   const scopeError = validateConnectScope(scope);
   if (scopeError) {
     io.stderr.write(`${scopeError}\n`);
@@ -609,6 +614,8 @@ async function handleConnectInstall(flags, io) {
       scope,
       repoRoot,
       modelRuntime: flags.model,
+      detectedModelsByRuntime,
+      remoteUrl,
     });
   } catch (error) {
     io.stderr.write(`${formatConnectClientError(error, flags.client)}\n`);
@@ -630,11 +637,14 @@ async function handleConnectInstall(flags, io) {
       scope,
       repoRoot,
       model: flags.model,
+      remoteUrl,
+      detectedModelsByRuntime,
       verifyImpl: async (installPlan) =>
         verifyConnection({
           client: flags.client,
           repoRoot,
           plan: normalizeVerificationPlan(installPlan),
+          sessionToken: flags.session,
         }),
     });
 
@@ -653,7 +663,7 @@ async function handleConnectInstall(flags, io) {
 async function handleConnectVerify(flags, io) {
   if (!flags.client) {
     io.stderr.write(
-      "Usage: heart connect verify --client CLIENT [--json] [--root PATH]\n",
+      "Usage: heart connect verify --client CLIENT [--json] [--root PATH] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--session TOKEN]\n",
     );
     return 1;
   }
@@ -661,6 +671,10 @@ async function handleConnectVerify(flags, io) {
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const client = flags.client;
   const scope = flags.scope ?? "repo";
+  const remoteUrl = flags.url ? resolveConnectRemoteUrl(flags.url, flags.surface ?? "portal") : null;
+  const detectedModelsByRuntime = flags.model
+    ? await loadDetectedModelsByRuntime(repoRoot)
+    : {};
   const scopeError = validateConnectScope(scope);
   if (scopeError) {
     io.stderr.write(`${scopeError}\n`);
@@ -674,6 +688,8 @@ async function handleConnectVerify(flags, io) {
       scope,
       repoRoot,
       modelRuntime: flags.model,
+      detectedModelsByRuntime,
+      remoteUrl,
     });
   } catch (error) {
     io.stderr.write(`${formatConnectClientError(error, client)}\n`);
@@ -684,6 +700,7 @@ async function handleConnectVerify(flags, io) {
     client,
     repoRoot,
     plan: normalizeVerificationPlan(plan),
+    sessionToken: flags.session,
   });
 
   writeOutput(result, flags.json, io);
@@ -997,8 +1014,8 @@ Usage:
   heart docs import [--json] [--root PATH] [--slug NAME] [--category NAME] [--title TEXT] [--summary TEXT] [--portal-root PATH] [--admin-root PATH] <source-file>
   heart docs sync-web [--json] [--root PATH] [--slug NAME] [--portal-root PATH] [--admin-root PATH]
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
-  heart connect verify --client CLIENT [--json] [--root PATH]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--dry-run] [--backup]
+  heart connect verify --client CLIENT [--json] [--root PATH] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--session TOKEN]
   heart connect doctor [--json] [--root PATH]
   heart auth provider-session --url BASE_URL [--surface portal|admin] [--workspace NAME] [--customer NAME] [--id-token TOKEN] [--issuer URL] [--audience NAME] [--out PATH]
   heart sync profile --url BASE_URL --session TOKEN [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME]
@@ -1015,10 +1032,19 @@ function connectHelpText() {
 
 Usage:
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
-  heart connect verify --client CLIENT [--json] [--root PATH]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--dry-run] [--backup]
+  heart connect verify --client CLIENT [--json] [--root PATH] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--session TOKEN]
   heart connect doctor [--json] [--root PATH]
 `;
+}
+
+async function loadDetectedModelsByRuntime(repoRoot) {
+  const detection = await detectConnections({ repoRoot });
+  return Object.fromEntries(
+    (detection.models ?? [])
+      .filter((model) => Array.isArray(model.models_detected))
+      .map((model) => [model.id, model.models_detected]),
+  );
 }
 
 function defaultIo() {
@@ -1049,11 +1075,11 @@ async function countSkillFiles(skillsRoot) {
 
 function normalizeVerificationPlan(plan) {
   const directEntry = plan?.mcp_entry;
-  if (isSpawnableMcpEntry(directEntry)) {
+  if (isConnectableMcpEntry(directEntry)) {
     return plan;
   }
 
-  const firstEntry = directEntry?.mcpServers?.find?.((entry) => isSpawnableMcpEntry(entry));
+  const firstEntry = directEntry?.mcpServers?.find?.((entry) => isConnectableMcpEntry(entry));
   if (firstEntry) {
     return {
       ...plan,
@@ -1066,6 +1092,14 @@ function normalizeVerificationPlan(plan) {
 
 function isSpawnableMcpEntry(entry) {
   return entry && typeof entry.command === "string" && Array.isArray(entry.args);
+}
+
+function isRemoteMcpEntry(entry) {
+  return entry && (typeof entry.url === "string" || typeof entry.serverUrl === "string");
+}
+
+function isConnectableMcpEntry(entry) {
+  return isSpawnableMcpEntry(entry) || isRemoteMcpEntry(entry);
 }
 
 function toFlagKey(flagName) {

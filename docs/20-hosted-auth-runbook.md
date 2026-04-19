@@ -7,6 +7,7 @@ This runbook turns the current local-first hosted auth lane into a repeatable ho
 - Auth0 and Clerk OIDC provider wiring
 - Standalone API host URLs and callback URLs
 - Portal sign-in expectations
+- Hosted MCP session boundary
 - Local end-to-end smoke against the hosted auth contract
 
 ## Required Hosted Base URLs
@@ -73,6 +74,44 @@ Flow:
 7. Portal stores the session token and continues with tenant-scoped reads.
 
 This keeps website and portal free from provider secret handling.
+
+## Hosted MCP Contract
+
+The same BeHeart session token can be used against the hosted MCP subset:
+
+- `POST /api/mcp`
+- `POST /api/admin/mcp`
+
+For MCP-native remote clients, the API host now also publishes:
+
+- `GET /.well-known/oauth-authorization-server`
+- `GET /.well-known/oauth-protected-resource`
+- `GET /api/admin/.well-known/oauth-protected-resource`
+- `GET /oauth/authorize`
+- `GET /oauth/callback/mcp`
+- `POST /oauth/token`
+
+Current hosted MCP characteristics:
+
+- requires an issued BeHeart session token
+- can also issue bearer tokens through the MCP OAuth discovery flow backed by the same hosted auth providers
+- exposes only read-only tools backed by published repository profiles and synced documents
+- currently supports `project_overview`, `document_search`, and `context_pack`
+- does not expose local graph-only tools such as `symbol_lookup`, `dependency_explain`, or `impact_analysis`
+
+CLI-assisted remote install and verify examples:
+
+```bash
+node ./packages/cli/bin/heart.js connect install --client codex --scope user --url https://portal.example.com
+node ./packages/cli/bin/heart.js connect verify --client codex --scope user --url https://portal.example.com
+node ./packages/cli/bin/heart.js connect verify --client codex --scope user --url https://portal.example.com --session <session-token>
+```
+
+Behavior notes:
+
+- `connect install --url ...` normalizes a bare base URL to the hosted MCP endpoint (`/api/mcp` or `/api/admin/mcp`)
+- `connect verify --url ...` without `--session` validates OAuth discovery metadata and reports `partial` until the client completes login
+- `connect verify --url ... --session ...` performs full hosted `initialize -> tools/list` verification against the remote MCP lane
 
 ## Local Verification
 

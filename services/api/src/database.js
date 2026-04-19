@@ -196,5 +196,26 @@ function ensureServiceSchema(database) {
 
     CREATE INDEX IF NOT EXISTS idx_auth_transactions_provider_surface
     ON auth_transactions (provider_id, surface, expires_at);
+
+    CREATE TABLE IF NOT EXISTS mcp_oauth_transactions (
+      transaction_id TEXT PRIMARY KEY,
+      authorization_code TEXT UNIQUE,
+      provider_id TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      state TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      code_challenge_method TEXT NOT NULL,
+      session_token TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      consumed_at TEXT,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_mcp_oauth_transactions_code
+    ON mcp_oauth_transactions (authorization_code);
   `);
 }

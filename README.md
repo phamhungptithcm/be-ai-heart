@@ -75,7 +75,8 @@ Use this layer before scaling implementation so future AI work remains consisten
    Internal admin surface for the `be-ai-heart` owner to manage customers, revenue, support, configuration, and operational health.
 
 It now also treats project documents as first-class context inputs so the heart can preserve business intent, requirements, and system design alongside code.
-The current branch also includes a local `heart connect` workflow for detecting, installing, verifying, and diagnosing external MCP client wiring.
+The current branch also includes a `heart connect` workflow for detecting, installing, verifying, and diagnosing MCP client wiring across `Cursor`, `Claude Code`, `Continue`, `Codex`, `Windsurf`, `Cline`, `GitHub Copilot CLI`, and repo-local `VS Code / Copilot Agent` configs.
+The standalone API host also exposes a remote MCP lane with OAuth discovery and bearer-token auth on top of the existing hosted auth/session stack.
 
 ## Recommended First Execution Order
 
@@ -124,6 +125,7 @@ This repository now contains:
 - tenant-scoped service access in `services/api/src/access.js` with default actors for `portal` and `admin`, plus support for custom `actors.json` and `memberships.json`
 - standalone BeHeart API host under `services/api/src/server.js` for tenant-aware repository, workspace, document, benchmark, intake, and session APIs
 - hosted auth provider discovery and OIDC exchange via `/api/auth/providers`, `/auth/authorize/:provider`, `/auth/callback/:provider`, and `/api/session/provider`
+- session-authenticated hosted MCP subset via `/api/mcp` and `/api/admin/mcp` for published repository overview, document search, and hosted context packs
 - tenant-scoped write APIs for repository profiles, repository documents, and benchmark reports
 - CLI HTTP sync commands for remote profile, document, and benchmark publishing
 - hosted Postgres repository adapter behind `BE_AI_HEART_SERVICE_STORAGE_BACKEND=postgres`
@@ -143,7 +145,9 @@ npm run overview
 node ./packages/cli/bin/heart.js doctor --json
 node ./packages/cli/bin/heart.js connect detect --json
 node ./packages/cli/bin/heart.js connect install --json --client cursor --backup
+node ./packages/cli/bin/heart.js connect install --json --client codex --scope user --url https://portal.example.com
 node ./packages/cli/bin/heart.js connect verify --json --client cursor
+node ./packages/cli/bin/heart.js connect verify --json --client codex --scope user --url https://portal.example.com --session <session-token>
 npm run mcp:tools
 npm run mcp:serve
 node ./packages/cli/bin/heart.js diagram generate symbol-graph

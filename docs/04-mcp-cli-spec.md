@@ -41,8 +41,8 @@ Purpose:
 
 ```bash
 heart connect detect [--json] [--root PATH] [--agents] [--models]
-heart connect install --client <agent> [--root PATH] [--scope user|repo] [--model <runtime>] [--dry-run] [--backup]
-heart connect verify --client <agent> [--root PATH] [--json]
+heart connect install --client <agent> [--root PATH] [--scope user|repo] [--model <runtime>] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--dry-run] [--backup]
+heart connect verify --client <agent> [--root PATH] [--json] [--url BASE_URL_OR_MCP_URL] [--surface portal|admin] [--session TOKEN]
 heart connect doctor [--json] [--root PATH]
 heart connect help
 heart connect --help
@@ -51,8 +51,8 @@ heart connect --help
 Purpose:
 
 - `detect`: discover allowlisted agent hosts and local model runtimes without mutating files
-- `install`: wire a supported client to `heart mcp serve` and optionally bind a model runtime when the adapter supports it
-- `verify`: perform a real MCP handshake before claiming success
+- `install`: wire a supported client either to local `heart mcp serve` or to the hosted remote MCP URL when `--url` is provided
+- `verify`: perform a real MCP handshake and host-config verification; remote verify falls back to OAuth discovery validation when no bearer session is provided
 - `doctor`: provide support-oriented diagnostics for the connect workflow
 - `help` and `--help`: print the connect usage block
 
@@ -61,8 +61,8 @@ Connect output notes:
 - `detect` returns `repo_root`, `agents`, `models`, `warnings`, and `recommendations`
 - `install --dry-run` returns the generated plan
 - `install --backup` creates backups before mutation and returns `backups` metadata in the result when backups are created
-- `verify` returns a status report with handshake and spawn details
-- supported v1 install targets are `cursor`, `claude-code`, and `continue`
+- `verify` returns a status report with handshake, discovery, and spawn details
+- supported install targets are `cursor`, `claude-code`, `continue`, `codex`, `windsurf`, `cline`, `copilot-cli`, and `vscode`
 
 ### MCP Runtime
 
@@ -119,8 +119,13 @@ mcp:
     - dependency_explain
     - context_pack
     - impact_analysis
-    - duplicate_detector
+    - document_search
+    - policy_check
 ```
+
+Implementation note:
+
+- `mcp.enabled_tools` is enforced by the local MCP server at both `tools/list` and `tools/call` time. Disabled tools are omitted from the registry and rejected if called directly.
 
 ## MCP Tool Surface
 
@@ -203,18 +208,6 @@ Returns:
 - summary
 - relevance score
 
-### `duplicate_detector`
-
-Inputs:
-
-- task description or code snippet
-
-Returns:
-
-- likely overlapping modules
-- confidence score
-- reuse suggestions
-
 ### `policy_check`
 
 Inputs:
@@ -226,6 +219,37 @@ Returns:
 - violations
 - warnings
 - suggested compliant paths
+
+## Hosted Remote MCP
+
+The standalone API host now exposes a hosted MCP lane at:
+
+- `POST /api/mcp`
+- `POST /api/admin/mcp`
+
+OAuth discovery and token exchange for remote MCP clients:
+
+- `GET /.well-known/oauth-authorization-server`
+- `GET /.well-known/oauth-protected-resource`
+- `GET /api/admin/.well-known/oauth-protected-resource`
+- `GET /oauth/authorize`
+- `GET /oauth/callback/mcp`
+- `POST /oauth/token`
+
+This hosted lane is intentionally read-only and does not pretend to offer full local graph fidelity.
+
+Current hosted tool subset:
+
+- `project_overview`
+- `document_search`
+- `context_pack`
+
+Hosted limits:
+
+- bearer access tokens resolve to BeHeart hosted sessions
+- OAuth login currently relies on the configured upstream hosted auth provider (`auth0`, `clerk`, or generic `oidc`)
+- uses published repository profile and synced document artifacts
+- does not expose local graph-only tools such as `symbol_lookup`, `dependency_explain`, or `impact_analysis`
 
 ## AI Interaction Pattern
 

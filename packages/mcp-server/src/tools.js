@@ -8,8 +8,8 @@ import {
 } from "../../graph/src/index.js";
 import { evaluatePolicyViolations } from "../../policy-engine/src/index.js";
 
-export function createToolRegistry() {
-  return [
+export function createToolRegistry({ enabledTools } = {}) {
+  return filterEnabledTools([
     {
       name: "project_overview",
       description: "Summarize the indexed repository shape and architecture hotspots.",
@@ -95,7 +95,7 @@ export function createToolRegistry() {
       description: "Evaluate current source files against lightweight repository policies.",
       inputSchema: emptyInputSchema(),
     },
-  ];
+  ], enabledTools);
 }
 
 export function handleToolCall({
@@ -106,7 +106,12 @@ export function handleToolCall({
   heartModel = { domains: [], links: [], summary: { relationship_count: 0 } },
   scanResult = graph.scanResult,
   policyReport,
+  enabledTools,
 }) {
+  if (!isToolEnabled(name, enabledTools)) {
+    throw new Error(`MCP tool '${name}' is not enabled for this repository.`);
+  }
+
   switch (name) {
     case "project_overview":
       return createProjectOverview(
@@ -142,6 +147,23 @@ export function handleToolCall({
     default:
       throw new Error(`Unknown MCP tool: ${name}`);
   }
+}
+
+function filterEnabledTools(registry, enabledTools) {
+  if (!Array.isArray(enabledTools) || enabledTools.length === 0) {
+    return registry;
+  }
+
+  const allowed = new Set(enabledTools);
+  return registry.filter((tool) => allowed.has(tool.name));
+}
+
+function isToolEnabled(name, enabledTools) {
+  if (!Array.isArray(enabledTools) || enabledTools.length === 0) {
+    return true;
+  }
+
+  return enabledTools.includes(name);
 }
 
 export function createToolCallResult(payload) {

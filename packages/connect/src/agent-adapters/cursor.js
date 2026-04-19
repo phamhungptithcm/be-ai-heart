@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { fileExists, readJsonFile } from "../filesystem.js";
 import { resolveHeartCliPath } from "../heart-cli-path.js";
+import { matchesMcpRemoteUrl } from "../mcp-transport.js";
 
 const HEART_MCP_ID = "heart-mcp";
 
@@ -24,7 +25,13 @@ function resolveCursorConfigLocations({ repoRoot, env = process.env } = {}) {
   };
 }
 
-function buildHeartMcpEntry(repoRoot) {
+function buildHeartMcpEntry(repoRoot, remoteUrl = null) {
+  if (remoteUrl) {
+    return {
+      url: remoteUrl,
+    };
+  }
+
   return {
     command: "node",
     args: [
@@ -37,10 +44,14 @@ function buildHeartMcpEntry(repoRoot) {
   };
 }
 
-function hasHeartCursorConfig(payload, repoRoot) {
+function hasHeartCursorConfig(payload, { repoRoot, remoteUrl } = {}) {
   const entry = payload?.mcpServers?.[HEART_MCP_ID];
   if (!entry) {
     return false;
+  }
+
+  if (matchesMcpRemoteUrl(entry, remoteUrl)) {
+    return true;
   }
 
   const args = Array.isArray(entry.args) ? entry.args : [];
@@ -52,20 +63,21 @@ function hasHeartCursorConfig(payload, repoRoot) {
   return args[rootFlagIndex + 1] === repoRoot;
 }
 
-async function configEvidence({ repoRoot, configLocations }) {
+async function configEvidence({ repoRoot, remoteUrl, configLocations }) {
   const repoPayload = await readJsonFile(configLocations.repo);
   const userPayload = configLocations.user
     ? await readJsonFile(configLocations.user)
     : null;
 
   return {
-    repoConfigured: hasHeartCursorConfig(repoPayload, repoRoot),
-    userConfigured: hasHeartCursorConfig(userPayload, repoRoot),
+    repoConfigured: hasHeartCursorConfig(repoPayload, { repoRoot, remoteUrl }),
+    userConfigured: hasHeartCursorConfig(userPayload, { repoRoot, remoteUrl }),
   };
 }
 
 export async function detectCursor({
   repoRoot,
+  remoteUrl = null,
   env = process.env,
   execFileImpl = missingExecFile,
 } = {}) {
@@ -84,6 +96,7 @@ export async function detectCursor({
 
   const { repoConfigured, userConfigured } = await configEvidence({
     repoRoot,
+    remoteUrl,
     configLocations,
   });
   const configured = repoConfigured || userConfigured;
@@ -108,6 +121,7 @@ export async function buildCursorInstallPlan({
   scope,
   env = process.env,
   modelRuntime = null,
+  remoteUrl = null,
 } = {}) {
   const configLocations = resolveCursorConfigLocations({ repoRoot, env });
   const targetPath =
@@ -131,11 +145,12 @@ export async function buildCursorInstallPlan({
     scope,
     repo_root: repoRoot,
     target_file: targetPath,
-    mcp_entry: buildHeartMcpEntry(repoRoot),
+    config_locations: configLocations,
+    mcp_entry: buildHeartMcpEntry(repoRoot, remoteUrl),
     model_binding: null,
     files_to_backup: existingTarget ? [targetPath] : [],
     files_to_modify: targetPath ? [targetPath] : [],
     warnings,
-    actions: ["write-mcp-json"],
+    actions: [remoteUrl ? "write-remote-mcp-json" : "write-mcp-json"],
   };
 }

@@ -28,6 +28,21 @@ test("MCP tool registry exposes expected tools", () => {
   ]);
 });
 
+test("MCP tool registry respects enabled tool allowlists", () => {
+  const registry = createToolRegistry({
+    enabledTools: [
+      "project_overview",
+      "document_search",
+    ],
+  });
+  const toolNames = registry.map((tool) => tool.name);
+
+  assert.deepEqual(toolNames, [
+    "project_overview",
+    "document_search",
+  ]);
+});
+
 test("MCP context pack tool returns focused output", async () => {
   const scanResult = await scanSourceTree(fixtureRoot);
   const documentIndex = await scanDocumentTree(fixtureRoot, {
@@ -75,4 +90,20 @@ test("MCP dependency explain tool returns typed dependency evidence", async (t) 
   assert.ok(result.outgoing_calls.includes("loginUser"));
   assert.ok(result.extends.includes("BaseAuthService"));
   assert.ok(result.implements.includes("AuthWorkflow"));
+});
+
+test("MCP tool calls reject disabled tools", async () => {
+  const scanResult = await scanSourceTree(fixtureRoot);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+
+  assert.throws(
+    () =>
+      handleToolCall({
+        name: "policy_check",
+        graph,
+        scanResult,
+        enabledTools: ["project_overview"],
+      }),
+    /not enabled/i,
+  );
 });

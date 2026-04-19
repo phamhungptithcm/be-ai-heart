@@ -21,6 +21,14 @@ export const apiManifest = {
     "/v1/admin/document-submissions",
     "/v1/admin/repository-profiles/:slug",
     "/v1/public/intake",
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource",
+    "/api/admin/.well-known/oauth-protected-resource",
+    "/oauth/authorize",
+    "/oauth/callback/mcp",
+    "/oauth/token",
+    "/api/mcp",
+    "/api/admin/mcp",
   ],
 };
 

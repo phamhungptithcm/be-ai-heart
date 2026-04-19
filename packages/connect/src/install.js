@@ -37,16 +37,21 @@ async function readExistingJsonFile(filePath, label) {
 }
 
 async function installCursor(plan) {
+  await installJsonMcpServer(plan);
+}
+
+async function installJsonMcpServer(plan) {
   const targetPath = plan.target_file;
   const { payload } = targetPath
-    ? await readExistingJsonFile(targetPath, "Cursor config")
+    ? await readExistingJsonFile(targetPath, `${plan.client} config`)
     : { payload: null };
-  const existingPayload = payload ?? { mcpServers: {} };
+  const rootKey = plan.json_root_key ?? "mcpServers";
+  const existingPayload = payload ?? { [rootKey]: {} };
   const nextPayload = {
     ...existingPayload,
-    mcpServers: {
-      ...(existingPayload.mcpServers ?? {}),
-      "heart-mcp": plan.mcp_entry,
+    [rootKey]: {
+      ...(existingPayload[rootKey] ?? {}),
+      [plan.server_key ?? "heart-mcp"]: plan.mcp_entry,
     },
   };
 
@@ -59,7 +64,13 @@ async function installClaudeCode(plan, execFileImpl) {
   await execFileImpl(command, args);
 }
 
-async function maybeWriteContinueManagedConfig({ env, model }) {
+async function installCodex(plan, execFileImpl) {
+  const command = plan.exec?.command ?? plan.command;
+  const args = plan.exec?.args ?? plan.args;
+  await execFileImpl(command, args);
+}
+
+async function maybeWriteContinueManagedConfig({ env, model, modelName = null }) {
   if (!model) {
     return [];
   }
@@ -68,6 +79,7 @@ async function maybeWriteContinueManagedConfig({ env, model }) {
     scope: "user",
     env,
     modelRuntime: model,
+    resolvedModelName: modelName,
   });
 
   if (managedConfig.filesToModify.length === 0) {
@@ -76,7 +88,7 @@ async function maybeWriteContinueManagedConfig({ env, model }) {
 
   await writeTextFile(
     managedConfig.managedConfigPath,
-    createContinueManagedConfig(model),
+    createContinueManagedConfig(model, modelName ?? undefined),
   );
   return managedConfig.warnings;
 }
@@ -87,7 +99,48 @@ async function installContinue(plan, { env, model }) {
     return [];
   }
 
-  return maybeWriteContinueManagedConfig({ env, model });
+  return maybeWriteContinueManagedConfig({
+    env,
+    model,
+    modelName: plan.resolved_model_name,
+  });
+}
+
+async function captureRollbackSnapshots(filePaths) {
+  const snapshots = [];
+
+  for (const filePath of filePaths ?? []) {
+    try {
+      snapshots.push({
+        filePath,
+        existed: true,
+        content: await fs.readFile(filePath),
+      });
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+
+      snapshots.push({
+        filePath,
+        existed: false,
+        content: null,
+      });
+    }
+  }
+
+  return snapshots;
+}
+
+async function restoreRollbackSnapshots(snapshots) {
+  for (const snapshot of snapshots ?? []) {
+    if (snapshot.existed) {
+      await writeTextFile(snapshot.filePath, snapshot.content);
+      continue;
+    }
+
+    await fs.rm(snapshot.filePath, { force: true });
+  }
 }
 
 export async function installConnection({
@@ -96,8 +149,10 @@ export async function installConnection({
   repoRoot,
   env = process.env,
   model = null,
+  remoteUrl = null,
   execFileImpl = defaultExecFileImpl,
   verifyImpl,
+  detectedModelsByRuntime = {},
 } = {}) {
   const plan = await buildInstallPlan({
     client,
@@ -105,28 +160,52 @@ export async function installConnection({
     repoRoot,
     env,
     modelRuntime: model,
+    detectedModelsByRuntime,
+    remoteUrl,
   });
+  const modifiedFiles = plan.files_to_modify ?? [];
   let warnings = [...(plan.warnings ?? [])];
+  const rollbackSnapshots = await captureRollbackSnapshots(modifiedFiles);
 
-  if (plan.client === "cursor") {
-    await installCursor(plan);
-  } else if (plan.client === "claude-code") {
-    await installClaudeCode(plan, execFileImpl);
-  } else if (plan.client === "continue") {
-    warnings = warnings.concat(await installContinue(plan, { env, model }));
-  } else {
-    throw new Error(`Unsupported install client: ${plan.client}`);
+  try {
+    if (plan.client === "cursor") {
+      await installCursor(plan);
+    } else if (plan.client === "claude-code") {
+      await installClaudeCode(plan, execFileImpl);
+    } else if (plan.client === "codex") {
+      await installCodex(plan, execFileImpl);
+    } else if (
+      plan.client === "windsurf" ||
+      plan.client === "cline" ||
+      plan.client === "copilot-cli" ||
+      plan.client === "vscode"
+    ) {
+      await installJsonMcpServer(plan);
+    } else if (plan.client === "continue") {
+      warnings = warnings.concat(await installContinue(plan, { env, model }));
+    } else {
+      throw new Error(`Unsupported install client: ${plan.client}`);
+    }
+
+    const verification = verifyImpl
+      ? await verifyImpl(plan)
+      : { status: "ready", warnings: [] };
+
+    if (verification.status === "failed" && modifiedFiles.length > 0) {
+      await restoreRollbackSnapshots(rollbackSnapshots);
+    }
+
+    return {
+      ...verification,
+      warnings: [...(verification.warnings ?? []), ...warnings],
+      client,
+      scope,
+      plan,
+    };
+  } catch (error) {
+    if (modifiedFiles.length > 0) {
+      await restoreRollbackSnapshots(rollbackSnapshots);
+    }
+    throw error;
   }
-
-  const verification = verifyImpl
-    ? await verifyImpl(plan)
-    : { status: "ready", warnings: [] };
-
-  return {
-    ...verification,
-    warnings: [...(verification.warnings ?? []), ...warnings],
-    client,
-    scope,
-    plan,
-  };
 }

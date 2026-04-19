@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { readJsonFile } from "../filesystem.js";
 import { resolveHeartCliPath } from "../heart-cli-path.js";
+import { matchesMcpRemoteUrl } from "../mcp-transport.js";
 
 const HEART_MCP_ID = "heart-mcp";
 
@@ -24,7 +25,14 @@ function resolveClaudeCodeConfigLocations({ repoRoot, env = process.env } = {}) 
   };
 }
 
-function buildHeartMcpEntry(repoRoot) {
+function buildHeartMcpEntry(repoRoot, remoteUrl = null) {
+  if (remoteUrl) {
+    return {
+      type: "http",
+      url: remoteUrl,
+    };
+  }
+
   return {
     command: "node",
     args: [
@@ -37,9 +45,17 @@ function buildHeartMcpEntry(repoRoot) {
   };
 }
 
-function hasHeartClaudeConfig(payload, repoRoot) {
+function hasHeartClaudeConfig(payload, { repoRoot, remoteUrl } = {}) {
   const entry = payload?.mcpServers?.[HEART_MCP_ID];
-  if (!entry || typeof entry.command !== "string" || !Array.isArray(entry.args)) {
+  if (!entry) {
+    return false;
+  }
+
+  if (matchesMcpRemoteUrl(entry, remoteUrl)) {
+    return true;
+  }
+
+  if (typeof entry.command !== "string" || !Array.isArray(entry.args)) {
     return false;
   }
 
@@ -53,16 +69,17 @@ function hasHeartClaudeConfig(payload, repoRoot) {
 
 export async function detectClaudeCode({
   repoRoot,
+  remoteUrl = null,
   env = process.env,
   execFileImpl = missingExecFile,
 } = {}) {
   const configLocations = resolveClaudeCodeConfigLocations({ repoRoot, env });
   const repoConfigured = hasHeartClaudeConfig(
     await readJsonFile(configLocations.repo),
-    repoRoot,
+    { repoRoot, remoteUrl },
   );
   const userConfigured = configLocations.user
-    ? hasHeartClaudeConfig(await readJsonFile(configLocations.user), repoRoot)
+    ? hasHeartClaudeConfig(await readJsonFile(configLocations.user), { repoRoot, remoteUrl })
     : false;
   const configured = repoConfigured || userConfigured;
   let detectedFromCli = false;
@@ -97,8 +114,9 @@ export async function buildClaudeCodeInstallPlan({
   scope,
   env = process.env,
   modelRuntime = null,
+  remoteUrl = null,
 } = {}) {
-  const mcpEntry = buildHeartMcpEntry(repoRoot);
+  const mcpEntry = buildHeartMcpEntry(repoRoot, remoteUrl);
   const warnings = [];
   const claudeScope = scope === "repo" ? "project" : "user";
 
@@ -117,26 +135,48 @@ export async function buildClaudeCodeInstallPlan({
     files_to_backup: [],
     files_to_modify: [],
     warnings,
-    actions: ["run-claude-mcp-add-json"],
+    actions: [remoteUrl ? "run-claude-mcp-add-http" : "run-claude-mcp-add-json"],
     command: "claude",
-    args: [
-      "mcp",
-      "add-json",
-      HEART_MCP_ID,
-      JSON.stringify(mcpEntry),
-      "--scope",
-      claudeScope,
-    ],
+    args: remoteUrl
+      ? [
+          "mcp",
+          "add",
+          "--transport",
+          "http",
+          "--scope",
+          claudeScope,
+          HEART_MCP_ID,
+          remoteUrl,
+        ]
+      : [
+          "mcp",
+          "add-json",
+          HEART_MCP_ID,
+          JSON.stringify(mcpEntry),
+          "--scope",
+          claudeScope,
+        ],
     exec: {
       command: "claude",
-      args: [
-        "mcp",
-        "add-json",
-        HEART_MCP_ID,
-        JSON.stringify(mcpEntry),
-        "--scope",
-        claudeScope,
-      ],
+      args: remoteUrl
+        ? [
+            "mcp",
+            "add",
+            "--transport",
+            "http",
+            "--scope",
+            claudeScope,
+            HEART_MCP_ID,
+            remoteUrl,
+          ]
+        : [
+            "mcp",
+            "add-json",
+            HEART_MCP_ID,
+            JSON.stringify(mcpEntry),
+            "--scope",
+            claudeScope,
+          ],
     },
     config_locations: resolveClaudeCodeConfigLocations({ repoRoot, env }),
   };

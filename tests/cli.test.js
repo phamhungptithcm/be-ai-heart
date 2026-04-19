@@ -207,8 +207,58 @@ test("CLI connect install dry-run returns a plan", async (t) => {
   await assert.rejects(fs.stat(targetPath));
 });
 
-test("CLI connect verify returns a ready report", async () => {
-  const repoRoot = path.resolve(".");
+test("CLI connect install dry-run returns a remote plan when --url is provided", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+  const raw = execFileSync(
+    "node",
+    [
+      cliPath,
+      "connect",
+      "install",
+      "--json",
+      "--dry-run",
+      "--client",
+      "vscode",
+      "--scope",
+      "repo",
+      "--root",
+      repoRoot,
+      "--url",
+      "https://beheart.example.com",
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+
+  assert.equal(result.plan.client, "vscode");
+  assert.equal(result.plan.mcp_entry.type, "http");
+  assert.equal(result.plan.mcp_entry.url, "https://beheart.example.com/api/mcp");
+});
+
+test("CLI connect verify returns a ready report", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(
+    cursorConfigPath,
+    JSON.stringify(
+      {
+        mcpServers: {
+          "heart-mcp": {
+            command: "node",
+            args: [cliPath, "mcp", "serve", "--root", repoRoot],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
   const raw = execFileSync(
     "node",
     [cliPath, "connect", "verify", "--json", "--client", "cursor", "--root", repoRoot],
@@ -221,6 +271,7 @@ test("CLI connect verify returns a ready report", async () => {
   assert.equal(result.repo_root, repoRoot);
   assert.equal(result.client, "cursor");
   assert.equal(result.status, "ready");
+  assert.equal(result.config_status, "ok");
   assert.equal(result.initialize_status, "ok");
   assert.equal(result.tools_list_status, "ok");
 });
@@ -419,14 +470,13 @@ test("CLI connect install exits non-zero when verification fails after a user-sc
     },
   );
   const result = JSON.parse(error.stdout);
-  const payload = JSON.parse(await fs.readFile(cursorConfigPath, "utf8"));
 
   assert.equal(error.status, 1);
   assert.equal(result.client, "cursor");
   assert.equal(result.scope, "user");
   assert.equal(result.status, "failed");
   assert.equal(result.plan.target_file, cursorConfigPath);
-  assert.equal(payload.mcpServers["heart-mcp"].args[0], cliPath);
+  await assert.rejects(fs.stat(cursorConfigPath));
 });
 
 test("CLI connect doctor returns repo diagnostics", () => {

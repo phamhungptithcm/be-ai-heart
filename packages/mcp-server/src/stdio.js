@@ -130,7 +130,7 @@ async function handleRequest(state, message) {
     case "tools/list":
       ensureReadyForOperations(state);
       return createSuccessResponse(message.id, {
-        tools: createToolRegistry(),
+        tools: await createAvailableToolRegistry(state),
       });
     case "tools/call":
       ensureReadyForOperations(state);
@@ -144,6 +144,7 @@ async function handleToolRequest(state, params) {
   const name = readString(params.name, "Tool name is required.");
   const argumentsObject = readArgumentsObject(params.arguments);
   const workspaceState = await state.buildState(state.repoRoot);
+  const enabledTools = workspaceState.configState?.config?.mcp?.enabled_tools;
   const payload = handleToolCall({
     name,
     args: argumentsObject,
@@ -152,9 +153,17 @@ async function handleToolRequest(state, params) {
     heartModel: workspaceState.heartModel,
     scanResult: workspaceState.scanResult,
     policyReport: workspaceState.policyReport,
+    enabledTools,
   });
 
   return createToolCallResult(payload);
+}
+
+async function createAvailableToolRegistry(state) {
+  const workspaceState = await state.buildState(state.repoRoot);
+  return createToolRegistry({
+    enabledTools: workspaceState.configState?.config?.mcp?.enabled_tools,
+  });
 }
 
 function ensureReadyForOperations(state) {

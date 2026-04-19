@@ -26,6 +26,18 @@ import {
   writeRepositoryDocumentsForActor,
   writeRepositoryProfileForActor,
 } from "./index.js";
+import {
+  createHostedMcpErrorResponse,
+  handleHostedMcpMessage,
+} from "./mcp.js";
+import {
+  buildMcpAuthorizationServerMetadata,
+  buildMcpProtectedResourceMetadata,
+  completeMcpAuthorization,
+  createMcpAuthorizationRequest,
+  createMcpUnauthorizedResponse,
+  exchangeMcpAuthorizationCode,
+} from "./mcp-oauth.js";
 
 export async function handleServiceHttpRequest(request, options = {}) {
   const config = resolveHttpConfig(options);
@@ -68,6 +80,101 @@ export async function handleServiceHttpRequest(request, options = {}) {
       request,
       config,
     );
+  }
+
+  if (route?.kind === "mcp-oauth-authorization-server") {
+    if (request.method !== "GET") {
+      return withCors(methodNotAllowed(["GET"]), request, config);
+    }
+    return withCors(
+      jsonResponse(buildMcpAuthorizationServerMetadata({ apiBaseUrl: config.apiBaseUrl })),
+      request,
+      config,
+    );
+  }
+
+  if (route?.kind === "mcp-oauth-protected-resource") {
+    if (request.method !== "GET") {
+      return withCors(methodNotAllowed(["GET"]), request, config);
+    }
+    return withCors(
+      jsonResponse(
+        buildMcpProtectedResourceMetadata({
+          apiBaseUrl: config.apiBaseUrl,
+          surface: route.surface,
+        }),
+      ),
+      request,
+      config,
+    );
+  }
+
+  if (route?.kind === "mcp-oauth-authorize") {
+    if (request.method !== "GET") {
+      return withCors(methodNotAllowed(["GET"]), request, config);
+    }
+    try {
+      const result = await createMcpAuthorizationRequest({
+        serviceStorageRoot: config.serviceStorageRoot,
+        apiBaseUrl: config.apiBaseUrl,
+        providerId: requestUrl.searchParams.get("provider"),
+        responseType: requestUrl.searchParams.get("response_type") ?? "code",
+        surface: requestUrl.searchParams.get("surface") ?? "portal",
+        workspaceSlug: requestUrl.searchParams.get("workspace"),
+        customerSlug: requestUrl.searchParams.get("customer"),
+        clientId: requestUrl.searchParams.get("client_id"),
+        redirectUri: requestUrl.searchParams.get("redirect_uri"),
+        state: requestUrl.searchParams.get("state"),
+        codeChallenge: requestUrl.searchParams.get("code_challenge"),
+        codeChallengeMethod: requestUrl.searchParams.get("code_challenge_method") ?? "S256",
+        scope: requestUrl.searchParams.get("scope") ?? "mcp:read",
+      });
+      return withCors(Response.redirect(result.authorize_url, 302), request, config);
+    } catch (error) {
+      return withCors(errorResponse(error, "Failed to start MCP OAuth flow."), request, config);
+    }
+  }
+
+  if (route?.kind === "mcp-oauth-callback") {
+    if (request.method !== "GET") {
+      return withCors(methodNotAllowed(["GET"]), request, config);
+    }
+    try {
+      const result = await completeMcpAuthorization({
+        serviceStorageRoot: config.serviceStorageRoot,
+        requestUrl,
+      });
+      return withCors(Response.redirect(result.redirect_url, 302), request, config);
+    } catch (error) {
+      return withCors(errorResponse(error, "Failed to complete MCP OAuth flow."), request, config);
+    }
+  }
+
+  if (route?.kind === "mcp-oauth-token") {
+    if (request.method !== "POST") {
+      return withCors(methodNotAllowed(["POST"]), request, config);
+    }
+
+    try {
+      const form = await readForm(request);
+      if ((form.get("grant_type") ?? "").trim() !== "authorization_code") {
+        return withCors(
+          jsonResponse({ error: "grant_type must be authorization_code." }, { status: 400 }),
+          request,
+          config,
+        );
+      }
+      const result = await exchangeMcpAuthorizationCode({
+        serviceStorageRoot: config.serviceStorageRoot,
+        code: form.get("code"),
+        clientId: form.get("client_id"),
+        redirectUri: form.get("redirect_uri"),
+        codeVerifier: form.get("code_verifier"),
+      });
+      return withCors(jsonResponse(result), request, config);
+    } catch (error) {
+      return withCors(errorResponse(error, "Failed to exchange MCP OAuth code."), request, config);
+    }
   }
 
   if (route?.kind === "auth-authorize") {
@@ -141,6 +248,8 @@ export async function handleServiceHttpRequest(request, options = {}) {
           request,
           config,
         );
+      case "mcp":
+        return withCors(await handleMcpRoute(request, config, route.surface), request, config);
       default:
         return withCors(jsonResponse({ error: "Route not implemented." }, { status: 404 }), request, config);
     }
@@ -441,7 +550,7 @@ async function handleDocumentSubmissionsRoute(request, config, surface) {
     surface,
     request,
   });
-  if (!authContext.actor) {
+  if (!authContext.actor || !authContext.session) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
   }
 
@@ -530,9 +639,95 @@ async function handleBenchmarkDetailRoute(request, config, surface, reportId) {
   return jsonResponse(report);
 }
 
+async function handleMcpRoute(request, config, surface) {
+  if (!hasValidMcpOrigin(request, config)) {
+    return jsonResponse({ error: "Origin is not allowed for MCP requests." }, { status: 403 });
+  }
+
+  if (request.method === "GET") {
+    return methodNotAllowed(["POST"]);
+  }
+
+  if (request.method !== "POST") {
+    return methodNotAllowed(["GET", "POST"]);
+  }
+
+  const authContext = await resolveRequestAuthContext({
+    serviceStorageRoot: config.serviceStorageRoot,
+    surface,
+    request,
+  });
+  if (!authContext.actor || !authContext.session) {
+    return createMcpUnauthorizedResponse({
+      apiBaseUrl: config.apiBaseUrl,
+      surface,
+    });
+  }
+
+  const payload = await readJson(request);
+  if (isJsonRpcNotificationOrResponse(payload)) {
+    return new Response(null, { status: 202 });
+  }
+
+  if (Array.isArray(payload)) {
+    const responses = await Promise.all(
+      payload.map((message) =>
+        isJsonRpcNotificationOrResponse(message)
+          ? Promise.resolve(null)
+          : handleHostedMcpMessage({
+              message,
+              serviceStorageRoot: config.serviceStorageRoot,
+              surface,
+              actorSlug: authContext.actor_slug,
+              defaultProfileSlug: authContext.workspace_identity?.profile_slug ?? authContext.workspace_slug,
+            }),
+      ),
+    );
+    const filteredResponses = responses.filter(Boolean);
+    if (filteredResponses.length === 0) {
+      return new Response(null, { status: 202 });
+    }
+    return jsonResponse(filteredResponses);
+  }
+
+  const response = payload && typeof payload === "object"
+    ? await handleHostedMcpMessage({
+        message: payload,
+        serviceStorageRoot: config.serviceStorageRoot,
+        surface,
+        actorSlug: authContext.actor_slug,
+        defaultProfileSlug: authContext.workspace_identity?.profile_slug ?? authContext.workspace_slug,
+      })
+    : createHostedMcpErrorResponse(null, -32600, "Invalid Request");
+
+  if (!response) {
+    return new Response(null, { status: 202 });
+  }
+
+  return jsonResponse(response);
+}
+
 function matchRoute(pathname) {
   if (pathname === "/health") {
     return { kind: "health" };
+  }
+  if (pathname === "/.well-known/oauth-authorization-server") {
+    return { kind: "mcp-oauth-authorization-server" };
+  }
+  if (pathname === "/.well-known/oauth-protected-resource") {
+    return { kind: "mcp-oauth-protected-resource", surface: "portal" };
+  }
+  if (pathname === "/api/admin/.well-known/oauth-protected-resource") {
+    return { kind: "mcp-oauth-protected-resource", surface: "admin" };
+  }
+  if (pathname === "/oauth/authorize") {
+    return { kind: "mcp-oauth-authorize" };
+  }
+  if (pathname === "/oauth/callback/mcp") {
+    return { kind: "mcp-oauth-callback" };
+  }
+  if (pathname === "/oauth/token") {
+    return { kind: "mcp-oauth-token" };
   }
   if (pathname === "/api/public/intake") {
     return { kind: "public-intake" };
@@ -585,6 +780,9 @@ function matchRoute(pathname) {
   if (effectivePath === "/api/benchmarks") {
     return { kind: "benchmarks", surface };
   }
+  if (effectivePath === "/api/mcp") {
+    return { kind: "mcp", surface };
+  }
 
   const repositoryMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)$/);
   if (repositoryMatch) {
@@ -612,6 +810,15 @@ async function readJson(request) {
     return await request.json();
   } catch {
     return {};
+  }
+}
+
+async function readForm(request) {
+  try {
+    const raw = await request.text();
+    return new URLSearchParams(raw);
+  } catch {
+    return new URLSearchParams();
   }
 }
 
@@ -644,7 +851,12 @@ function errorResponse(error, fallbackMessage) {
     {
       error: error?.message || fallbackMessage,
     },
-    { status: 500 },
+    {
+      status:
+        error?.message && /required|invalid|expired|not configured|unsupported/i.test(error.message)
+          ? 400
+          : 500,
+    },
   );
 }
 
@@ -684,6 +896,27 @@ function resolveAllowedOrigin(origin, config) {
     new URL(process.env.BE_AI_HEART_ADMIN_BASE_URL ?? "http://127.0.0.1:3002").origin,
   ]);
   return allowedOrigins.has(origin) ? origin : "null";
+}
+
+function hasValidMcpOrigin(request, config) {
+  const origin = request.headers.get("origin");
+  if (!origin) {
+    return true;
+  }
+
+  return resolveAllowedOrigin(origin, config) !== "null";
+}
+
+function isJsonRpcNotificationOrResponse(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  if (typeof value.method === "string" && !("id" in value)) {
+    return true;
+  }
+
+  return !("method" in value) && ("result" in value || "error" in value);
 }
 
 function safeParseUrl(value) {

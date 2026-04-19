@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 
 import { fileExists, readJsonFile } from "../filesystem.js";
 import { resolveHeartCliPath } from "../heart-cli-path.js";
+import { matchesMcpRemoteUrl } from "../mcp-transport.js";
 
 const HEART_MCP_ID = "heart-mcp";
 const SUPPORTED_MODEL_RUNTIMES = new Set(["ollama", "lm-studio"]);
@@ -28,14 +29,31 @@ export function resolveContinueManagedConfigPath(env = process.env) {
   return homeRoot ? path.join(homeRoot, ".continue", "config.yaml") : null;
 }
 
-export function createContinueManagedConfig(modelRuntime) {
+function defaultManagedModelName(modelRuntime) {
+  if (modelRuntime === "ollama" || modelRuntime === "lm-studio") {
+    return "qwen3.5-coder:latest";
+  }
+
+  throw new Error(`Unsupported Continue model runtime: ${modelRuntime}`);
+}
+
+function resolveManagedModelName(modelRuntime, detectedModelsByRuntime = {}) {
+  const detectedModels = detectedModelsByRuntime?.[modelRuntime];
+  if (Array.isArray(detectedModels) && detectedModels.length > 0) {
+    return detectedModels[0];
+  }
+
+  return defaultManagedModelName(modelRuntime);
+}
+
+export function createContinueManagedConfig(modelRuntime, modelName = defaultManagedModelName(modelRuntime)) {
   if (modelRuntime === "ollama") {
     return `${MANAGED_CONTINUE_CONFIG_HEADER}
 version: 1
 models:
-  - name: qwen3.5-coder:latest
+  - name: ${modelName}
     provider: ollama
-    model: qwen3.5-coder:latest
+    model: ${modelName}
 `;
   }
 
@@ -43,9 +61,9 @@ models:
     return `${MANAGED_CONTINUE_CONFIG_HEADER}
 version: 1
 models:
-  - name: qwen3.5-coder:latest
+  - name: ${modelName}
     provider: lm-studio
-    model: qwen3.5-coder:latest
+    model: ${modelName}
 `;
   }
 
@@ -56,6 +74,7 @@ export async function inspectContinueManagedConfig({
   scope,
   env = process.env,
   modelRuntime = null,
+  resolvedModelName = null,
 } = {}) {
   if (scope !== "user" || !modelRuntime) {
     return {
@@ -91,7 +110,10 @@ export async function inspectContinueManagedConfig({
     };
   }
 
-  const expectedManagedConfig = createContinueManagedConfig(modelRuntime);
+  const expectedManagedConfig = createContinueManagedConfig(
+    modelRuntime,
+    resolvedModelName ?? undefined,
+  );
   if (existingText === expectedManagedConfig) {
     return {
       managedConfigPath,
@@ -113,7 +135,16 @@ export async function inspectContinueManagedConfig({
   };
 }
 
-function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
+function buildHeartMcpEntry(repoRoot, modelRuntime = null, remoteUrl = null) {
+  if (remoteUrl) {
+    return {
+      name: HEART_MCP_ID,
+      type: "streamable-http",
+      url: remoteUrl,
+      ...(modelRuntime ? { modelRuntime } : {}),
+    };
+  }
+
   return {
     name: HEART_MCP_ID,
     command: "node",
@@ -128,7 +159,7 @@ function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
   };
 }
 
-function hasValidHeartContinueConfig(payload, repoRoot) {
+function hasValidHeartContinueConfig(payload, { repoRoot, remoteUrl } = {}) {
   const entries = payload?.mcpServers;
   if (!Array.isArray(entries)) {
     return false;
@@ -136,11 +167,15 @@ function hasValidHeartContinueConfig(payload, repoRoot) {
 
   return entries.some(
     (entry) => {
-      if (
-        entry?.name !== HEART_MCP_ID ||
-        typeof entry.command !== "string" ||
-        !Array.isArray(entry.args)
-      ) {
+      if (entry?.name !== HEART_MCP_ID) {
+        return false;
+      }
+
+      if (matchesMcpRemoteUrl(entry, remoteUrl)) {
+        return true;
+      }
+
+      if (typeof entry.command !== "string" || !Array.isArray(entry.args)) {
         return false;
       }
 
@@ -156,15 +191,16 @@ function hasValidHeartContinueConfig(payload, repoRoot) {
 
 export async function detectContinue({
   repoRoot,
+  remoteUrl = null,
   env = process.env,
 } = {}) {
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
   const repoConfigured = hasValidHeartContinueConfig(
     await readJsonFile(configLocations.repo),
-    repoRoot,
+    { repoRoot, remoteUrl },
   );
   const userConfigured = configLocations.user
-    ? hasValidHeartContinueConfig(await readJsonFile(configLocations.user), repoRoot)
+    ? hasValidHeartContinueConfig(await readJsonFile(configLocations.user), { repoRoot, remoteUrl })
     : false;
   const configured = repoConfigured || userConfigured;
 
@@ -189,11 +225,16 @@ export async function buildContinueInstallPlan({
   scope,
   env = process.env,
   modelRuntime = null,
+  detectedModelsByRuntime = {},
+  remoteUrl = null,
 } = {}) {
   if (modelRuntime && !SUPPORTED_MODEL_RUNTIMES.has(modelRuntime)) {
     throw new Error(`Unsupported Continue model runtime: ${modelRuntime}`);
   }
 
+  const resolvedModelName = modelRuntime
+    ? resolveManagedModelName(modelRuntime, detectedModelsByRuntime)
+    : null;
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
   const targetPath =
     scope === "user" ? configLocations.user : configLocations.repo;
@@ -207,6 +248,7 @@ export async function buildContinueInstallPlan({
     scope,
     env,
     modelRuntime,
+    resolvedModelName,
   });
 
   return {
@@ -215,10 +257,12 @@ export async function buildContinueInstallPlan({
     repo_root: repoRoot,
     target_file: targetPath,
     managed_config_file: managedConfig.managedConfigPath,
+    config_locations: configLocations,
     mcp_entry: {
-      mcpServers: [buildHeartMcpEntry(repoRoot, modelRuntime)],
+      mcpServers: [buildHeartMcpEntry(repoRoot, modelRuntime, remoteUrl)],
     },
     model_binding: modelRuntime,
+    resolved_model_name: resolvedModelName,
     files_to_backup: [
       ...(existingTarget ? [targetPath] : []),
       ...managedConfig.filesToBackup,
@@ -231,7 +275,7 @@ export async function buildContinueInstallPlan({
       "Continue planning targets explicit repo or user MCP JSON files only.",
       ...managedConfig.warnings,
     ],
-    actions: ["write-continue-mcp-json"],
+    actions: [remoteUrl ? "write-continue-remote-mcp-json" : "write-continue-mcp-json"],
   };
 }
 
