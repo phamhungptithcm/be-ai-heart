@@ -1,0 +1,94 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">BeHeart CLI demo</title>
+  <desc id="desc">A terminal-style preview showing BeHeart overview and context pack commands with representative output.</desc>
+  <defs>
+    <linearGradient id="bg" x1="84" y1="54" x2="1110" y2="706" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4EEE4"/>
+      <stop offset="1" stop-color="#E7DDCF"/>
+    </linearGradient>
+    <linearGradient id="terminal" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#161B22"/>
+      <stop offset="1" stop-color="#0D1117"/>
+    </linearGradient>
+    <filter id="shadow" x="58" y="88" width="1084" height="612" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#211A13" flood-opacity="0.16"/>
+    </filter>
+    <style>
+      .ui { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, monospace; }
+      .title { font-size: 34px; font-weight: 760; fill: #1E1A14; }
+      .subtitle { font-size: 17px; fill: #61574C; }
+      .tab { font-size: 14px; font-weight: 700; fill: #DDE5EC; }
+      .code { font-size: 17px; fill: #E6EDF3; }
+      .muted { font-size: 16px; fill: #A9B5C0; }
+      .accent { font-size: 17px; fill: #7EE787; }
+      .gold { font-size: 17px; fill: #F2CC60; }
+      .pink { font-size: 17px; fill: #FF9BCE; }
+      .small { font-size: 13px; fill: #B7C2CD; }
+      .label { font-size: 14px; font-weight: 650; fill: #1E1A14; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="760" rx="32" fill="url(#bg)"/>
+
+  <text x="72" y="88" class="ui title">See what BeHeart actually returns.</text>
+  <text x="72" y="118" class="ui subtitle">Real commands, cleaner context, less guesswork.</text>
+
+  <g class="ui">
+    <rect x="72" y="146" width="160" height="36" rx="18" fill="#F2E3BD"/>
+    <text x="99" y="169" class="label">CLI preview</text>
+    <rect x="244" y="146" width="220" height="36" rx="18" fill="#DDE8D4"/>
+    <text x="270" y="169" class="label">Focused context, not raw dump</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="206" width="1056" height="466" rx="28" fill="url(#terminal)"/>
+  </g>
+
+  <g class="ui">
+    <circle cx="108" cy="242" r="6" fill="#FF6B6B"/>
+    <circle cx="128" cy="242" r="6" fill="#F8C555"/>
+    <circle cx="148" cy="242" r="6" fill="#52C16F"/>
+    <rect x="184" y="225" width="168" height="34" rx="12" fill="#212A33"/>
+    <text x="213" y="247" class="tab">heart overview</text>
+    <rect x="366" y="225" width="232" height="34" rx="12" fill="#11161C"/>
+    <text x="394" y="247" class="small">heart pack "improve login audit flow"</text>
+  </g>
+
+  <g class="mono">
+    <text x="104" y="302" class="accent">$ node ./packages/cli/bin/heart.js overview</text>
+    <text x="104" y="344" class="code">repo: be-ai-heart</text>
+    <text x="104" y="376" class="code">file_count: 355</text>
+    <text x="104" y="408" class="code">symbol_count: 1907</text>
+    <text x="104" y="440" class="code">document_count: 25</text>
+    <text x="104" y="472" class="code">policy_warnings: 0</text>
+    <text x="104" y="520" class="gold">summary:</text>
+    <text x="184" y="520" class="muted">Indexed 355 source files, 1907 symbols,</text>
+    <text x="104" y="548" class="muted">25 project documents, and 2052 heart links.</text>
+
+    <text x="584" y="302" class="accent">$ node ./packages/cli/bin/heart.js pack</text>
+    <text x="584" y="330" class="accent">  "improve login audit flow"</text>
+    <text x="584" y="374" class="gold">summary:</text>
+    <text x="664" y="374" class="muted">Focused context pack from 5 relevant files,</text>
+    <text x="584" y="402" class="muted">4 relevant documents, and 5 linked modules.</text>
+
+    <text x="584" y="450" class="pink">relevant_files:</text>
+    <text x="584" y="478" class="muted">packages/cli/src/index.js</text>
+    <text x="584" y="506" class="muted">packages/graph/src/index.js</text>
+    <text x="584" y="534" class="muted">services/api/src/postgres-repository.js</text>
+
+    <text x="584" y="582" class="pink">reuse_candidates:</text>
+    <text x="748" y="582" class="muted">runCli</text>
+
+    <text x="584" y="618" class="pink">risks:</text>
+    <text x="652" y="618" class="muted">verify deeper domain behavior before shipping</text>
+  </g>
+
+  <g class="ui">
+    <rect x="92" y="624" width="260" height="28" rx="14" fill="#212A33"/>
+    <text x="118" y="643" class="small">Repository understanding in one command</text>
+
+    <rect x="770" y="624" width="320" height="28" rx="14" fill="#2E4A37"/>
+    <text x="799" y="643" class="small">Context narrowed before the AI starts coding</text>
+  </g>
+</svg>

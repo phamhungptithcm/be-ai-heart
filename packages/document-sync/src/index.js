@@ -194,6 +194,7 @@ export async function pullWebDocumentSubmissions({
           body: payload.body,
           profile_slug: payload.profile_slug,
           source: "portal-web-upload",
+          source_path: payload.source_path ?? "",
           uploaded_at: payload.updated_at,
         },
         null,
@@ -236,6 +237,7 @@ export async function importLocalDocument({
         body,
         profile_slug: profileSlug || path.basename(repoRoot),
         source: "cli-import",
+        source_path: absoluteSourcePath,
         imported_at: new Date().toISOString(),
       },
       null,
@@ -261,11 +263,19 @@ function createWebDocumentArtifact({ profileSlug, repo, documentIndex }) {
     totals: documentIndex.totals,
     documents: documentIndex.documents.map((document) => ({
       path: document.path,
+      source_type: document.source_type ?? "",
       title: document.title,
       category: document.category,
       headings: document.headings,
-      summary: document.summary,
+      summary:
+        document.sensitivity?.level === "restricted"
+          ? "Restricted document. Summary redacted from synced artifact."
+          : document.summary,
       content_preview: document.content_preview ?? "",
+      freshness: document.freshness ?? {},
+      lineage: document.lineage ?? {},
+      sensitivity: document.sensitivity ?? { level: "internal", reasons: [] },
+      extraction: document.extraction ?? {},
     })),
   };
 }
@@ -290,6 +300,7 @@ function normalizeSubmission(submission = {}) {
     body,
     repo: String(submission.repo ?? profileSlug).trim(),
     source: String(submission.source ?? "portal-web-upload"),
+    source_path: String(submission.source_path ?? ""),
     updated_at: submission.updated_at ?? new Date().toISOString(),
   };
 }

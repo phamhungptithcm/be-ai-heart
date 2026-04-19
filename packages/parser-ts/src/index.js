@@ -11,13 +11,16 @@ const DEFAULT_IGNORES = new Set([
   "dist",
   "coverage",
   ".git",
+  ".worktrees",
   ".next",
   "output",
   ".playwright-cli",
+  ".heart/benchmarks",
   ".heart/cache",
   ".heart/diagrams",
   ".heart/published",
 ]);
+const ROUTE_METHOD_NAMES = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
 let cachedTypeScriptModule;
 let hasTriedLoadingTypeScript = false;
@@ -63,6 +66,7 @@ export async function scanSourceTree(rootDir, options = {}) {
       import_details: fileFacts.import_details,
       symbols: fileFacts.symbols,
       calls: fileFacts.calls,
+      routes: fileFacts.routes,
       hash: hashContent(content),
       parser: fileFacts.parser,
       warnings: fileFacts.warnings,
@@ -96,6 +100,7 @@ export async function scanSourceTree(rootDir, options = {}) {
       file_count: files.length,
       symbol_count: files.reduce((count, file) => count + file.symbols.length, 0),
       import_count: files.reduce((count, file) => count + file.imports.length, 0),
+      route_count: files.reduce((count, file) => count + (file.routes?.length ?? 0), 0),
       warning_count: warnings.length,
     },
     incremental: {
@@ -124,6 +129,7 @@ function extractFileFactsFromContent(content, relativePath, typescriptModule) {
       import_details: extractImportDetailsWithRegex(content),
       symbols: extractSymbolsWithRegex(content, relativePath),
       calls: [],
+      routes: extractRoutesWithRegex(),
       warnings: [],
     };
   }
@@ -137,6 +143,7 @@ function extractFileFactsFromContent(content, relativePath, typescriptModule) {
     import_details: extractImportDetailsWithTypeScript(typescriptModule, sourceFile),
     symbols: extractSymbolsWithTypeScript(typescriptModule, sourceFile, relativePath),
     calls: extractCallsWithTypeScript(typescriptModule, sourceFile, relativePath),
+    routes: extractRoutesWithTypeScript(typescriptModule, sourceFile, relativePath),
     warnings,
   };
 }
@@ -354,6 +361,87 @@ function extractCallsWithTypeScript(typescriptModule, sourceFile, relativePath) 
   });
 
   return calls;
+}
+
+function extractRoutesWithTypeScript(typescriptModule, sourceFile, relativePath) {
+  const routes = [];
+  const seen = new Set();
+  const nextRoutePath = isNextRouteFile(relativePath) ? deriveNextRoutePath(relativePath) : "";
+
+  visit(sourceFile, (node, parent) => {
+    if (
+      nextRoutePath &&
+      typescriptModule.isFunctionDeclaration(node) &&
+      node.name &&
+      isRouteMethodName(node.name.text) &&
+      isNodeExported(typescriptModule, node)
+    ) {
+      pushRouteRecord(routes, seen, {
+        method: node.name.text.toUpperCase(),
+        path: nextRoutePath,
+        handler_name: node.name.text,
+        handler_expression: node.name.text,
+        line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+        route_kind: "next-app-router",
+        framework: "next-app-router",
+      });
+      return;
+    }
+
+    if (
+      nextRoutePath &&
+      parent &&
+      typescriptModule.isSourceFile(parent) &&
+      typescriptModule.isVariableStatement(node) &&
+      isNodeExported(typescriptModule, node)
+    ) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!typescriptModule.isIdentifier(declaration.name) || !isRouteMethodName(declaration.name.text)) {
+          continue;
+        }
+
+        pushRouteRecord(routes, seen, {
+          method: declaration.name.text.toUpperCase(),
+          path: nextRoutePath,
+          handler_name: declaration.name.text,
+          handler_expression: declaration.name.text,
+          line: sourceFile.getLineAndCharacterOfPosition(declaration.getStart(sourceFile)).line + 1,
+          route_kind: "next-app-router",
+          framework: "next-app-router",
+        });
+      }
+      return;
+    }
+
+    if (!typescriptModule.isCallExpression(node) || !typescriptModule.isPropertyAccessExpression(node.expression)) {
+      return;
+    }
+
+    const registrar = node.expression.expression.getText(sourceFile);
+    const method = node.expression.name.text.toUpperCase();
+    if (!isRouteMethodName(method) || !isLikelyRouteRegistrar(registrar)) {
+      return;
+    }
+
+    const routePath = readRoutePathLiteral(typescriptModule, node.arguments[0]);
+    if (!routePath) {
+      return;
+    }
+
+    const handler = readRouteHandlerTarget(typescriptModule, sourceFile, node.arguments.slice(1));
+    pushRouteRecord(routes, seen, {
+      method,
+      path: routePath,
+      handler_name: handler?.name ?? "",
+      handler_expression: handler?.expression ?? "",
+      line: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+      route_kind: "router-call",
+      framework: inferRouteFramework(registrar),
+      registrar,
+    });
+  });
+
+  return routes;
 }
 
 function createSymbolsFromNode(typescriptModule, sourceFile, node, parent, relativePath) {
@@ -623,6 +711,48 @@ function readCallTarget(typescriptModule, expression) {
   return null;
 }
 
+function readRoutePathLiteral(typescriptModule, node) {
+  if (!node) {
+    return "";
+  }
+
+  if (typescriptModule.isStringLiteral(node) || typescriptModule.isNoSubstitutionTemplateLiteral(node)) {
+    return normalizeRoutePath(node.text);
+  }
+
+  if (typescriptModule.isTemplateExpression(node)) {
+    const staticParts = [node.head.text, ...node.templateSpans.map((span) => `{${span.expression.getText()}}${span.literal.text}`)];
+    return normalizeRoutePath(staticParts.join(""));
+  }
+
+  return "";
+}
+
+function readRouteHandlerTarget(typescriptModule, sourceFile, argumentsList) {
+  for (const candidate of argumentsList) {
+    const target = readCallTarget(typescriptModule, candidate);
+    if (target) {
+      return target;
+    }
+
+    if (
+      (typescriptModule.isArrowFunction(candidate) || typescriptModule.isFunctionExpression(candidate)) &&
+      candidate.parent &&
+      typescriptModule.isCallExpression(candidate.parent)
+    ) {
+      const enclosing = readEnclosingCallableSymbol(typescriptModule, sourceFile, candidate, sourceFile.fileName);
+      if (enclosing) {
+        return {
+          name: enclosing.name,
+          expression: enclosing.name,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function readSymbolRelations(typescriptModule, node) {
   const relations = {
     extends: [],
@@ -648,6 +778,89 @@ function readSymbolRelations(typescriptModule, node) {
   }
 
   return relations;
+}
+
+function pushRouteRecord(routes, seen, record) {
+  const normalized = {
+    method: String(record.method ?? "").toUpperCase(),
+    path: normalizeRoutePath(record.path),
+    handler_name: String(record.handler_name ?? "").trim(),
+    handler_expression: String(record.handler_expression ?? "").trim(),
+    line: Number(record.line ?? 0),
+    route_kind: String(record.route_kind ?? "route"),
+    framework: String(record.framework ?? "generic"),
+    registrar: String(record.registrar ?? "").trim(),
+  };
+
+  if (!normalized.method || !normalized.path) {
+    return;
+  }
+
+  const dedupeKey = [
+    normalized.method,
+    normalized.path,
+    normalized.handler_name,
+    normalized.handler_expression,
+    normalized.line,
+  ].join(":");
+
+  if (seen.has(dedupeKey)) {
+    return;
+  }
+
+  seen.add(dedupeKey);
+  routes.push(normalized);
+}
+
+function isRouteMethodName(value) {
+  return ROUTE_METHOD_NAMES.has(String(value ?? "").toUpperCase());
+}
+
+function isLikelyRouteRegistrar(value) {
+  return /(^|\.)(router|app|server|fastify|api)$/i.test(String(value ?? "").trim());
+}
+
+function inferRouteFramework(registrar) {
+  const normalized = String(registrar ?? "").toLowerCase();
+  if (normalized.includes("fastify")) {
+    return "fastify";
+  }
+  if (normalized.includes("router")) {
+    return "express-router";
+  }
+  if (normalized.includes("app")) {
+    return "express-app";
+  }
+  return "http-router";
+}
+
+function normalizeRoutePath(value) {
+  const normalized = String(value ?? "").trim().replace(/\/+/g, "/");
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.startsWith("/") ? normalized : `/${normalized}`;
+}
+
+function isNextRouteFile(relativePath) {
+  return /(^|\/)app\/.+\/route\.(?:[cm]?[jt]sx?)$/i.test(String(relativePath ?? ""));
+}
+
+function deriveNextRoutePath(relativePath) {
+  const normalizedPath = normalizePath(relativePath);
+  const segments = normalizedPath.split("/");
+  const appIndex = segments.indexOf("app");
+  if (appIndex === -1) {
+    return "";
+  }
+
+  const routeSegments = segments
+    .slice(appIndex + 1, -1)
+    .filter((segment) => segment && !/^\(.*\)$/.test(segment))
+    .map((segment) => segment === "index" ? "" : segment);
+  const routePath = routeSegments.filter(Boolean).join("/");
+  return normalizeRoutePath(routePath || "/");
 }
 
 function summarizeNodeText(text) {
@@ -725,6 +938,10 @@ function extractImportDetailsWithRegex(content) {
     namespace_import: null,
     source_kind: "regex",
   }));
+}
+
+function extractRoutesWithRegex() {
+  return [];
 }
 
 function dedupeImportDetails(details) {

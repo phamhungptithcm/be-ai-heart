@@ -4,6 +4,8 @@ import { withServiceDatabase } from "./database.js";
 import {
   isPostgresStorageEnabled,
   loadWebsiteIntakeRequestsFromPostgres,
+  loadWebsiteIntakeRequestsPageFromPostgres,
+  summarizeWebsiteIntakeRequestsFromPostgres,
   upsertWebsiteIntakeRequestInPostgres,
 } from "./postgres-repository.js";
 
@@ -100,6 +102,61 @@ export async function listWebsiteIntakeRequests({ serviceStorageRoot, intakeKind
   });
 }
 
+export async function listWebsiteIntakeRequestsPage({
+  serviceStorageRoot,
+  intakeKind,
+  searchTerm,
+  limit = 50,
+  offset = 0,
+} = {}) {
+  if (isPostgresStorageEnabled()) {
+    return loadWebsiteIntakeRequestsPageFromPostgres({
+      intakeKind,
+      searchTerm,
+      limit,
+      offset,
+    }).then((result) => ({
+      requests: result.items,
+      total_count: result.total_count,
+    }));
+  }
+
+  return withServiceDatabase(serviceStorageRoot, (database) => {
+    const clauses = [];
+    const values = [];
+    if (intakeKind && ALLOWED_INTAKE_KINDS.has(intakeKind)) {
+      clauses.push("intake_kind = ?");
+      values.push(String(intakeKind));
+    }
+    if (searchTerm) {
+      clauses.push("payload_json LIKE ?");
+      values.push(`%${String(searchTerm).trim()}%`);
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+    const countStatement = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM website_intake_requests
+      ${whereClause}
+    `);
+    const dataStatement = database.prepare(`
+      SELECT payload_json
+      FROM website_intake_requests
+      ${whereClause}
+      ORDER BY created_at DESC, request_id ASC
+      LIMIT ?
+      OFFSET ?
+    `);
+
+    return {
+      requests: dataStatement
+        .all(...values, Number(limit), Number(offset))
+        .map((row) => JSON.parse(row.payload_json)),
+      total_count: Number(countStatement.get(...values)?.count ?? 0),
+    };
+  });
+}
+
 export function summarizeWebsiteIntakeRequests(intakeRequests = []) {
   const demoCount = intakeRequests.filter((entry) => entry.intake_kind === "demo").length;
   const trialCount = intakeRequests.filter((entry) => entry.intake_kind === "trial").length;
@@ -113,6 +170,28 @@ export function summarizeWebsiteIntakeRequests(intakeRequests = []) {
     avg_team_size: avgTeamSize,
     avg_repo_count: avgRepoCount,
   };
+}
+
+export async function summarizeWebsiteIntakeRequestsByQuery({
+  serviceStorageRoot,
+  intakeKind,
+  searchTerm,
+} = {}) {
+  if (isPostgresStorageEnabled()) {
+    return summarizeWebsiteIntakeRequestsFromPostgres({
+      intakeKind,
+      searchTerm,
+    });
+  }
+
+  const { requests } = await listWebsiteIntakeRequestsPage({
+    serviceStorageRoot,
+    intakeKind,
+    searchTerm,
+    limit: Number.MAX_SAFE_INTEGER,
+    offset: 0,
+  });
+  return summarizeWebsiteIntakeRequests(requests);
 }
 
 function normalizeIntakeRequest(input = {}) {

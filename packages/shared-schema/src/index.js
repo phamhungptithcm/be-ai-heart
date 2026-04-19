@@ -79,6 +79,26 @@ export function parseSimpleYaml(raw) {
   return parseYamlBlock(lines, 0, lines[0].indent).value;
 }
 
+export {
+  ADMIN_NAVIGATION_GROUPS,
+  ADMIN_PERMISSIONS,
+  ADMIN_ROLES,
+  ADMIN_ROUTE_PERMISSIONS,
+  METRIC_SOURCE_TYPES,
+  PORTAL_NAVIGATION_GROUPS,
+  PORTAL_PERMISSIONS,
+  PORTAL_ROLES,
+  PORTAL_ROUTE_PERMISSIONS,
+  actorHasPermission,
+  filterNavigationGroupsForActor,
+  resolveActorAccess,
+} from "./enterprise.js";
+
+export {
+  BEHEART_COPYRIGHT_LABEL,
+  BEHEART_RELEASE_VERSION,
+} from "./release.js";
+
 function normalizeYamlLines(raw) {
   return raw
     .split(/\r?\n/)

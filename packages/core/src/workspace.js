@@ -5,7 +5,7 @@ import { buildHeartModel } from "../../entity-linker/src/index.js";
 import { buildProjectGraph } from "../../graph/src/index.js";
 import { scanSourceTree } from "../../parser-ts/src/index.js";
 import { evaluatePolicyViolations, loadPolicyRules } from "../../policy-engine/src/index.js";
-import { loadHeartConfig } from "./config.js";
+import { loadHeartConfig, resolveDocumentRoots } from "./config.js";
 import {
   getWorkspaceCachePaths,
   hydrateCachedGraph,
@@ -20,10 +20,7 @@ export async function buildWorkspaceState(repoRoot, options = {}) {
   });
   const cachePaths = getWorkspaceCachePaths(repoRoot);
   const cacheEntry = options.forceRescan ? null : await loadCachedWorkspaceState(repoRoot);
-  const documentRoots = dedupeDocumentRoots([
-    ...(configState.config.knowledge?.document_paths ?? []),
-    ".heart/imported-documents",
-  ]);
+  const documentRoots = resolveDocumentRoots(configState.config);
   const scanResult = await scanSourceTree(repoRoot, {
     ignore: configState.config.project.ignore,
     previousScanResult: cacheEntry?.scanResult,
@@ -146,10 +143,6 @@ function emptyDocumentChanges() {
     changed_document_count: 0,
     removed_document_count: 0,
   };
-}
-
-function dedupeDocumentRoots(roots) {
-  return [...new Set(roots.filter(Boolean))];
 }
 
 function createScanProvenance({ repoRoot, configState, policyState, documentRoots }) {

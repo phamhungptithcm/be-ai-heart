@@ -1,9 +1,13 @@
 import { createPublicKey, verify as verifySignature } from "node:crypto";
+import { resolveActorAccess } from "../../../packages/shared-schema/src/enterprise.js";
 import { replaceActorMemberships, upsertActor } from "./access.js";
 import { issueWorkspaceSession } from "./session.js";
+import { writeAuditEvent } from "./storage.js";
 
 const JSON_WEB_KEY_SET_CACHE = new Map();
 const OPENID_CONFIGURATION_CACHE = new Map();
+const PROVIDER_CACHE_TTL_MS = Number(process.env.BE_AI_HEART_PROVIDER_CACHE_TTL_MS ?? 5 * 60 * 1000);
+const PROVIDER_FETCH_TIMEOUT_MS = Number(process.env.BE_AI_HEART_PROVIDER_FETCH_TIMEOUT_MS ?? 5000);
 
 export async function issueProviderWorkspaceSession({
   serviceStorageRoot,
@@ -30,12 +34,13 @@ export async function issueProviderWorkspaceSession({
     providerConfig: config,
     customerSlug: requestedCustomerSlug,
   });
-  if (surface === "admin" && actor.role !== "owner") {
+  if (surface === "admin" && actor.roles.length === 0) {
     throw new Error("Provider identity is not allowed to open an admin session.");
   }
   const memberships = mapClaimsToMemberships({
     claims: verified.claims,
     actorSlug: actor.actor_slug,
+    surface,
     providerConfig: config,
   });
 
@@ -64,6 +69,26 @@ export async function issueProviderWorkspaceSession({
         name: config.providerName,
         issuer: config.issuer,
         subject: String(verified.claims.sub ?? ""),
+      },
+    },
+  });
+  await writeAuditEvent({
+    serviceStorageRoot,
+    event: {
+      action: "auth.provider_session_issued",
+      outcome: "success",
+      surface: session.surface,
+      actor_slug: actor.actor_slug,
+      workspace_slug: session.workspace_slug,
+      customer_slug: session.customer_slug,
+      customer_id: session.customer_id,
+      target_type: "session",
+      target_id: session.session_id,
+      metadata: {
+        provider: config.providerName,
+        issuer: config.issuer,
+        membership_count: memberships.length,
+        session_family_id: session.session_family_id,
       },
     },
   });
@@ -144,21 +169,24 @@ export function resolveProviderConfig(overrides = {}) {
 
 async function loadJsonWebKeySet(config) {
   const jwksUrl = await resolveJwksUrl(config);
-  if (JSON_WEB_KEY_SET_CACHE.has(jwksUrl)) {
-    return JSON_WEB_KEY_SET_CACHE.get(jwksUrl);
+  const cachedValue = getFreshCacheValue(JSON_WEB_KEY_SET_CACHE, jwksUrl);
+  if (cachedValue) {
+    return cachedValue;
   }
 
+  assertTrustedProviderUrl(jwksUrl, "JWKS URL");
   const response = await fetch(jwksUrl, {
     headers: {
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Failed to load JWKS from ${jwksUrl}: ${response.status}`);
   }
 
   const payload = await response.json();
-  JSON_WEB_KEY_SET_CACHE.set(jwksUrl, payload);
+  setCachedValue(JSON_WEB_KEY_SET_CACHE, jwksUrl, payload);
   return payload;
 }
 
@@ -170,14 +198,17 @@ async function resolveJwksUrl(config) {
   const openIdConfigurationUrl =
     config.openIdConfigurationUrl ||
     `${String(config.issuer ?? "").replace(/\/+$/, "")}/.well-known/openid-configuration`;
-  if (OPENID_CONFIGURATION_CACHE.has(openIdConfigurationUrl)) {
-    return OPENID_CONFIGURATION_CACHE.get(openIdConfigurationUrl);
+  const cachedValue = getFreshCacheValue(OPENID_CONFIGURATION_CACHE, openIdConfigurationUrl);
+  if (cachedValue) {
+    return cachedValue;
   }
 
+  assertTrustedProviderUrl(openIdConfigurationUrl, "OpenID configuration URL");
   const response = await fetch(openIdConfigurationUrl, {
     headers: {
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Failed to load OpenID configuration from ${openIdConfigurationUrl}: ${response.status}`);
@@ -189,7 +220,7 @@ async function resolveJwksUrl(config) {
     throw new Error("OpenID configuration did not contain jwks_uri.");
   }
 
-  OPENID_CONFIGURATION_CACHE.set(openIdConfigurationUrl, jwksUrl);
+  setCachedValue(OPENID_CONFIGURATION_CACHE, openIdConfigurationUrl, jwksUrl);
   return jwksUrl;
 }
 
@@ -231,10 +262,10 @@ function validateClaims(claims, config) {
 }
 
 function mapClaimsToActor({ claims, surface, providerConfig, customerSlug } = {}) {
-  const roles = extractRoles(claims, providerConfig.roleClaim);
-  const role = roles.some((entry) => ["owner", "admin", "be-ai-heart:owner"].includes(entry))
-    ? "owner"
-    : "customer";
+  const safeSurface = surface === "admin" ? "admin" : "portal";
+  const claimRoles = extractRoles(claims, providerConfig.roleClaim);
+  const requestedRoles =
+    claimRoles.length > 0 ? claimRoles : safeSurface === "portal" ? ["engineer"] : [];
   const actorSlug = sanitizeSlug(
     claims.be_ai_heart_actor_slug ??
       claims[providerConfig.actorClaim] ??
@@ -243,27 +274,40 @@ function mapClaimsToActor({ claims, surface, providerConfig, customerSlug } = {}
       `${providerConfig.providerName}-actor`,
   );
   const derivedCustomerSlug = sanitizeSlug(
-    customerSlug ??
-      claims[providerConfig.customerClaim] ??
-      deriveCustomerSlugFromEmail(claims[providerConfig.emailClaim]) ??
-      actorSlug,
+    safeSurface === "admin"
+      ? "internal"
+      : customerSlug ??
+        claims[providerConfig.customerClaim] ??
+        deriveCustomerSlugFromEmail(claims[providerConfig.emailClaim]) ??
+        actorSlug,
   );
-  const workspaceScopes = normalizeArray(claims[providerConfig.workspaceClaim]).map((value) => sanitizeSlug(value));
-
-  return {
+  const workspaceScopes =
+    safeSurface === "portal"
+      ? normalizeArray(claims[providerConfig.workspaceClaim]).map((value) => sanitizeSlug(value))
+      : [];
+  const resolvedActor = resolveActorAccess({
     actor_slug: actorSlug,
-    surface: surface ?? "portal",
-    role,
-    access_mode: role === "owner" ? "all" : "memberships",
+    surface: safeSurface,
+    role: requestedRoles[0] ?? "",
+    roles: requestedRoles,
+    access_mode: requestedRoles.includes("owner") ? "all" : "memberships",
     customer_slug: derivedCustomerSlug,
     workspace_scopes: workspaceScopes,
     auth_provider: providerConfig.providerName,
     provider_subject: String(claims.sub ?? ""),
     email: String(claims[providerConfig.emailClaim] ?? ""),
+  });
+
+  return {
+    ...resolvedActor,
+    access_mode: resolvedActor.roles.includes("owner") ? "all" : "memberships",
   };
 }
 
-function mapClaimsToMemberships({ claims, actorSlug, providerConfig } = {}) {
+function mapClaimsToMemberships({ claims, actorSlug, surface, providerConfig } = {}) {
+  if (surface === "admin") {
+    return [];
+  }
   return normalizeArray(claims[providerConfig.workspaceClaim]).map((workspaceSlug) => ({
     actor_slug: actorSlug,
     workspace_slug: sanitizeSlug(workspaceSlug),
@@ -283,6 +327,37 @@ function deriveCustomerSlugFromEmail(value) {
 
   const domain = email.split("@")[1];
   return sanitizeSlug(domain.replace(/\.[a-z0-9]+$/i, ""));
+}
+
+function getFreshCacheValue(cache, key) {
+  const entry = cache.get(key);
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.expires_at <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+
+  return entry.value;
+}
+
+function setCachedValue(cache, key, value) {
+  cache.set(key, {
+    value,
+    expires_at: Date.now() + PROVIDER_CACHE_TTL_MS,
+  });
+}
+
+function assertTrustedProviderUrl(value, label) {
+  const parsed = new URL(value);
+  const loopback = ["127.0.0.1", "localhost"].includes(parsed.hostname);
+  if (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) {
+    return;
+  }
+
+  throw new Error(`${label} must use https unless it targets local loopback.`);
 }
 
 function normalizeArray(value) {

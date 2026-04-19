@@ -1,32 +1,8 @@
-const ADMIN_NAV_GROUPS = Object.freeze([
-  {
-    label: "Operations",
-    href: "/",
-    meta: "Customers, support, memory",
-    eyebrow: "Operating plane",
-    description: "Admin should expose customer posture, support queues, and memory drift in one high-trust operating surface.",
-    summary: "The owner needs to spot churn risk, sync problems, and support drag before they turn into revenue loss.",
-    items: [
-      { href: "/", label: "Overview", meta: "Owner cockpit" },
-      { href: "/customers", label: "Customers", meta: "Accounts and repository footprint" },
-      { href: "/support", label: "Support", meta: "Queues and follow-through" },
-      { href: "/documents", label: "Documents", meta: "Submissions and memory drift" },
-    ],
-  },
-  {
-    label: "Commercial",
-    href: "/revenue",
-    meta: "Revenue, ROI, growth",
-    eyebrow: "Commercial control",
-    description: "Expansion signals should stay tied to benchmark proof, retention health, and account qualification.",
-    summary: "Admin is where pricing confidence, renewal risk, and sales readiness become visible enough to act on.",
-    items: [
-      { href: "/benchmarks", label: "Benchmarks", meta: "Cross-customer ROI" },
-      { href: "/revenue", label: "Revenue", meta: "Pipeline, MRR, retention" },
-      { href: "/ops-health", label: "Ops health", meta: "Service and rollout risk" },
-    ],
-  },
-]);
+import {
+  ADMIN_NAVIGATION_GROUPS,
+  filterNavigationGroupsForActor,
+  resolveActorAccess,
+} from "../../../packages/shared-schema/src/enterprise.js";
 
 export function isAdminPathActive(pathname, href) {
   if (href === "/") {
@@ -36,8 +12,24 @@ export function isAdminPathActive(pathname, href) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function getAdminNavigationState(pathname) {
-  const groups = ADMIN_NAV_GROUPS.map((group) => ({
+export function getAdminNavigationState(pathname, actor) {
+  const hasActor = Boolean(actor);
+  const resolvedActor = resolveActorAccess(
+    actor ?? {
+      surface: "admin",
+      roles: [],
+    },
+  );
+  const visibleGroups = filterNavigationGroupsForActor(
+    ADMIN_NAVIGATION_GROUPS,
+    resolvedActor,
+  );
+  const groups = (visibleGroups.length > 0
+    ? visibleGroups
+    : hasActor
+      ? ADMIN_NAVIGATION_GROUPS
+      : [createAnonymousAdminGroup(pathname)]
+  ).map((group) => ({
     ...group,
     active: group.items.some((item) => isAdminPathActive(pathname, item.href)),
     items: group.items.map((item) => ({
@@ -47,9 +39,32 @@ export function getAdminNavigationState(pathname) {
   }));
 
   const activeGroup = groups.find((group) => group.active) ?? groups[0];
+  const activeItem =
+    activeGroup.items.find((item) => item.active) ?? activeGroup.items[0];
 
   return {
     groups,
     activeGroup,
+    activeItem,
+    actor: resolvedActor,
+  };
+}
+
+function createAnonymousAdminGroup(pathname) {
+  return {
+    label: "Access",
+    href: pathname === "/auth/complete" ? "/auth/complete" : "/sign-in",
+    meta: "Internal authentication required",
+    eyebrow: "Internal control plane",
+    description: "Admin pages require an authenticated internal role.",
+    summary: "Sign in with an internal BeHeart admin account before loading customer, observability, or billing operations data.",
+    items: [
+      {
+        href: pathname === "/auth/complete" ? "/auth/complete" : "/sign-in",
+        label: pathname === "/auth/complete" ? "Auth Completion" : "Sign In",
+        meta: "Open the internal admin session flow",
+        icon: "overview",
+      },
+    ],
   };
 }

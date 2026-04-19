@@ -15,6 +15,13 @@ function getPortalReturnTo() {
   ).toString();
 }
 
+function getAdminReturnTo() {
+  return new URL(
+    "/auth/complete",
+    String(process.env.NEXT_PUBLIC_BE_AI_HEART_ADMIN_BASE_URL ?? "http://127.0.0.1:3002"),
+  ).toString();
+}
+
 export function AuthProviderCards({ surface = "portal" }) {
   const [state, setState] = useState({
     status: "loading",
@@ -29,7 +36,10 @@ export function AuthProviderCards({ surface = "portal" }) {
       try {
         const url = new URL("/api/auth/providers", getApiBaseUrl());
         url.searchParams.set("surface", surface);
-        url.searchParams.set("return_to", getPortalReturnTo());
+        url.searchParams.set(
+          "return_to",
+          surface === "admin" ? getAdminReturnTo() : getPortalReturnTo(),
+        );
         const response = await fetch(url, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {

@@ -35,6 +35,19 @@ function configureDatabase(database) {
 
 function ensureServiceSchema(database) {
   database.exec(`
+    CREATE TABLE IF NOT EXISTS customers (
+      customer_id TEXT PRIMARY KEY,
+      customer_slug TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_customers_slug
+    ON customers (customer_slug);
+
     CREATE TABLE IF NOT EXISTS repository_profiles (
       profile_slug TEXT PRIMARY KEY,
       workspace_slug TEXT NOT NULL,
@@ -93,6 +106,67 @@ function ensureServiceSchema(database) {
 
     CREATE INDEX IF NOT EXISTS idx_benchmark_reports_profile_generated
     ON benchmark_reports (profile_slug, generated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      run_id TEXT PRIMARY KEY,
+      profile_slug TEXT NOT NULL,
+      workspace_slug TEXT NOT NULL,
+      customer_slug TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      scenario_id TEXT NOT NULL,
+      dataset_id TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      agent_client TEXT NOT NULL,
+      upstream_base_url TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      ended_at TEXT,
+      exit_code INTEGER,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      token_cost_usd REAL NOT NULL DEFAULT 0,
+      observed_usage_coverage_pct REAL NOT NULL DEFAULT 0,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_workspace_created
+    ON agent_runs (workspace_slug, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_scenario_mode_created
+    ON agent_runs (scenario_id, mode, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS llm_calls (
+      llm_call_id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      request_kind TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status_code INTEGER NOT NULL,
+      latency_ms REAL NOT NULL,
+      prompt_tokens INTEGER NOT NULL DEFAULT 0,
+      completion_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+      cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
+      usage_available INTEGER NOT NULL DEFAULT 0,
+      request_hash TEXT NOT NULL,
+      response_id TEXT,
+      payload_json TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_llm_calls_run_sequence
+    ON llm_calls (run_id, sequence ASC);
+
+    CREATE INDEX IF NOT EXISTS idx_llm_calls_created
+    ON llm_calls (created_at DESC);
 
     CREATE TABLE IF NOT EXISTS website_intake_requests (
       request_id TEXT PRIMARY KEY,
@@ -179,6 +253,79 @@ function ensureServiceSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_sessions_actor_surface
     ON sessions (actor_slug, surface);
 
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      limiter_key TEXT PRIMARY KEY,
+      route_kind TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      window_started_at TEXT NOT NULL,
+      reset_at TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at
+    ON rate_limits (reset_at);
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      event_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      action TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      surface TEXT,
+      actor_slug TEXT,
+      workspace_slug TEXT,
+      customer_slug TEXT,
+      target_type TEXT,
+      target_id TEXT,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_events_created
+    ON audit_events (created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_events_action_created
+    ON audit_events (action, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS request_traces (
+      trace_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      method TEXT NOT NULL,
+      route_kind TEXT NOT NULL,
+      path TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      status_code INTEGER NOT NULL,
+      duration_ms REAL NOT NULL,
+      actor_slug TEXT,
+      workspace_slug TEXT,
+      customer_slug TEXT,
+      client_key_hash TEXT,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_request_traces_created
+    ON request_traces (created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_request_traces_route_created
+    ON request_traces (route_kind, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS observability_exports (
+      export_id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      destination TEXT NOT NULL,
+      status TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT NOT NULL,
+      last_attempt_at TEXT,
+      delivered_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_observability_exports_status_due
+    ON observability_exports (status, next_attempt_at ASC);
+
     CREATE TABLE IF NOT EXISTS auth_transactions (
       state TEXT PRIMARY KEY,
       provider_id TEXT NOT NULL,
@@ -197,4 +344,56 @@ function ensureServiceSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_auth_transactions_provider_surface
     ON auth_transactions (provider_id, surface, expires_at);
   `);
+
+  ensureTableColumns(database, "workspace_identities", [
+    { name: "customer_id", sql: "customer_id TEXT" },
+  ]);
+  ensureTableColumns(database, "actors", [
+    { name: "customer_id", sql: "customer_id TEXT" },
+  ]);
+  ensureTableColumns(database, "sessions", [
+    { name: "session_id", sql: "session_id TEXT" },
+    { name: "session_family_id", sql: "session_family_id TEXT" },
+    { name: "customer_id", sql: "customer_id TEXT" },
+    { name: "revoked_at", sql: "revoked_at TEXT" },
+    { name: "revocation_reason", sql: "revocation_reason TEXT" },
+    { name: "last_seen_at", sql: "last_seen_at TEXT" },
+  ]);
+  ensureTableColumns(database, "audit_events", [
+    { name: "customer_id", sql: "customer_id TEXT" },
+  ]);
+  ensureTableColumns(database, "request_traces", [
+    { name: "customer_id", sql: "customer_id TEXT" },
+  ]);
+
+  database.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id
+    ON sessions (session_id);
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_family
+    ON sessions (session_family_id);
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_customer_surface
+    ON sessions (customer_slug, surface);
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_status
+    ON sessions (revoked_at, expires_at);
+  `);
+}
+
+function ensureTableColumns(database, tableName, columns) {
+  const existingColumns = new Set(
+    database
+      .prepare(`PRAGMA table_info(${tableName})`)
+      .all()
+      .map((row) => String(row.name ?? "")),
+  );
+
+  for (const column of columns) {
+    if (existingColumns.has(column.name)) {
+      continue;
+    }
+
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${column.sql}`);
+  }
 }

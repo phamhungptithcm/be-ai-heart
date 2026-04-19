@@ -9,6 +9,8 @@ import {
   resolveSurfaceBaseUrls,
 } from "./provider-config.js";
 
+const PROVIDER_FETCH_TIMEOUT_MS = Number(process.env.BE_AI_HEART_PROVIDER_FETCH_TIMEOUT_MS ?? 5000);
+
 export async function createProviderAuthorizationRequest({
   serviceStorageRoot,
   providerId,
@@ -153,10 +155,7 @@ export async function completeProviderAuthorization({
     session: result.session,
     actor: result.actor,
     redirect_url: appendRedirectParams(transaction.return_to, {
-      session_token: result.session.session_token,
-      workspace_slug: result.session.workspace_slug ?? "",
-      customer_slug: result.session.customer_slug ?? "",
-      actor_slug: result.actor.actor_slug ?? "",
+      session_established: "1",
       auth_provider: provider.id,
       surface: transaction.surface,
     }),
@@ -186,10 +185,12 @@ async function loadOpenIdMetadata(provider) {
     throw new Error(`OIDC issuer is not configured for provider ${provider.id}.`);
   }
 
+  assertTrustedProviderUrl(openIdConfigurationUrl, "OpenID configuration URL");
   const response = await fetch(openIdConfigurationUrl, {
     headers: {
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Failed to load OpenID configuration for ${provider.id}: ${response.status}`);
@@ -209,6 +210,7 @@ async function exchangeAuthorizationCode({
   if (!tokenEndpoint) {
     throw new Error(`OIDC token endpoint is missing for provider ${provider.id}.`);
   }
+  assertTrustedProviderUrl(tokenEndpoint, "OIDC token endpoint");
 
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
@@ -227,6 +229,7 @@ async function exchangeAuthorizationCode({
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body,
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -257,6 +260,16 @@ function appendRedirectParams(target, params) {
     url.searchParams.set(key, String(value));
   }
   return url.toString();
+}
+
+function assertTrustedProviderUrl(value, label) {
+  const parsed = new URL(value);
+  const loopback = ["127.0.0.1", "localhost"].includes(parsed.hostname);
+  if (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) {
+    return;
+  }
+
+  throw new Error(`${label} must use https unless it targets local loopback.`);
 }
 
 function toUrl(value) {

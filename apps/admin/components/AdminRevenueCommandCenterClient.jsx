@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { fetchAdminJson } from "../src/api-client.js";
+import { summarizeAdminRevenueSnapshot } from "../src/dashboard-visuals.js";
 import { AdminStateBlock } from "./AdminStateBlock.jsx";
 import {
+  AdminDemandMixChart,
   AdminBenchmarkTrendPanel,
   AdminRunComparisonBars,
+  AdminWorkspaceMixChart,
 } from "./AdminBenchmarkVisuals.jsx";
 
 export function AdminRevenueCommandCenterClient() {
@@ -91,7 +94,7 @@ export function AdminRevenueCommandCenterClient() {
     );
   }
 
-  const summary = summarizeRevenueCommandCenter(state);
+  const summary = summarizeAdminRevenueSnapshot(state);
   const stageRows = buildStageRows(state);
   const workspaceRows = buildRevenueWorkspaceRows(state.workspaces);
   const requestRows = buildRequestRows(state.requests);
@@ -194,6 +197,7 @@ export function AdminRevenueCommandCenterClient() {
                   progress={Math.min(100, Number(summary.avg_repo_count ?? 0) * 12)}
                 />
               </div>
+              <AdminDemandMixChart summary={summary} />
             </div>
           </div>
           <div className="admin-stage-board">
@@ -223,6 +227,7 @@ export function AdminRevenueCommandCenterClient() {
               <p>Queue depth, missing memory, and weak ROI should appear here before they become churn or support drag.</p>
             </div>
           </header>
+          <AdminWorkspaceMixChart workspaces={workspaceRows} />
           <div className="admin-risk-list">
             {workspaceRows.slice(0, 6).map((workspace) => (
               <article key={workspace.workspace_slug} className="admin-risk-row">
@@ -326,30 +331,6 @@ function ValuePill({ label, value, progress }) {
       </div>
     </article>
   );
-}
-
-function summarizeRevenueCommandCenter({ requests, requestSummary, reports, workspaces }) {
-  const benchmarkBackedWorkspaceCount = workspaces.filter(
-    (workspace) => Number(workspace.benchmark_report_count ?? 0) > 0,
-  ).length;
-  const expansionReadyWorkspaceCount = workspaces.filter((workspace) => computeWorkspaceScore(workspace) >= 70).length;
-
-  return {
-    pipeline_count: Number(requestSummary?.total_count ?? requests.length),
-    demo_count: Number(requestSummary?.demo_count ?? 0),
-    trial_count: Number(requestSummary?.trial_count ?? 0),
-    avg_team_size: Number(requestSummary?.avg_team_size ?? 0),
-    avg_repo_count: Number(requestSummary?.avg_repo_count ?? 0),
-    report_count: reports.length,
-    avg_roi_score: average(reports.map((report) => Number(report.metrics?.composite_roi_score ?? 0))),
-    avg_token_savings_pct: average(reports.map((report) => Number(report.metrics?.token_savings_pct ?? 0))),
-    benchmark_backed_workspace_count: benchmarkBackedWorkspaceCount,
-    expansion_ready_workspace_count: expansionReadyWorkspaceCount,
-    queued_submission_count: workspaces.reduce(
-      (total, workspace) => total + Number(workspace.queued_submission_count ?? 0),
-      0,
-    ),
-  };
 }
 
 function buildStageRows({ requests, requestSummary, workspaces }) {

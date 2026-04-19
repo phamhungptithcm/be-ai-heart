@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "cross-module-boundaries",
+  "title": "Cross Module Boundary Dataset",
+  "repo_strategy": "current-repo",
+  "summary": "Benchmark slice for work that spans CLI, benchmark, portal sync, and hosted storage boundaries while preserving narrow contracts.",
+  "source_paths": [
+    "packages/benchmark/src",
+    "packages/cli/src",
+    "services/api/src",
+    "apps/portal",
+    "apps/admin"
+  ],
+  "documents": [
+    {
+      "path": "docs/03-technical-architecture.md",
+      "title": "Technical Architecture",
+      "reason": "Cross-package boundaries and benchmark engine placement live here."
+    },
+    {
+      "path": "docs/04-mcp-cli-spec.md",
+      "title": "CLI and MCP Specification",
+      "reason": "Benchmark command behavior must stay script-friendly."
+    },
+    {
+      "path": "docs/11-implementation-blueprint-v2.md",
+      "title": "Implementation Blueprint v2",
+      "reason": "Evidence-rich benchmark artifacts are part of the v2 target."
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "services/api/src/storage.js",
+      "title": "Benchmark artifact publication",
+      "reason": "Published reports should reuse existing storage and surface sync logic."
+    },
+    {
+      "path": "packages/benchmark/src/trends.js",
+      "title": "Trend digest builder",
+      "reason": "Suite output should complement existing trend summaries."
+    }
+  ],
+  "policy_targets": [
+    "Do not couple benchmark scoring logic to portal or admin rendering.",
+    "Keep publish artifacts sanitized for hosted surfaces."
+  ]
+}

@@ -21,7 +21,7 @@ export default function AdminBenchmarksPage() {
       <AdminSection eyebrow="Report archive" title="Published benchmark history" subtitle="Customer-facing proof with internal visibility">
         <AdminBenchmarkHistoryClient />
       </AdminSection>
-      <AdminSection eyebrow="Reading the proof" title="A good benchmark report should be commercially usable" subtitle="Internal review standard">
+      <AdminSection eyebrow="Reading the proof" title="Internal review standard for benchmark evidence" subtitle="What the team should enforce">
         <div className="admin-rail-list">
           <article>
             <span>Manager</span>

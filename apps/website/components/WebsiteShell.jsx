@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WebsiteHeaderNav } from "./WebsiteHeaderNav.jsx";
+import { BEHEART_COPYRIGHT_LABEL } from "../../../packages/shared-schema/src/release.js";
 
 function WebsiteMark() {
   return (
@@ -35,7 +36,7 @@ export function WebsiteShell({
           <div className="website-header-shell">
             <Link href="/" className="website-brand" aria-label="BeHeart home">
               <WebsiteMark />
-              <div>
+              <div className="website-brand-copy">
                 <strong>BeHeart</strong>
                 <span>Project memory for AI software teams</span>
               </div>
@@ -74,10 +75,11 @@ export function WebsiteShell({
               <div>
                 <strong>BeHeart</strong>
                 <p>Code, documents, policy, and benchmark memory for AI-assisted delivery.</p>
+                <small className="website-footer-copyright">{BEHEART_COPYRIGHT_LABEL}</small>
               </div>
             </div>
             <div className="website-footer-links">
-              <Link href="/product">Product</Link>
+              <Link href="/services">Services</Link>
               <Link href="/benchmark">Benchmark</Link>
               <Link href="/pricing">Pricing</Link>
               <Link href="/security">Security</Link>

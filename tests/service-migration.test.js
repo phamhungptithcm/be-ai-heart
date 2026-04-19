@@ -83,9 +83,15 @@ test("service migration snapshot exports sqlite canonical tables and postgres pl
 
   assert.equal(exported.output_path, outputPath);
   assert.equal(raw.source.driver, "sqlite");
+  assert.ok(raw.tables.customers.length >= 1);
   assert.ok(raw.tables.repository_profiles.length >= 1);
   assert.ok(raw.tables.workspace_identities.length >= 1);
   assert.ok(raw.tables.sessions.length >= 2);
+  assert.ok(Array.isArray(raw.tables.rate_limits));
+  assert.ok(Array.isArray(raw.tables.audit_events));
+  assert.ok(Array.isArray(raw.tables.request_traces));
+  assert.ok(Array.isArray(raw.tables.observability_exports));
+  assert.equal(raw.postgres_migration.table_mapping.customers, "be_ai_heart.customers");
   assert.equal(raw.postgres_migration.target_driver, "postgres");
   assert.ok(raw.postgres_migration.rollout_stages.length >= 3);
 });

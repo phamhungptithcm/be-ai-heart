@@ -1,4 +1,5 @@
 import { withServiceDatabase } from "./database.js";
+import { ensureCustomer } from "./customer-registry.js";
 import {
   isPostgresStorageEnabled,
   listWorkspaceIdentitiesFromPostgres,
@@ -43,10 +44,22 @@ export async function upsertWorkspaceIdentity({
     serviceStorageRoot,
     workspaceSlug: identity.workspace_slug,
   });
+  const customer = await ensureCustomer({
+    serviceStorageRoot,
+    customerSlug: identity.customer_slug,
+    displayName: identity.display_name,
+    status: identity.status,
+    metadata: {
+      latest_workspace_slug: identity.workspace_slug,
+      repo: identity.repo,
+    },
+    customerId: existingPayload?.customer_id,
+  });
   const createdAtValue = existingPayload?.created_at ?? identity.created_at;
   const merged = {
     ...(existingPayload ?? {}),
     ...identity,
+    customer_id: customer?.customer_id ?? existingPayload?.customer_id ?? "",
     created_at: createdAtValue,
     metadata: {
       ...(existingPayload?.metadata ?? {}),
@@ -64,6 +77,7 @@ export async function upsertWorkspaceIdentity({
         .prepare(`
           INSERT INTO workspace_identities (
             workspace_slug,
+            customer_id,
             customer_slug,
             profile_slug,
             repo,
@@ -79,6 +93,7 @@ export async function upsertWorkspaceIdentity({
           )
           VALUES (
             :workspace_slug,
+            :customer_id,
             :customer_slug,
             :profile_slug,
             :repo,
@@ -93,6 +108,7 @@ export async function upsertWorkspaceIdentity({
             :payload_json
           )
           ON CONFLICT(workspace_slug) DO UPDATE SET
+            customer_id = excluded.customer_id,
             customer_slug = excluded.customer_slug,
             profile_slug = excluded.profile_slug,
             repo = excluded.repo,
@@ -107,6 +123,7 @@ export async function upsertWorkspaceIdentity({
         `)
         .run({
           workspace_slug: merged.workspace_slug,
+          customer_id: merged.customer_id || null,
           customer_slug: merged.customer_slug,
           profile_slug: merged.profile_slug,
           repo: merged.repo,

@@ -3,6 +3,7 @@ import {
   publishDocumentsToSurface,
   publishProfilesToSurface,
   publishWorkspacesToSurface,
+  writeAuditEvent,
   writeBenchmarkArtifactRecord,
   writeRepositoryDocumentArtifactRecord,
   writeRepositoryProfileArtifactRecord,
@@ -32,6 +33,7 @@ export async function provisionWorkspaceForActor({
     displayName: workspace?.display_name,
     plan: workspace?.plan,
     source: workspace?.source ?? `${surface}-workspace-provision`,
+    metadata: workspace?.metadata,
   });
 
   return {
@@ -46,6 +48,7 @@ export async function writeRepositoryProfileForActor({
   profile,
   portalRoot,
   adminRoot,
+  workspaceMetadata,
 } = {}) {
   if (!profile || typeof profile !== "object") {
     throw new Error("profile payload is required.");
@@ -68,6 +71,7 @@ export async function writeRepositoryProfileForActor({
     displayName: profile.display_name,
     plan: profile.plan,
     source: profile.source ?? `${surface}-profile-write`,
+    metadata: workspaceMetadata ?? profile.workspace_metadata ?? profile.metadata,
   });
   const safeProfile = {
     ...profile,
@@ -87,6 +91,23 @@ export async function writeRepositoryProfileForActor({
     adminRoot,
     publishKind: "profiles",
   });
+  await writeAuditEvent({
+    serviceStorageRoot,
+    event: {
+      action: "repository.profile_written",
+      outcome: "success",
+      surface,
+      actor_slug: authContext?.actor?.actor_slug,
+      workspace_slug: identity.workspace_slug,
+      customer_slug: identity.customer_slug,
+      target_type: "repository_profile",
+      target_id: safeProfile.profile_slug,
+      metadata: {
+        repo: safeProfile.repo,
+        destinations: syncedDestinations.map((entry) => entry.kind),
+      },
+    },
+  });
 
   return {
     workspace_identity: identity,
@@ -103,6 +124,7 @@ export async function writeRepositoryDocumentsForActor({
   artifact,
   portalRoot,
   adminRoot,
+  workspaceMetadata,
 } = {}) {
   if (!artifact || typeof artifact !== "object") {
     throw new Error("artifact payload is required.");
@@ -125,6 +147,7 @@ export async function writeRepositoryDocumentsForActor({
     displayName: artifact.display_name,
     plan: artifact.plan,
     source: artifact.source ?? `${surface}-documents-write`,
+    metadata: workspaceMetadata ?? artifact.workspace_metadata ?? artifact.metadata,
   });
   const safeArtifact = {
     ...artifact,
@@ -144,6 +167,24 @@ export async function writeRepositoryDocumentsForActor({
     adminRoot,
     publishKind: "documents",
   });
+  await writeAuditEvent({
+    serviceStorageRoot,
+    event: {
+      action: "repository.documents_written",
+      outcome: "success",
+      surface,
+      actor_slug: authContext?.actor?.actor_slug,
+      workspace_slug: identity.workspace_slug,
+      customer_slug: identity.customer_slug,
+      target_type: "repository_documents",
+      target_id: safeArtifact.profile_slug,
+      metadata: {
+        repo: safeArtifact.repo,
+        document_count: Number(safeArtifact.totals?.document_count ?? safeArtifact.documents?.length ?? 0),
+        destinations: syncedDestinations.map((entry) => entry.kind),
+      },
+    },
+  });
 
   return {
     workspace_identity: identity,
@@ -160,6 +201,7 @@ export async function writeBenchmarkReportForActor({
   report,
   portalRoot,
   adminRoot,
+  workspaceMetadata,
 } = {}) {
   if (!report || typeof report !== "object") {
     throw new Error("report payload is required.");
@@ -182,6 +224,7 @@ export async function writeBenchmarkReportForActor({
     displayName: report.display_name,
     plan: report.plan,
     source: report.source ?? `${surface}-benchmark-write`,
+    metadata: workspaceMetadata ?? report.workspace_metadata ?? report.metadata,
   });
   const safeReport = {
     ...report,
@@ -204,6 +247,26 @@ export async function writeBenchmarkReportForActor({
     adminRoot,
     publishKind: "benchmarks",
   });
+  await writeAuditEvent({
+    serviceStorageRoot,
+    event: {
+      action: "benchmark.report_written",
+      outcome: "success",
+      surface,
+      actor_slug: authContext?.actor?.actor_slug,
+      workspace_slug: identity.workspace_slug,
+      customer_slug: identity.customer_slug,
+      target_type: "benchmark_report",
+      target_id: safeReport.report_id,
+      metadata: {
+        repo: safeReport.repo,
+        scenario: safeReport.scenario,
+        provider: safeReport.provider,
+        model: safeReport.model,
+        destinations: syncedDestinations.map((entry) => entry.kind),
+      },
+    },
+  });
 
   return {
     workspace_identity: identity,
@@ -223,6 +286,7 @@ async function resolveWritableWorkspaceIdentity({
   displayName,
   plan,
   source,
+  metadata,
 } = {}) {
   const actor = authContext?.actor;
   if (!actor) {
@@ -265,6 +329,7 @@ async function resolveWritableWorkspaceIdentity({
       lastSyncAt: new Date().toISOString(),
       metadata: {
         ...(existingIdentity.metadata ?? {}),
+        ...(metadata ?? {}),
         last_write_surface: surface,
       },
     });
@@ -290,6 +355,7 @@ async function resolveWritableWorkspaceIdentity({
     ownerActorSlug: actor.actor_slug,
     source,
     metadata: {
+      ...(metadata ?? {}),
       created_by_surface: surface,
     },
   });

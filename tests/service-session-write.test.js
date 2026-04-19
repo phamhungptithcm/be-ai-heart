@@ -12,6 +12,7 @@ import {
 } from "../packages/diagram-generator/src/index.js";
 import {
   issueWorkspaceSession,
+  listAuditEvents,
   loadAccessRegistry,
   resolveRequestAuthContext,
   writeBenchmarkReportForActor,
@@ -160,6 +161,15 @@ test("session-backed auth context resolves actor and enforces tenant-scoped writ
   assert.equal(benchmarkResult.report.workspace_slug, "alpha-workspace");
   assert.equal(benchmarkResult.report.customer_slug, "customer-alpha");
   assert.ok(benchmarkResult.synced_destinations.some((entry) => entry.kind === "portal"));
+  const auditEvents = await listAuditEvents({
+    serviceStorageRoot,
+  });
+  const benchmarkAuditEvent = auditEvents.find((entry) => entry.action === "benchmark.report_written");
+
+  assert.ok(benchmarkAuditEvent);
+  assert.equal(benchmarkAuditEvent.workspace_slug, "alpha-workspace");
+  assert.equal(benchmarkAuditEvent.customer_slug, "customer-alpha");
+  assert.equal(benchmarkAuditEvent.target_id, benchmarkResult.report.report_id);
 
   await assert.rejects(
     () =>

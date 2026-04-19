@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchAdminJson } from "../src/api-client.js";
+import { buildAdminBenchmarkEvidenceSummary } from "../src/dashboard-visuals.js";
 import { AdminRunComparisonBars } from "./AdminBenchmarkVisuals.jsx";
 import { AdminStateBlock } from "./AdminStateBlock.jsx";
 
@@ -71,6 +72,10 @@ export function AdminBenchmarkReportClient({ reportId }) {
   }
 
   const { report } = state;
+  const evidenceSummary = buildAdminBenchmarkEvidenceSummary(report);
+  const evidenceManifest = report.evidence_manifest ?? {};
+  const evidenceFiles = Array.isArray(evidenceManifest.files) ? evidenceManifest.files : [];
+  const topCitations = evidenceManifest.assisted?.context_pack?.top_citations ?? [];
 
   return (
     <>
@@ -96,6 +101,67 @@ export function AdminBenchmarkReportClient({ reportId }) {
           </div>
         </div>
         <AdminRunComparisonBars report={report} />
+      </section>
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Evidence bundle</h2>
+            <p>Internal detail should confirm that the published ROI claim is anchored to a bounded run bundle without exposing local-only raw paths.</p>
+          </div>
+        </div>
+        <div className="admin-stat-grid">
+          <div><span>Bundle</span><strong>{evidenceSummary.bundle_available ? "available" : "missing"}</strong></div>
+          <div><span>Manifest files</span><strong>{evidenceSummary.bundle_file_count}</strong></div>
+          <div><span>Prompt traces</span><strong>{evidenceSummary.prompt_count}</strong></div>
+          <div><span>Tool outputs</span><strong>{evidenceSummary.tool_output_count}</strong></div>
+          <div><span>Artifacts</span><strong>{evidenceSummary.output_artifact_count}</strong></div>
+        </div>
+        <div className="admin-list">
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Bundle identity</strong>
+                <p>{evidenceSummary.bundle_id || "No evidence bundle published."}</p>
+              </div>
+              <span>{evidenceSummary.bundle_available ? "traceable" : "missing"}</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Context evidence quality</strong>
+                <p>{`Coverage ${evidenceSummary.context_task_coverage_pct}% | compactness ${evidenceSummary.context_compactness_score} | evidence ${evidenceSummary.context_evidence_score}`}</p>
+              </div>
+              <span>{evidenceSummary.citation_mix}</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Bundle inventory</strong>
+                <p>
+                  {evidenceFiles.length > 0
+                    ? evidenceFiles.map((entry) => `${entry.role}: ${entry.file}`).join(" | ")
+                    : "No published inventory found for this evidence bundle."}
+                </p>
+              </div>
+              <span>public manifest</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Top evidence anchor</strong>
+                <p>
+                  {topCitations[0]
+                    ? `${topCitations[0].type} evidence: ${topCitations[0].reason}`
+                    : "No ranked citation is attached to this hosted manifest."}
+                </p>
+              </div>
+              <span>{topCitations.length} citation(s)</span>
+            </div>
+          </article>
+        </div>
       </section>
       <section className="admin-section">
         <div className="admin-section-head">

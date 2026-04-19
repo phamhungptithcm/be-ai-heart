@@ -12,9 +12,18 @@ import {
   writeDiagramBundle,
 } from "../packages/diagram-generator/src/index.js";
 import { buildWorkspaceState } from "../packages/core/src/index.js";
+import { writeTypedGraphFixture } from "./helpers/typed-graph-fixture.js";
 import { createTempRepoCopy } from "./helpers/temp-repo.js";
 
-test("diagram generator builds mermaid outputs for symbol, high-level, class, and sequence views", async (t) => {
+test("diagram generator module stays importable for CLI flows", async () => {
+  const module = await import("../packages/diagram-generator/src/index.js");
+
+  assert.equal(typeof module.generateDiagramBundle, "function");
+  assert.equal(typeof module.writeDiagramBundle, "function");
+  assert.equal(typeof module.syncRepositoryProfile, "function");
+});
+
+test("diagram generator builds mermaid outputs for symbol, high-level, component, class, and sequence views", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   const workspaceState = await buildWorkspaceState(repoRoot);
   const bundle = generateDiagramBundle({
@@ -27,6 +36,7 @@ test("diagram generator builds mermaid outputs for symbol, high-level, class, an
     [
       DIAGRAM_TYPES.symbolGraph,
       DIAGRAM_TYPES.highLevel,
+      DIAGRAM_TYPES.component,
       DIAGRAM_TYPES.class,
       DIAGRAM_TYPES.sequence,
     ],
@@ -34,6 +44,7 @@ test("diagram generator builds mermaid outputs for symbol, high-level, class, an
 
   const symbolGraph = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.symbolGraph);
   const highLevel = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.highLevel);
+  const componentDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.component);
   const classDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.class);
   const sequenceDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.sequence);
 
@@ -41,10 +52,70 @@ test("diagram generator builds mermaid outputs for symbol, high-level, class, an
   assert.match(symbolGraph.content, /function: loginUser/);
   assert.match(symbolGraph.content, /const: buildAuditMessage/);
   assert.match(highLevel.content, /Domain: auth/);
+  assert.match(highLevel.content, /Component: auth\/login/);
+  assert.match(componentDiagram.content, /flowchart LR/);
+  assert.match(componentDiagram.content, /Component: auth\/login/);
+  assert.equal(componentDiagram.confidence, "medium");
+  assert.equal(componentDiagram.scope.focus, "component-boundaries");
   assert.match(classDiagram.content, /classDiagram/);
   assert.match(classDiagram.content, /SessionRecord/);
   assert.match(sequenceDiagram.content, /sequenceDiagram/);
   assert.match(sequenceDiagram.content, /Heuristic static sequence inferred/);
+  assert.equal(sequenceDiagram.confidence, "medium");
+  assert.equal(highLevel.scope.focus, "domain-overview");
+});
+
+test("diagram generator uses typed graph edges for symbol, component, and sequence diagrams", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  await writeTypedGraphFixture(repoRoot);
+  const workspaceState = await buildWorkspaceState(repoRoot);
+  const bundle = generateDiagramBundle({
+    workspaceState,
+    task: "refine AuthService contract",
+  });
+  const symbolGraph = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.symbolGraph);
+  const componentDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.component);
+  const sequenceDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.sequence);
+
+  assert.match(symbolGraph.content, /implements/);
+  assert.match(symbolGraph.content, /calls/);
+  assert.match(componentDiagram.content, /Component: auth\/service/);
+  assert.match(componentDiagram.content, /calls/);
+  assert.equal(componentDiagram.scope.focus, "component-boundaries");
+  assert.match(sequenceDiagram.content, /authenticate calls loginUser/);
+  assert.match(sequenceDiagram.content, /exercise loginUser/);
+  assert.match(sequenceDiagram.content, /typed call paths/);
+});
+
+test("diagram generator prefers route-trace sequences when parsed HTTP routes are available", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const routeRoot = path.join(repoRoot, "app", "api", "login");
+  await fs.mkdir(routeRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(routeRoot, "route.ts"),
+    [
+      'import { loginUser } from "../../../src/auth/login";',
+      "",
+      "export async function GET() {",
+      '  return loginUser("route-user");',
+      "}",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const workspaceState = await buildWorkspaceState(repoRoot, { forceRescan: true });
+  const bundle = generateDiagramBundle({
+    workspaceState,
+    task: "trace login api route",
+  });
+  const sequenceDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.sequence);
+
+  assert.equal(sequenceDiagram.inference_mode, "route-trace-heuristic");
+  assert.match(sequenceDiagram.content, /Client->>route_1: GET \/api\/login/);
+  assert.match(sequenceDiagram.content, /GET calls loginUser/);
+  assert.match(sequenceDiagram.summary, /route trace/);
+  assert.equal(sequenceDiagram.scope.route_count >= 1, true);
 });
 
 test("repository profile sync publishes diagrams and makes them readable by portal and admin shells", async (t) => {
@@ -102,8 +173,11 @@ test("repository profile sync publishes diagrams and makes them readable by port
 
   assert.equal(portalProfile.profile_slug, "sample-profile");
   assert.equal(adminProfile.profile_slug, "sample-profile");
-  assert.equal(portalProfile.diagrams.length, 4);
+  assert.equal(portalProfile.diagrams.length, 5);
   assert.ok(portalProfile.diagrams.some((diagram) => diagram.content.includes("flowchart LR")));
+  assert.ok(portalProfile.diagrams.some((diagram) => diagram.type === DIAGRAM_TYPES.component));
+  assert.ok(portalProfile.diagrams.every((diagram) => typeof diagram.confidence === "string"));
+  assert.ok(portalProfile.diagrams.every((diagram) => typeof diagram.scope?.focus === "string"));
   assert.ok(adminProfile.diagrams.some((diagram) => diagram.content.includes("sequenceDiagram")));
   assert.equal(portalWebProfile.profile_slug, "sample-profile");
   assert.equal(adminWebProfile.profile_slug, "sample-profile");
@@ -111,6 +185,8 @@ test("repository profile sync publishes diagrams and makes them readable by port
   assert.equal(serviceProfile.workspace_slug, "sample-profile");
   assert.equal(portalWebProfile.repo_root, undefined);
   assert.ok(portalWebProfile.diagrams.some((diagram) => diagram.content.includes("flowchart LR")));
+  assert.ok(portalWebProfile.diagrams.every((diagram) => typeof diagram.confidence === "string"));
+  assert.ok(portalWebProfile.diagrams.every((diagram) => typeof diagram.scope?.focus === "string"));
   assert.equal(portalIndex.profiles.length, 1);
   assert.equal(portalIndex.profiles[0].profile_slug, "sample-profile");
   assert.equal(workspaceIndex.workspaces.length, 1);

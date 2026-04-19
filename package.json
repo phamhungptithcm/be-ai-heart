@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "node ./scripts/build.mjs",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "check": "npm run build && npm run test",
     "smoke:auth": "node ./scripts/hosted-auth-smoke.mjs",
     "overview": "node ./packages/cli/bin/heart.js overview --json",

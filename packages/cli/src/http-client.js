@@ -3,7 +3,7 @@ export async function exchangeProviderSessionRemote({
   idToken,
   workspaceSlug,
   customerSlug,
-  providerConfig,
+  providerId,
 } = {}) {
   return sendServiceRequest({
     baseUrl,
@@ -13,7 +13,7 @@ export async function exchangeProviderSessionRemote({
       id_token: idToken,
       workspace_slug: workspaceSlug,
       customer_slug: customerSlug,
-      provider_config: providerConfig,
+      provider_id: providerId,
     },
   });
 }
@@ -22,6 +22,7 @@ export async function syncRepositoryProfileRemote({
   baseUrl,
   sessionToken,
   profile,
+  workspaceMetadata,
 } = {}) {
   return sendServiceRequest({
     baseUrl,
@@ -30,6 +31,7 @@ export async function syncRepositoryProfileRemote({
     sessionToken,
     body: {
       profile,
+      workspace_metadata: workspaceMetadata,
     },
   });
 }

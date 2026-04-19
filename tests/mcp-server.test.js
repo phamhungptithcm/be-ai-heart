@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import { buildProjectGraph } from "../packages/graph/src/index.js";
@@ -26,6 +27,18 @@ test("MCP tool registry exposes expected tools", () => {
     "document_search",
     "policy_check",
   ]);
+  assert.equal(registry[3].inputSchema.properties.token_budget.type, "integer");
+});
+
+test("MCP tool registry respects enabled tool allowlist", () => {
+  const registry = createToolRegistry({
+    enabledTools: ["project_overview", "document_search"],
+  });
+
+  assert.deepEqual(
+    registry.map((tool) => tool.name),
+    ["project_overview", "document_search"],
+  );
 });
 
 test("MCP context pack tool returns focused output", async () => {
@@ -42,7 +55,7 @@ test("MCP context pack tool returns focused output", async () => {
 
   const result = handleToolCall({
     name: "context_pack",
-    args: { task: "improve login audit flow" },
+    args: { task: "improve login audit flow", token_budget: 1400 },
     graph,
     documentIndex,
     heartModel,
@@ -51,10 +64,55 @@ test("MCP context pack tool returns focused output", async () => {
   });
 
   assert.equal(result.task, "improve login audit flow");
+  assert.equal(result.token_budget, 1400);
+  assert.ok(result.estimated_tokens <= 1400);
   assert.equal(result.relevant_documents[0].path, "docs/requirements.md");
   assert.equal(result.linked_context.modules[0].module, "auth");
   assert.ok(result.quality.relevance_score > 0.5);
   assert.ok(result.reuse_candidates.length >= 1);
+  assert.ok(result.citations.length >= 1);
+  assert.equal(result.evidence_summary.citation_count, result.citations.length);
+  assert.deepEqual(
+    result.citations.map((citation) => citation.evidence_rank),
+    result.citations.map((_, index) => index + 1),
+  );
+  assert.equal(result.agent_contract.should_scan_repo_wide, false);
+  assert.ok(result.agent_contract.primary_evidence_order.includes("call_paths"));
+  assert.ok(result.agent_contract.followup_tools.includes("dependency_explain"));
+});
+
+test("MCP project overview exposes typed graph readiness and workflow hints", async (t) => {
+  const fixtureRepo = await createTempRepoCopy(t);
+  await writeTypedGraphFixture(fixtureRepo);
+  const scanResult = await scanSourceTree(fixtureRepo);
+  const documentIndex = await scanDocumentTree(fixtureRepo, {
+    roots: ["docs"],
+  });
+  const graph = buildProjectGraph(scanResult, {
+    repoName: "sample-repo",
+    documentIndex,
+    policyReport: evaluatePolicyViolations(scanResult),
+  });
+  const heartModel = buildHeartModel({
+    scanResult,
+    documentIndex,
+  });
+  const policyReport = evaluatePolicyViolations(scanResult);
+
+  const result = handleToolCall({
+    name: "project_overview",
+    graph,
+    documentIndex,
+    heartModel,
+    scanResult,
+    policyReport,
+  });
+
+  assert.equal(result.memory_profile.typed_graph_ready, true);
+  assert.ok(result.memory_profile.edge_counts.CALLS >= 1);
+  assert.ok(result.memory_profile.edge_counts.TESTED_BY >= 1);
+  assert.equal(result.agent_workflow.start_with, "project_overview");
+  assert.ok(result.agent_workflow.next_tools.includes("context_pack"));
 });
 
 test("MCP dependency explain tool returns typed dependency evidence", async (t) => {
@@ -75,4 +133,53 @@ test("MCP dependency explain tool returns typed dependency evidence", async (t) 
   assert.ok(result.outgoing_calls.includes("loginUser"));
   assert.ok(result.extends.includes("BaseAuthService"));
   assert.ok(result.implements.includes("AuthWorkflow"));
+});
+
+test("MCP document search prefers latest lineage version and redacts restricted summaries", async (t) => {
+  const fixtureRepo = await createTempRepoCopy(t);
+  const docsRoot = path.join(fixtureRepo, "docs", "governed");
+
+  await fs.mkdir(docsRoot, { recursive: true });
+  await Promise.all([
+    fs.writeFile(
+      path.join(docsRoot, "auth-prd-v1.md"),
+      "# Auth PRD\n\nVersion 1 approval flow.\n",
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(docsRoot, "auth-prd-v2.md"),
+      "# Auth PRD\n\nVersion 2 approval flow with login audit evidence.\n",
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(docsRoot, "auth-secret.md"),
+      "# Auth Secret\n\nToken: sk_test_secret_value\n",
+      "utf8",
+    ),
+  ]);
+  const olderTime = new Date("2026-04-18T00:00:00.000Z");
+  const newerTime = new Date("2026-04-19T00:00:00.000Z");
+  await Promise.all([
+    fs.utimes(path.join(docsRoot, "auth-prd-v1.md"), olderTime, olderTime),
+    fs.utimes(path.join(docsRoot, "auth-prd-v2.md"), newerTime, newerTime),
+  ]);
+
+  const documentIndex = await scanDocumentTree(fixtureRepo, {
+    roots: ["docs"],
+  });
+  const result = handleToolCall({
+    name: "document_search",
+    args: { query: "auth approval audit secret" },
+    graph: { scanResult: { files: [] }, nodes: [], edges: [] },
+    documentIndex,
+  });
+
+  assert.equal(result.matches.some((document) => document.path.endsWith("auth-prd-v2.md")), true);
+  assert.equal(result.matches.some((document) => document.path.endsWith("auth-prd-v1.md")), false);
+  const secretMatch = result.matches.find((document) => document.path.endsWith("auth-secret.md"));
+  assert.ok(secretMatch);
+  assert.equal(secretMatch.summary_redacted, true);
+  assert.equal(secretMatch.sensitivity.level, "restricted");
+  assert.ok(typeof result.matches[0].semantic_score === "number");
+  assert.ok(result.matches[0].extraction);
 });

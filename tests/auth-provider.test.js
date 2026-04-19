@@ -7,6 +7,7 @@ import fs from "node:fs/promises";
 
 import {
   issueProviderWorkspaceSession,
+  listAuditEvents,
   resolveRequestAuthContext,
   upsertWorkspaceIdentity,
 } from "../services/api/src/index.js";
@@ -97,6 +98,16 @@ test("OIDC provider token exchange issues a scoped workspace session", async (t)
   assert.equal(authContext.actor_slug, "customer-alpha");
   assert.equal(authContext.workspace_slug, "alpha-workspace");
   assert.equal(authContext.customer_slug, "customer-alpha");
+  const auditEvents = await listAuditEvents({
+    serviceStorageRoot,
+  });
+  const providerAuditEvent = auditEvents.find((entry) => entry.action === "auth.provider_session_issued");
+
+  assert.ok(providerAuditEvent);
+  assert.equal(providerAuditEvent.actor_slug, "customer-alpha");
+  assert.equal(providerAuditEvent.workspace_slug, "alpha-workspace");
+  assert.equal(providerAuditEvent.customer_id, result.session.customer_id);
+  assert.equal(providerAuditEvent.target_id, result.session.session_id);
 });
 
 test("OIDC provider token exchange ignores blank workspace and customer overrides", async (t) => {
@@ -176,6 +187,48 @@ test("OIDC provider token exchange ignores blank workspace and customer override
   assert.equal(result.actor.customer_slug, "customer-alpha");
   assert.equal(result.session.workspace_slug, "alpha-workspace");
   assert.equal(result.session.customer_slug, "customer-alpha");
+});
+
+test("OIDC provider token exchange rejects insecure remote JWKS URLs", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-oidc-"));
+  const serviceStorageRoot = path.join(tempRoot, "services", "api", "data");
+  const { privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+  });
+
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const issuer = "https://auth.example.test";
+  const token = createJwt({
+    issuer,
+    audience: "be-ai-heart-cli",
+    claims: {
+      sub: "provider-user-123",
+      email: "alpha@customer-alpha.dev",
+      preferred_username: "customer-alpha",
+      be_ai_heart_customer_slug: "customer-alpha",
+      be_ai_heart_workspaces: ["alpha-workspace"],
+      roles: ["customer"],
+    },
+    privateKey,
+  });
+
+  await assert.rejects(
+    () =>
+      issueProviderWorkspaceSession({
+        serviceStorageRoot,
+        surface: "portal",
+        idToken: token,
+        providerConfig: {
+          issuer,
+          audience: "be-ai-heart-cli",
+          jwksUrl: "http://auth.example.test/jwks",
+        },
+      }),
+    /https unless it targets local loopback/i,
+  );
 });
 
 function createJwt({ issuer, audience, claims, privateKey, keyId = "test-key" }) {

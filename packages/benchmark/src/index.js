@@ -1,22 +1,47 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+
 import {
   publishBenchmarksToSurface,
   publishWorkspacesToSurface,
   resolveServiceStorageRoot,
   writeBenchmarkArtifactRecord,
 } from "../../../services/api/src/storage.js";
+import {
+  buildBenchmarkDeltaMetrics,
+  buildFrameworkSummary,
+  createSuiteReport,
+  listBenchmarkScenarioManifests,
+  loadBenchmarkDatasetManifest,
+  loadBenchmarkScenarioManifest,
+  mergeObservedRunIntoBenchmarkInput,
+  normalizeBenchmarkRun,
+  normalizeEvaluationConfig,
+  renderScenarioReportMarkdown,
+  renderSuiteReportMarkdown,
+} from "./framework.js";
+
 export { buildBenchmarkTrendDigest } from "./trends.js";
+export { mergeObservedRunIntoBenchmarkInput } from "./framework.js";
 
 export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}) {
-  const baseline = normalizeRunMetrics(baselineInput);
-  const assisted = normalizeRunMetrics(assistedInput);
+  const scenarioManifest = metadata.scenario_manifest ?? metadata.scenarioManifest ?? null;
+  const datasetManifest = metadata.dataset_manifest ?? metadata.datasetManifest ?? scenarioManifest?.dataset ?? null;
+  const evaluation = normalizeEvaluationConfig(scenarioManifest?.evaluation);
+  const baseline = normalizeBenchmarkRun(baselineInput, evaluation);
+  const assisted = normalizeBenchmarkRun(assistedInput, evaluation);
+  const evidence = buildBenchmarkEvidence({
+    baselineInput,
+    assistedInput,
+    scenarioManifest,
+    datasetManifest,
+  });
   const reportId = sanitizeSlug(
     metadata.report_id ??
-      `${metadata.profile_slug ?? metadata.repo ?? "benchmark"}-${metadata.scenario ?? "comparison"}-${Date.now()}`,
+      `${metadata.profile_slug ?? metadata.repo ?? "benchmark"}-${metadata.scenario ?? scenarioManifest?.id ?? "comparison"}-${Date.now()}`,
   );
   const generatedAt = metadata.generated_at ?? new Date().toISOString();
-
+  const extraMetrics = buildBenchmarkDeltaMetrics({ baseline, assisted });
   const token_savings_pct = percentReduction(baseline.tokens, assisted.tokens);
   const time_savings_pct = percentReduction(baseline.minutes, assisted.minutes);
   const duplicate_reduction_pct = percentReduction(baseline.duplicates, assisted.duplicates);
@@ -39,20 +64,29 @@ export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}
       time_savings_pct +
       duplicate_reduction_pct +
       review_edit_reduction_pct +
-      memory_refresh_reduction_pct
-    ) / 5,
+      memory_refresh_reduction_pct +
+      Math.max(0, extraMetrics.context_retention_gain_pct) +
+      Math.max(0, extraMetrics.code_quality_gain_pct)
+    ) / 7,
     1,
   );
+  const contextPackSummary = evidence.assisted.context_pack;
 
   return {
-    schema_version: 1,
+    schema_version: 2,
+    report_type: "scenario",
     report_id: reportId,
     repo: metadata.repo ?? "unknown-repo",
     profile_slug: sanitizeSlug(metadata.profile_slug ?? metadata.repo ?? "benchmark"),
-    scenario: metadata.scenario ?? "comparison",
+    scenario: metadata.scenario ?? scenarioManifest?.id ?? "comparison",
     provider: metadata.provider ?? "",
     model: metadata.model ?? "",
     generated_at: generatedAt,
+    framework: buildFrameworkSummary({
+      scenarioManifest,
+      datasetManifest,
+      evaluation,
+    }),
     baseline,
     assisted,
     metrics: {
@@ -66,29 +100,54 @@ export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}
       token_cost_savings_usd,
       time_saved_minutes,
       review_edits_saved,
+      ...extraMetrics,
       composite_roi_score,
+      context_pack_quality_score: contextPackSummary.overall_evidence_score,
+      context_pack_compactness_score: contextPackSummary.compactness_score,
+      context_pack_task_coverage_pct: contextPackSummary.matched_task_token_pct,
     },
-    summary: `Token usage improved by ${token_savings_pct}% and review edits improved by ${review_edit_reduction_pct}%.`,
+    summary: `Token usage improved by ${token_savings_pct}%, context retention improved by ${extraMetrics.context_retention_gain_pct}%, and code quality improved by ${extraMetrics.code_quality_gain_pct}%.`,
     manager_summary: buildManagerSummary({
       token_savings_pct,
       time_savings_pct,
       token_cost_savings_usd,
-      review_edit_reduction_pct,
       memory_refresh_reduction_pct,
+      context_retention_gain_pct: extraMetrics.context_retention_gain_pct,
+      code_quality_gain_pct: extraMetrics.code_quality_gain_pct,
     }),
     technical_summary: buildTechnicalSummary({
       duplicate_reduction_pct,
       policy_violation_reduction_pct,
       review_edit_reduction_pct,
       memory_refresh_reduction_pct,
+      duplicate_avoidance_gain_pct: extraMetrics.duplicate_avoidance_gain_pct,
+      contextPackSummary,
     }),
+    automation: {
+      commands: {
+        run_scenario: `heart benchmark run ${metadata.scenario ?? scenarioManifest?.id ?? "<scenario-id>"}`,
+        run_suite: "heart benchmark run --all",
+        compare_runs: "heart benchmark compare baseline.json assisted.json",
+      },
+    },
+    evidence,
   };
 }
 
 export async function runBenchmarkScenario(scenarioRef, options = {}) {
-  const scenario = await loadBenchmarkScenario(scenarioRef, options.repoRoot ?? process.cwd());
+  const scenario =
+    options.scenarioManifest ??
+    (await loadBenchmarkScenario(scenarioRef, options.repoRoot ?? process.cwd()));
+  const baselineInput = mergeObservedRunIntoBenchmarkInput(
+    options.baselineInput ?? scenario.baseline,
+    options.baselineObservedRun ?? null,
+  );
+  const assistedInput = mergeObservedRunIntoBenchmarkInput(
+    options.assistedInput ?? scenario.assisted,
+    options.assistedObservedRun ?? null,
+  );
 
-  return compareBenchmarkRuns(scenario.baseline, scenario.assisted, {
+  return compareBenchmarkRuns(baselineInput, assistedInput, {
     repo: options.repo ?? scenario.repo ?? path.basename(options.repoRoot ?? process.cwd()),
     profile_slug: options.profile_slug ?? scenario.profile_slug ?? scenario.repo ?? "benchmark",
     scenario: options.scenario ?? scenario.id,
@@ -96,7 +155,46 @@ export async function runBenchmarkScenario(scenarioRef, options = {}) {
     model: options.model ?? scenario.model ?? "",
     report_id: options.report_id,
     generated_at: options.generated_at,
+    scenario_manifest: scenario,
+    dataset_manifest: scenario.dataset ?? null,
   });
+}
+
+export async function runBenchmarkSuite(options = {}) {
+  const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
+  const scenarios = options.scenarioRefs?.length
+    ? await Promise.all(options.scenarioRefs.map((scenarioRef) => loadBenchmarkScenario(scenarioRef, repoRoot)))
+    : await listBenchmarkScenarios(repoRoot);
+  const generatedAt = options.generated_at ?? new Date().toISOString();
+  const reports = [];
+  const scenario_runs = [];
+
+  for (const scenario of scenarios) {
+    const report = await runBenchmarkScenario(scenario.path ?? scenario.id, {
+      ...options,
+      repoRoot,
+      scenarioManifest: scenario,
+      generated_at: generatedAt,
+      report_id: options.report_id ? `${sanitizeSlug(options.report_id)}-${sanitizeSlug(scenario.id)}` : undefined,
+    });
+    reports.push(report);
+    scenario_runs.push({
+      scenario,
+      dataset: scenario.dataset ?? null,
+      report,
+    });
+  }
+
+  return {
+    suite: createSuiteReport({
+      reports,
+      repo: options.repo ?? path.basename(repoRoot),
+      profileSlug: options.profile_slug ?? options.repo ?? path.basename(repoRoot),
+      generatedAt,
+      suiteId: options.suite_id,
+    }),
+    scenario_runs,
+  };
 }
 
 export async function writeBenchmarkReport(repoRoot, report) {
@@ -104,11 +202,107 @@ export async function writeBenchmarkReport(repoRoot, report) {
   await fs.mkdir(benchmarkRoot, { recursive: true });
 
   const reportPath = path.join(benchmarkRoot, `${report.report_id}.json`);
-  await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  const markdownPath = path.join(benchmarkRoot, `${report.report_id}.md`);
+  await Promise.all([
+    fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8"),
+    fs.writeFile(markdownPath, renderScenarioReportMarkdown(report), "utf8"),
+  ]);
 
   return {
     benchmark_root: benchmarkRoot,
     report_path: reportPath,
+    markdown_path: markdownPath,
+  };
+}
+
+export async function writeBenchmarkSuiteReport(repoRoot, suiteReport) {
+  const suiteRoot = path.join(repoRoot, ".heart", "benchmarks", "suites");
+  await fs.mkdir(suiteRoot, { recursive: true });
+
+  const reportPath = path.join(suiteRoot, `${suiteReport.suite_id}.json`);
+  const markdownPath = path.join(suiteRoot, `${suiteReport.suite_id}.md`);
+  await Promise.all([
+    fs.writeFile(reportPath, `${JSON.stringify(suiteReport, null, 2)}\n`, "utf8"),
+    fs.writeFile(markdownPath, renderSuiteReportMarkdown(suiteReport), "utf8"),
+  ]);
+
+  return {
+    suite_root: suiteRoot,
+    report_path: reportPath,
+    markdown_path: markdownPath,
+  };
+}
+
+export async function writeBenchmarkEvidenceBundle(
+  repoRoot,
+  report,
+  {
+    baselineInput = {},
+    assistedInput = {},
+    evaluation = {},
+    scenario = null,
+    dataset = null,
+  } = {},
+) {
+  const evidenceRoot = path.join(repoRoot, ".heart", "benchmarks", "evidence", report.report_id);
+  await fs.mkdir(evidenceRoot, { recursive: true });
+
+  const baselinePath = path.join(evidenceRoot, "baseline.json");
+  const assistedPath = path.join(evidenceRoot, "assisted.json");
+  const evaluationPath = path.join(evidenceRoot, "evaluation.json");
+  const scenarioPath = scenario ? path.join(evidenceRoot, "scenario.json") : null;
+  const datasetPath = dataset ? path.join(evidenceRoot, "dataset.json") : null;
+  const manifestPath = path.join(evidenceRoot, "manifest.json");
+
+  const baselinePayload = createEvidenceRunPayload("baseline", report, baselineInput);
+  const assistedPayload = createEvidenceRunPayload("assisted", report, assistedInput);
+  const evaluationPayload = createEvidenceEvaluationPayload(report, evaluation);
+  const manifest = {
+    schema_version: 2,
+    bundle_id: report.report_id,
+    report_id: report.report_id,
+    repo: report.repo,
+    profile_slug: report.profile_slug,
+    scenario: report.scenario,
+    generated_at: report.generated_at,
+    files: compactObject({
+      baseline: "baseline.json",
+      assisted: "assisted.json",
+      evaluation: "evaluation.json",
+      scenario: scenario ? "scenario.json" : undefined,
+      dataset: dataset ? "dataset.json" : undefined,
+    }),
+    baseline_summary: summarizeRunEvidence(baselineInput),
+    assisted_summary: summarizeRunEvidence(assistedInput),
+    scenario_summary: summarizeScenarioManifest(scenario),
+    dataset_summary: summarizeDatasetManifest(dataset),
+    automation: report.automation ?? {},
+  };
+
+  const writes = [
+    fs.writeFile(baselinePath, `${JSON.stringify(baselinePayload, null, 2)}\n`, "utf8"),
+    fs.writeFile(assistedPath, `${JSON.stringify(assistedPayload, null, 2)}\n`, "utf8"),
+    fs.writeFile(evaluationPath, `${JSON.stringify(evaluationPayload, null, 2)}\n`, "utf8"),
+    fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8"),
+  ];
+  if (scenarioPath) {
+    writes.push(fs.writeFile(scenarioPath, `${JSON.stringify(scenario, null, 2)}\n`, "utf8"));
+  }
+  if (datasetPath) {
+    writes.push(fs.writeFile(datasetPath, `${JSON.stringify(dataset, null, 2)}\n`, "utf8"));
+  }
+
+  await Promise.all(writes);
+
+  return {
+    available: true,
+    bundle_id: report.report_id,
+    generated_at: report.generated_at,
+    local_root: evidenceRoot,
+    local_manifest_path: manifestPath,
+    files: manifest.files,
+    baseline_summary: manifest.baseline_summary,
+    assisted_summary: manifest.assisted_summary,
   };
 }
 
@@ -160,13 +354,15 @@ export async function loadBenchmarkReport(filePath) {
 }
 
 export async function loadBenchmarkScenario(scenarioRef, repoRoot) {
-  const scenarioPath = await resolveScenarioPath(scenarioRef, repoRoot);
-  const scenario = JSON.parse(await fs.readFile(scenarioPath, "utf8"));
+  return loadBenchmarkScenarioManifest(scenarioRef, repoRoot);
+}
 
-  return {
-    ...scenario,
-    path: scenarioPath,
-  };
+export async function loadBenchmarkDataset(datasetRef, repoRoot) {
+  return loadBenchmarkDatasetManifest(datasetRef, repoRoot);
+}
+
+export async function listBenchmarkScenarios(repoRoot) {
+  return listBenchmarkScenarioManifests(repoRoot);
 }
 
 function percentReduction(before, after) {
@@ -178,18 +374,7 @@ function percentReduction(before, after) {
 }
 
 function normalizeRunMetrics(input = {}) {
-  return {
-    tokens: numberOrZero(input.tokens),
-    minutes: roundNumber(numberOrZero(input.minutes), 1),
-    duplicates: numberOrZero(input.duplicates),
-    policy_violations: numberOrZero(input.policy_violations),
-    review_edits: numberOrZero(input.review_edits),
-    memory_refreshes: numberOrZero(input.memory_refreshes),
-    token_cost_usd: roundNumber(
-      input.token_cost_usd ?? estimateTokenCostUsd(numberOrZero(input.tokens), input.cost_per_1k_tokens_usd),
-      4,
-    ),
-  };
+  return normalizeBenchmarkRun(input, normalizeEvaluationConfig());
 }
 
 function estimateTokenCostUsd(tokens, costPerThousand = 0.01) {
@@ -197,16 +382,63 @@ function estimateTokenCostUsd(tokens, costPerThousand = 0.01) {
 }
 
 function buildManagerSummary(metrics) {
-  return `Benchmark shows ${metrics.token_savings_pct}% lower token usage, ${metrics.time_savings_pct}% faster completion, ${metrics.memory_refresh_reduction_pct}% fewer context reloads, and $${metrics.token_cost_savings_usd.toFixed(2)} lower direct token spend per compared run.`;
+  const memorySummary = Number.isFinite(Number(metrics.memory_refresh_reduction_pct))
+    ? `${metrics.memory_refresh_reduction_pct}% fewer context reloads`
+    : `${metrics.context_retention_gain_pct}% better context retention`;
+  return `Benchmark shows ${metrics.token_savings_pct}% lower token usage, ${metrics.time_savings_pct}% faster completion, ${memorySummary}, and $${metrics.token_cost_savings_usd.toFixed(2)} lower direct token spend per compared run.`;
 }
 
 function buildTechnicalSummary(metrics) {
-  return `Duplicate work dropped by ${metrics.duplicate_reduction_pct}% while policy violations improved by ${metrics.policy_violation_reduction_pct}%, review edits improved by ${metrics.review_edit_reduction_pct}%, and memory refreshes dropped by ${metrics.memory_refresh_reduction_pct}%.`;
+  const contextPackSentence = metrics.contextPackSummary?.available
+    ? ` Assisted context pack carried ${metrics.contextPackSummary.citation_count} citations with ${metrics.contextPackSummary.matched_task_token_pct}% task coverage and an evidence score of ${metrics.contextPackSummary.overall_evidence_score}.`
+    : "";
+  return `Duplicate work dropped by ${metrics.duplicate_reduction_pct}% while duplicate-avoidance score improved by ${metrics.duplicate_avoidance_gain_pct}%, policy violations improved by ${metrics.policy_violation_reduction_pct}%, review edits improved by ${metrics.review_edit_reduction_pct}%, and memory refreshes dropped by ${metrics.memory_refresh_reduction_pct}%.${contextPackSentence}`;
 }
 
 function roundNumber(value, precision = 2) {
   const factor = 10 ** precision;
   return Math.round(numberOrZero(value) * factor) / factor;
+}
+
+function compactObject(value = {}) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null));
+}
+
+function summarizeScenarioManifest(scenario = null) {
+  if (!scenario) {
+    return {
+      id: "",
+      title: "",
+      category: "",
+      dataset_id: "",
+      description: "",
+    };
+  }
+
+  return {
+    id: String(scenario.id ?? ""),
+    title: String(scenario.title ?? scenario.id ?? ""),
+    category: String(scenario.category ?? ""),
+    dataset_id: String(scenario.dataset?.id ?? scenario.dataset_id ?? ""),
+    description: String(scenario.description ?? ""),
+  };
+}
+
+function summarizeDatasetManifest(dataset = null) {
+  if (!dataset) {
+    return {
+      id: "",
+      title: "",
+      repo_strategy: "",
+    };
+  }
+
+  return {
+    id: String(dataset.id ?? ""),
+    title: String(dataset.title ?? dataset.id ?? ""),
+    repo_strategy: String(dataset.repo_strategy ?? ""),
+    summary: String(dataset.summary ?? ""),
+  };
 }
 
 function numberOrZero(value) {
@@ -246,7 +478,8 @@ async function resolveBenchmarkDestinations(repoRoot, { portalRoot, adminRoot } 
 
 function createWebBenchmarkReport(report) {
   return {
-    schema_version: 1,
+    schema_version: 2,
+    report_type: report.report_type ?? "scenario",
     report_id: report.report_id,
     repo: report.repo,
     profile_slug: report.profile_slug,
@@ -256,13 +489,356 @@ function createWebBenchmarkReport(report) {
     provider: report.provider,
     model: report.model,
     generated_at: report.generated_at,
+    framework: report.framework,
     baseline: report.baseline,
     assisted: report.assisted,
     metrics: report.metrics,
     summary: report.summary,
     manager_summary: report.manager_summary,
     technical_summary: report.technical_summary,
+    automation: report.automation,
+    evidence: sanitizePublishedEvidence(report.evidence),
+    evidence_bundle: sanitizeEvidenceBundle(report.evidence_bundle),
+    evidence_manifest: buildPublishedEvidenceManifest(report),
   };
+}
+
+function createEvidenceRunPayload(kind, report, input = {}) {
+  return {
+    schema_version: 2,
+    run_kind: kind,
+    report_id: report.report_id,
+    repo: report.repo,
+    profile_slug: report.profile_slug,
+    scenario: report.scenario,
+    provider: report.provider,
+    model: report.model,
+    generated_at: report.generated_at,
+    metrics: normalizeRunMetrics(input),
+    measurement: input.measurement ?? {
+      mode: String(input.measurement_mode ?? "estimated"),
+    },
+    prompt: input.prompt ?? "",
+    prompts: Array.isArray(input.prompts) ? input.prompts : [],
+    tool_outputs: Array.isArray(input.tool_outputs) ? input.tool_outputs : [],
+    output_artifacts: Array.isArray(input.output_artifacts) ? input.output_artifacts : [],
+    evaluation_outputs: Array.isArray(input.evaluation_outputs) ? input.evaluation_outputs : [],
+    context_pack: resolveContextPackArtifact(input),
+  };
+}
+
+function createEvidenceEvaluationPayload(report, evaluation = {}) {
+  return {
+    schema_version: 2,
+    report_id: report.report_id,
+    generated_at: report.generated_at,
+    summary: report.summary,
+    metrics: report.metrics,
+    baseline: report.baseline,
+    assisted: report.assisted,
+    framework: report.framework,
+    evidence: report.evidence,
+    evaluation,
+  };
+}
+
+function sanitizeEvidenceBundle(bundle) {
+  if (!bundle?.available) {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    available: true,
+    bundle_id: bundle.bundle_id,
+    generated_at: bundle.generated_at,
+    files: bundle.files ?? {},
+    baseline_summary: bundle.baseline_summary ?? {},
+    assisted_summary: bundle.assisted_summary ?? {},
+  };
+}
+
+function buildPublishedEvidenceManifest(report) {
+  const bundle = sanitizeEvidenceBundle(report.evidence_bundle);
+  if (!bundle.available) {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    schema_version: 1,
+    available: true,
+    bundle_id: bundle.bundle_id,
+    report_id: report.report_id,
+    repo: report.repo,
+    profile_slug: report.profile_slug,
+    scenario: report.scenario,
+    generated_at: bundle.generated_at ?? report.generated_at,
+    bundle_file_count: Object.keys(bundle.files ?? {}).length,
+    files: Object.entries(bundle.files ?? {}).map(([role, file]) => ({ role, file })),
+    baseline: sanitizePublishedRunEvidence(bundle.baseline_summary),
+    assisted: sanitizePublishedRunEvidence(bundle.assisted_summary),
+    scenario: summarizeScenarioManifest(report.framework?.scenario),
+    dataset: summarizeDatasetManifest(report.framework?.dataset),
+  };
+}
+
+function sanitizePublishedRunEvidence(summary = {}) {
+  return {
+    prompt_count: numberOrZero(summary.prompt_count),
+    tool_output_count: numberOrZero(summary.tool_output_count),
+    output_artifact_count: numberOrZero(summary.output_artifact_count),
+    context_pack: sanitizePublishedContextPackEvidence(summary.context_pack),
+  };
+}
+
+function sanitizePublishedEvidence(evidence = {}) {
+  return {
+    baseline: sanitizePublishedRunEvidence(evidence.baseline),
+    assisted: sanitizePublishedRunEvidence(evidence.assisted),
+  };
+}
+
+function sanitizePublishedContextPackEvidence(summary = {}) {
+  if (!summary?.available) {
+    return createEmptyContextPackEvidence();
+  }
+
+  return {
+    available: true,
+    token_budget: summary.token_budget ?? null,
+    estimated_tokens: numberOrZero(summary.estimated_tokens),
+    truncated: Boolean(summary.truncated),
+    citation_count: numberOrZero(summary.citation_count),
+    graph_citation_count: numberOrZero(summary.graph_citation_count),
+    document_citation_count: numberOrZero(summary.document_citation_count),
+    policy_citation_count: numberOrZero(summary.policy_citation_count),
+    call_path_count: numberOrZero(summary.call_path_count),
+    tests_to_run_count: numberOrZero(summary.tests_to_run_count),
+    relevant_file_count: numberOrZero(summary.relevant_file_count),
+    relevant_symbol_count: numberOrZero(summary.relevant_symbol_count),
+    relevant_document_count: numberOrZero(summary.relevant_document_count),
+    missing_context_warning_count: numberOrZero(summary.missing_context_warning_count),
+    matched_task_token_pct: numberOrZero(summary.matched_task_token_pct),
+    coverage_score: roundNumber(summary.coverage_score),
+    compactness_score: roundNumber(summary.compactness_score),
+    overall_evidence_score: roundNumber(summary.overall_evidence_score),
+    top_citations: sanitizePublishedTopCitations(summary.top_citations ?? []),
+  };
+}
+
+function sanitizePublishedTopCitations(citations = []) {
+  return citations.slice(0, 3).map((citation) => ({
+    type: citation.type,
+    relation: citation.relation,
+    title: compactText(citation.title, 64),
+    from: citation.from,
+    to: citation.to,
+    rule_id: citation.rule_id,
+    reason: compactText(citation.reason, 72),
+  }));
+}
+
+function buildBenchmarkEvidence({
+  baselineInput = {},
+  assistedInput = {},
+  scenarioManifest = null,
+  datasetManifest = null,
+} = {}) {
+  return {
+    baseline: summarizeRunEvidence(baselineInput),
+    assisted: summarizeRunEvidence(assistedInput),
+    scenario: summarizeScenarioManifest(scenarioManifest),
+    dataset: summarizeDatasetManifest(datasetManifest),
+  };
+}
+
+function summarizeRunEvidence(input = {}) {
+  return {
+    prompt_count: Array.isArray(input.prompts) ? input.prompts.length : input.prompt ? 1 : 0,
+    tool_output_count: Array.isArray(input.tool_outputs) ? input.tool_outputs.length : 0,
+    output_artifact_count: Array.isArray(input.output_artifacts) ? input.output_artifacts.length : 0,
+    context_pack: summarizeContextPackEvidence(resolveContextPackArtifact(input)),
+  };
+}
+
+function resolveContextPackArtifact(input = {}) {
+  return input.context_pack ?? input.context_pack_artifact ?? input.artifacts?.context_pack ?? null;
+}
+
+function summarizeContextPackEvidence(pack) {
+  if (!pack) {
+    return createEmptyContextPackEvidence();
+  }
+
+  const fallbackSummary = createFallbackContextPackEvidence(pack);
+  const summary = pack.evidence_summary ?? fallbackSummary;
+
+  return {
+    available: true,
+    token_budget: pack.token_budget ?? null,
+    estimated_tokens: numberOrZero(pack.estimated_tokens),
+    truncated: Boolean(pack.truncated),
+    citation_count: numberOrZero(summary.citation_count ?? fallbackSummary.citation_count),
+    graph_citation_count: numberOrZero(summary.graph_citation_count ?? fallbackSummary.graph_citation_count),
+    document_citation_count: numberOrZero(summary.document_citation_count ?? fallbackSummary.document_citation_count),
+    policy_citation_count: numberOrZero(summary.policy_citation_count ?? fallbackSummary.policy_citation_count),
+    call_path_count: numberOrZero(summary.call_path_count ?? fallbackSummary.call_path_count),
+    tests_to_run_count: numberOrZero(summary.tests_to_run_count ?? fallbackSummary.tests_to_run_count),
+    relevant_file_count: numberOrZero(summary.relevant_file_count ?? fallbackSummary.relevant_file_count),
+    relevant_symbol_count: numberOrZero(summary.relevant_symbol_count ?? fallbackSummary.relevant_symbol_count),
+    relevant_document_count: numberOrZero(summary.relevant_document_count ?? fallbackSummary.relevant_document_count),
+    missing_context_warning_count: numberOrZero(
+      summary.missing_context_warning_count ?? fallbackSummary.missing_context_warning_count,
+    ),
+    matched_task_token_pct: numberOrZero(summary.matched_task_token_pct ?? fallbackSummary.matched_task_token_pct),
+    coverage_score: roundNumber(summary.coverage_score ?? fallbackSummary.coverage_score),
+    compactness_score: roundNumber(summary.compactness_score ?? fallbackSummary.compactness_score),
+    overall_evidence_score: roundNumber(
+      summary.overall_evidence_score ?? fallbackSummary.overall_evidence_score,
+    ),
+    top_citations: sanitizeTopCitations(pack.citations ?? []),
+  };
+}
+
+function createEmptyContextPackEvidence() {
+  return {
+    available: false,
+    token_budget: null,
+    estimated_tokens: 0,
+    truncated: false,
+    citation_count: 0,
+    graph_citation_count: 0,
+    document_citation_count: 0,
+    policy_citation_count: 0,
+    call_path_count: 0,
+    tests_to_run_count: 0,
+    relevant_file_count: 0,
+    relevant_symbol_count: 0,
+    relevant_document_count: 0,
+    missing_context_warning_count: 0,
+    matched_task_token_pct: 0,
+    coverage_score: 0,
+    compactness_score: 0,
+    overall_evidence_score: 0,
+    top_citations: [],
+  };
+}
+
+function createFallbackContextPackEvidence(pack = {}) {
+  const taskTokens = tokenize(pack.task ?? "");
+  const haystack = buildContextPackHaystack(pack);
+  const matchedTaskTokenPct =
+    taskTokens.length === 0
+      ? 100
+      : Math.round((taskTokens.filter((token) => haystack.includes(token)).length / taskTokens.length) * 100);
+  const citationCounts = countCitationTypes(pack.citations ?? []);
+  const estimatedTokens = numberOrZero(pack.estimated_tokens);
+  const coverageScore = roundNumber(
+    clamp01(
+      (matchedTaskTokenPct / 100) * 0.45 +
+        Math.min((pack.citations ?? []).length, 4) / 4 * 0.2 +
+        Math.min((pack.call_paths ?? []).length, 3) / 3 * 0.15 +
+        Math.min((pack.tests_to_run ?? []).length, 2) / 2 * 0.1 +
+        Math.min((pack.relevant_documents ?? []).length, 2) / 2 * 0.1,
+    ),
+  );
+  const compactnessScore = roundNumber(
+    clamp01(
+      pack.token_budget
+        ? Math.min(1, numberOrZero(pack.token_budget) / Math.max(estimatedTokens, numberOrZero(pack.token_budget), 1))
+        : Math.max(0.35, 1 - Math.max(0, estimatedTokens - 1200) / 1800),
+    ),
+  );
+  const overallEvidenceScore = roundNumber(
+    clamp01(
+      coverageScore * 0.55 + compactnessScore * 0.2 + clamp01(numberOrZero(pack.confidence?.overall)) * 0.25,
+    ),
+  );
+
+  return {
+    citation_count: (pack.citations ?? []).length,
+    graph_citation_count: citationCounts.graph,
+    document_citation_count: citationCounts.document,
+    policy_citation_count: citationCounts.policy,
+    call_path_count: (pack.call_paths ?? []).length,
+    tests_to_run_count: (pack.tests_to_run ?? []).length,
+    relevant_file_count: (pack.relevant_files ?? []).length,
+    relevant_symbol_count: (pack.relevant_symbols ?? []).length,
+    relevant_document_count: (pack.relevant_documents ?? []).length,
+    missing_context_warning_count: (pack.missing_context_warnings ?? []).length,
+    matched_task_token_pct: matchedTaskTokenPct,
+    coverage_score: coverageScore,
+    compactness_score: compactnessScore,
+    overall_evidence_score: overallEvidenceScore,
+  };
+}
+
+function buildContextPackHaystack(pack = {}) {
+  return [
+    (pack.relevant_files ?? []).map((file) => file.path ?? "").join(" "),
+    (pack.relevant_symbols ?? []).map((symbol) => `${symbol.name ?? ""} ${symbol.file ?? ""}`).join(" "),
+    (pack.relevant_documents ?? []).map((document) => `${document.path ?? ""} ${document.title ?? ""}`).join(" "),
+    (pack.call_paths ?? []).map((callPath) => `${callPath.from ?? ""} ${callPath.to ?? ""}`).join(" "),
+    (pack.tests_to_run ?? []).join(" "),
+    (pack.citations ?? [])
+      .map((citation) => [citation.path, citation.title, citation.from, citation.to, citation.rule_id].filter(Boolean).join(" "))
+      .join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function countCitationTypes(citations = []) {
+  return citations.reduce(
+    (counts, citation) => {
+      counts[citation.type] = (counts[citation.type] ?? 0) + 1;
+      return counts;
+    },
+    {
+      document: 0,
+      graph: 0,
+      policy: 0,
+    },
+  );
+}
+
+function sanitizeTopCitations(citations = []) {
+  return citations.slice(0, 3).map((citation) => ({
+    type: citation.type,
+    relation: citation.relation,
+    path: citation.path,
+    title: compactText(citation.title, 64),
+    from: citation.from,
+    to: citation.to,
+    rule_id: citation.rule_id,
+    reason: compactText(citation.reason, 72),
+  }));
+}
+
+function tokenize(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((token) => token.length >= 3);
+}
+
+function compactText(value, maxLength) {
+  if (typeof value !== "string") {
+    return value ?? "";
+  }
+
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, numberOrZero(value)));
 }
 
 async function pathExists(targetPath) {

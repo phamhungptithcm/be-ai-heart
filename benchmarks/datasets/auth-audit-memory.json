@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "auth-audit-memory",
+  "title": "Auth Audit Memory Dataset",
+  "repo_strategy": "current-repo",
+  "summary": "Document-aware benchmark slice covering CLI, benchmark reporting, and context-pack evidence for repeated follow-up work in the auth and audit domain.",
+  "source_paths": [
+    "packages/benchmark/src",
+    "packages/cli/src",
+    "packages/context-compiler/src",
+    "docs"
+  ],
+  "documents": [
+    {
+      "path": "docs/02-prd.md",
+      "title": "Product Requirements Document",
+      "reason": "Task intent and benchmark goals live here."
+    },
+    {
+      "path": "docs/03-technical-architecture.md",
+      "title": "Technical Architecture",
+      "reason": "Architecture fit and package boundaries are required context."
+    },
+    {
+      "path": "docs/04-mcp-cli-spec.md",
+      "title": "CLI and MCP Specification",
+      "reason": "CLI contract must remain stable."
+    },
+    {
+      "path": "docs/06-benchmark-framework.md",
+      "title": "Benchmark Framework",
+      "reason": "Reporting and ROI outputs must match the benchmark contract."
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "packages/benchmark/src/index.js",
+      "title": "Benchmark report writer",
+      "reason": "Existing report/evidence primitives should be extended instead of duplicated."
+    },
+    {
+      "path": "packages/cli/src/index.js",
+      "title": "CLI benchmark command",
+      "reason": "Scenario automation should stay behind the existing benchmark command surface."
+    }
+  ],
+  "policy_targets": [
+    "Keep benchmark package logic inside packages/benchmark.",
+    "Keep CLI orchestration inside packages/cli.",
+    "Prefer JSON artifacts plus concise markdown reports."
+  ]
+}

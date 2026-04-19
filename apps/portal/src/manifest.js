@@ -2,15 +2,14 @@ export const portalManifest = {
   name: "be-ai-heart portal",
   audience: "customers",
   sections: [
+    "overview",
     "repositories",
-    "repository-profiles",
-    "diagrams",
     "documents",
     "benchmarks",
     "usage",
-    "policies",
-    "members",
     "billing",
+    "team-access",
+    "security-audit",
     "settings",
   ],
 };

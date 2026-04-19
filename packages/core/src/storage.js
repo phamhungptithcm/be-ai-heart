@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { hydrateProjectGraph, snapshotProjectGraph } from "../../graph/src/index.js";
 
-export const WORKSPACE_CACHE_SCHEMA_VERSION = 4;
+export const WORKSPACE_CACHE_SCHEMA_VERSION = 5;
 
 export function getWorkspaceCachePaths(repoRoot) {
   const cacheDir = path.join(repoRoot, ".heart", "cache");
@@ -20,6 +21,10 @@ export async function loadCachedWorkspaceState(repoRoot) {
     const payload = JSON.parse(raw);
 
     if (!isValidWorkspacePayload(payload)) {
+      return null;
+    }
+
+    if (!isPortableWorkspacePayload(payload, repoRoot)) {
       return null;
     }
 
@@ -41,7 +46,7 @@ export async function loadCachedWorkspaceState(repoRoot) {
 
 export async function persistWorkspaceState(repoRoot, state) {
   const { cacheDir, workspaceStatePath } = getWorkspaceCachePaths(repoRoot);
-  const tempPath = `${workspaceStatePath}.tmp`;
+  const tempPath = `${workspaceStatePath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
 
   await fs.mkdir(cacheDir, { recursive: true });
 
@@ -56,8 +61,13 @@ export async function persistWorkspaceState(repoRoot, state) {
     policy_report: state.policyReport,
   };
 
-  await fs.writeFile(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  await fs.rename(tempPath, workspaceStatePath);
+  try {
+    await fs.writeFile(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await fs.rename(tempPath, workspaceStatePath);
+  } catch (error) {
+    await fs.rm(tempPath, { force: true }).catch(() => null);
+    throw error;
+  }
 
   return workspaceStatePath;
 }
@@ -95,4 +105,22 @@ function isValidWorkspacePayload(payload) {
   }
 
   return true;
+}
+
+function isPortableWorkspacePayload(payload, repoRoot) {
+  const resolvedRepoRoot = path.resolve(repoRoot);
+  const provenance = payload.scan_provenance ?? {};
+
+  if (provenance.repo_root && path.resolve(provenance.repo_root) !== resolvedRepoRoot) {
+    return false;
+  }
+
+  return [provenance.config_path, provenance.policy_path].every(
+    (candidatePath) => candidatePath == null || isWithinRepoRoot(candidatePath, resolvedRepoRoot),
+  );
+}
+
+function isWithinRepoRoot(candidatePath, repoRoot) {
+  const resolvedCandidate = path.resolve(candidatePath);
+  return resolvedCandidate === repoRoot || resolvedCandidate.startsWith(`${repoRoot}${path.sep}`);
 }

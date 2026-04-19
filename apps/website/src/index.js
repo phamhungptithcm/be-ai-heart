@@ -13,6 +13,7 @@ export const siteManifest = {
   primary_message: "Stop paying AI to relearn your codebase.",
   sections: [
     "home",
+    "services",
     "product",
     "benchmark",
     "pricing",
@@ -95,7 +96,7 @@ export function renderWebsiteHomePage(options = {}) {
     title: "be-ai-heart | Public Website",
     eyebrow: "Website",
     nav: [
-      { label: "Product", href: "/product" },
+      { label: "Services", href: "/services" },
       { label: "Pricing", href: "/pricing" },
       { label: "Security", href: "/security" },
       { label: "Docs", href: "/docs" },

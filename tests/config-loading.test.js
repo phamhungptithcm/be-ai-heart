@@ -53,3 +53,35 @@ mcp:
   assert.deepEqual(configState.config.knowledge.document_paths, ["docs", "notes"]);
   assert.deepEqual(configState.config.mcp.enabled_tools, ["project_overview", "document_search"]);
 });
+
+test("config loader marks unknown keys and invalid values as schema errors", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const configPath = path.join(repoRoot, "heart.config.yaml");
+
+  await fs.writeFile(
+    configPath,
+    `project:
+  name: fixture-heart
+  surprise: value
+indexing:
+  incremental: maybe
+mcp:
+  enabled_tools:
+    - project_overview
+    - unknown_tool
+governance:
+  enabled: true
+`,
+    "utf8",
+  );
+
+  const configState = await loadHeartConfig(repoRoot);
+
+  assert.equal(configState.exists, true);
+  assert.equal(configState.status, "invalid");
+  assert.ok(configState.errors.some((error) => error.includes("Unknown top-level config key: governance")));
+  assert.ok(configState.errors.some((error) => error.includes("Unknown project config key: surprise")));
+  assert.ok(configState.errors.some((error) => error.includes("indexing.incremental")));
+  assert.ok(configState.errors.some((error) => error.includes("unknown_tool")));
+  assert.deepEqual(configState.config.mcp.enabled_tools, ["project_overview"]);
+});

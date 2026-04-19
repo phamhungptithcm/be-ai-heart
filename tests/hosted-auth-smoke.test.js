@@ -85,7 +85,9 @@ test("hosted auth smoke completes auth0 and clerk callback flow through the stan
     assert.match(result.actor?.actor_slug ?? "", /^[a-z0-9-]+$/);
     assert.equal(result.session?.customer_slug, "demo-customer");
     assert.equal(result.session?.workspace_slug, "demo-customer");
-    assert.match(result.completion_url, /session_token=/);
+    assert.match(result.completion_url, /session_established=1/);
+    assert.match(result.session_cookie ?? "", /be_ai_heart_session=/);
+    assert.equal(result.session?.session_token, "");
   }
 });
 

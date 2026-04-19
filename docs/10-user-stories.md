@@ -9,8 +9,37 @@ As an engineer, I want to initialize `be-ai-heart` in a repo so that the system 
 Acceptance criteria:
 
 - `heart init` creates `heart.config.yaml`
+- `heart init` creates `.heart/policies.yaml`
 - default ignore patterns are suggested
 - language detection result is shown
+- detected runtime is shown
+- next recommended commands are shown
+
+### Story 1.1b
+
+As an engineer, I want to run repository preflight checks before indexing so that I can fix configuration and parser issues early.
+
+Acceptance criteria:
+
+- `heart doctor` reports config path and load status
+- `heart doctor` reports policy path and load status
+- `heart doctor` reports effective document roots and ignore paths
+- `heart doctor` reports parser availability, cache state, and effective MCP tools
+- `heart doctor` returns warnings and next actions in human mode
+
+### Story 1.1c
+
+As an engineer, I want a low-friction local connect workflow so that I can see whether a supported agent host is ready for `heart mcp serve`.
+
+Acceptance criteria:
+
+- `heart connect detect` returns a stable inventory for supported local agent hosts
+- `heart connect detect` returns detected local model runtimes when supported localhost endpoints respond
+- `heart connect install --dry-run` returns a deterministic plan without mutating files
+- `heart connect install` writes only allowlisted config paths and verifies the result
+- `heart connect verify` completes a real MCP stdio handshake for a configured client
+- `heart connect doctor` returns support-oriented preflight checks plus next actions
+- connect commands support deterministic JSON output for scripting and agent use
 
 ### Story 1.2
 
@@ -49,8 +78,8 @@ As an AI agent, I want reuse suggestions so that I do not create duplicate funct
 
 Acceptance criteria:
 
-- `duplicate_detector` returns likely overlaps
-- results include confidence score and file references
+- `context_pack` returns likely reuse candidates or overlap warnings
+- results include confidence signals and file references
 
 ### Story 2.4
 
@@ -81,6 +110,18 @@ Acceptance criteria:
 
 - `impact_analysis` returns dependent files and related tests
 - output includes likely risk areas
+- missing targets are signaled explicitly instead of being silently treated as valid results
+
+### Story 3.3
+
+As a platform owner, I want strict config and policy validation so that bad local configuration fails loudly instead of silently degrading behavior.
+
+Acceptance criteria:
+
+- unknown keys in `heart.config.yaml` are reported as schema errors
+- unknown keys in `.heart/policies.yaml` are reported as schema errors
+- invalid values are reported without being silently accepted
+- `heart doctor` surfaces invalid config or policy status clearly
 
 ## Epic 4: Benchmark and ROI
 

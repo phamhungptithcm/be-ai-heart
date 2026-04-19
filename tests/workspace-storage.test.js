@@ -36,6 +36,13 @@ test("workspace state persists cache and reuses unchanged code and docs", async 
   assert.deepEqual(secondState.graph.summary, firstState.graph.summary);
 });
 
+test("workspace state ignores copied cache artifacts from a different repo root", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const cachedState = await loadCachedWorkspaceState(repoRoot);
+
+  assert.equal(cachedState, null);
+});
+
 test("workspace state marks changed source and documents as incremental updates", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   await buildWorkspaceState(repoRoot);
@@ -124,4 +131,22 @@ test("workspace state invalidates cache when repo-local policies change", async 
   assert.equal(secondState.policyReport.rules[0].id, "auth-no-session-imports");
   assert.equal(cachedState.scanProvenance.policy_exists, true);
   assert.equal(cachedState.scanProvenance.policy_path, path.join(repoRoot, ".heart", "policies.yaml"));
+});
+
+test("workspace cache persistence stays valid when scans run in parallel", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+
+  const states = await Promise.all([
+    buildWorkspaceState(repoRoot, { forceRescan: true }),
+    buildWorkspaceState(repoRoot, { forceRescan: true }),
+    buildWorkspaceState(repoRoot, { forceRescan: true }),
+  ]);
+  const cachedState = await loadCachedWorkspaceState(repoRoot);
+
+  assert.equal(states.length, 3);
+  assert.ok(states.every((state) => state.scanResult.totals.file_count > 0));
+  assert.ok(cachedState);
+  assert.ok(cachedState.scanResult.totals.file_count > 0);
+  assert.ok(cachedState.documentIndex.totals.document_count > 0);
+  assert.ok(cachedState.graphSnapshot.nodes.length > 0);
 });

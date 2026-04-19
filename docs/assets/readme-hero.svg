@@ -1,0 +1,109 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">BeHeart README hero</title>
+  <desc id="desc">A visual showing repeated AI context on the left, BeHeart project memory in the center, and focused context for an AI coding tool on the right.</desc>
+  <defs>
+    <linearGradient id="bg" x1="70" y1="60" x2="1130" y2="660" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6F3EE"/>
+      <stop offset="1" stop-color="#EEE7DB"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#161B22"/>
+      <stop offset="1" stop-color="#0D1117"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1200" height="720" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#221F1A" flood-opacity="0.15"/>
+    </filter>
+    <style>
+      .ui { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, monospace; }
+      .title { font-size: 38px; font-weight: 760; fill: #1E1A14; }
+      .subtitle { font-size: 18px; fill: #5F584E; }
+      .badge { font-size: 14px; font-weight: 650; fill: #1E1A14; }
+      .card-title { font-size: 20px; font-weight: 700; fill: #F8F5EF; }
+      .card-body { font-size: 16px; fill: #C9D1D9; }
+      .accent { font-size: 16px; font-weight: 650; fill: #FFD58A; }
+      .small { font-size: 14px; fill: #92A0AD; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" rx="32" fill="url(#bg)"/>
+
+  <text x="70" y="92" class="ui title">Stop paying AI to relearn your repo every session.</text>
+  <text x="70" y="126" class="ui subtitle">BeHeart keeps project memory once, then sends focused context when the task starts.</text>
+
+  <g class="ui">
+    <rect x="70" y="160" width="170" height="38" rx="19" fill="#F2E3BD"/>
+    <text x="96" y="184" class="badge">Less token waste</text>
+    <rect x="254" y="160" width="175" height="38" rx="19" fill="#D8E8D5"/>
+    <text x="279" y="184" class="badge">Reuse existing code</text>
+    <rect x="443" y="160" width="190" height="38" rx="19" fill="#D8E0F0"/>
+    <text x="468" y="184" class="badge">More stable output</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="238" width="302" height="372" rx="28" fill="url(#card)"/>
+    <rect x="449" y="210" width="302" height="430" rx="32" fill="#C87E38"/>
+    <rect x="828" y="238" width="302" height="372" rx="28" fill="url(#card)"/>
+  </g>
+
+  <g class="ui">
+    <circle cx="102" cy="270" r="6" fill="#FF6B6B"/>
+    <circle cx="122" cy="270" r="6" fill="#F8C555"/>
+    <circle cx="142" cy="270" r="6" fill="#52C16F"/>
+    <text x="170" y="276" class="card-title">Without BeHeart</text>
+
+    <text x="100" y="320" class="mono card-body">Task: add login audit logging</text>
+    <text x="100" y="366" class="mono small">&gt; Here is our repo structure...</text>
+    <text x="100" y="400" class="mono small">&gt; Here is the auth flow...</text>
+    <text x="100" y="434" class="mono small">&gt; Here is where logging lives...</text>
+    <text x="100" y="468" class="mono small">&gt; Please do not duplicate code...</text>
+
+    <rect x="100" y="514" width="240" height="44" rx="14" fill="#2B3138"/>
+    <text x="122" y="542" class="ui accent">Repeated context every session</text>
+  </g>
+
+  <g class="ui">
+    <text x="512" y="270" font-size="34" font-weight="800" fill="#FFF8EE">BeHeart</text>
+    <text x="512" y="302" font-size="18" font-weight="600" fill="#FFF0D7">Shared memory for AI coding tools</text>
+
+    <rect x="500" y="340" width="200" height="58" rx="18" fill="#FFF2DD"/>
+    <text x="536" y="376" font-size="18" font-weight="700" fill="#5B3414">Scan the repo</text>
+
+    <path d="M600 405V431" stroke="#FFF4E7" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 7"/>
+
+    <rect x="500" y="438" width="200" height="72" rx="18" fill="#FFF2DD"/>
+    <text x="528" y="474" font-size="18" font-weight="700" fill="#5B3414">Build project memory</text>
+    <text x="544" y="497" font-size="14" fill="#7C5634">code, symbols, relationships</text>
+
+    <path d="M600 518V544" stroke="#FFF4E7" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 7"/>
+
+    <rect x="500" y="551" width="200" height="58" rx="18" fill="#1B232C"/>
+    <text x="529" y="586" font-size="18" font-weight="700" fill="#F8F5EF">Send focused context</text>
+  </g>
+
+  <g class="ui">
+    <circle cx="860" cy="270" r="6" fill="#FF6B6B"/>
+    <circle cx="880" cy="270" r="6" fill="#F8C555"/>
+    <circle cx="900" cy="270" r="6" fill="#52C16F"/>
+    <text x="928" y="276" class="card-title">With BeHeart</text>
+
+    <text x="858" y="320" class="mono card-body">Task: add login audit logging</text>
+
+    <rect x="858" y="352" width="242" height="48" rx="14" fill="#212A33"/>
+    <text x="882" y="382" class="ui accent">Relevant module: auth/session</text>
+
+    <rect x="858" y="416" width="242" height="48" rx="14" fill="#212A33"/>
+    <text x="882" y="446" class="ui accent">Reuse path: audit/logger</text>
+
+    <rect x="858" y="480" width="242" height="48" rx="14" fill="#212A33"/>
+    <text x="882" y="510" class="ui accent">Risk: avoid duplicate writes</text>
+
+    <rect x="858" y="544" width="242" height="44" rx="14" fill="#2F4A38"/>
+    <text x="906" y="572" font-size="16" font-weight="700" fill="#DDF6E2">Use tokens on the task, not old context</text>
+  </g>
+
+  <path d="M386 424C417 424 424 424 449 424" stroke="#8B6A49" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 10"/>
+  <path d="M751 424C776 424 783 424 814 424" stroke="#8B6A49" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 10"/>
+  <path d="M441 416L449 424L441 432" stroke="#8B6A49" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M806 416L814 424L806 432" stroke="#8B6A49" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

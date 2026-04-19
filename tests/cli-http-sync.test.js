@@ -151,12 +151,19 @@ test("CLI can exchange provider session and sync profile/docs/benchmark over HTT
 
   assert.ok(sessionRequest);
   assert.equal(sessionRequest.body.id_token, "dummy-provider-token");
+  assert.equal("provider_config" in sessionRequest.body, false);
   assert.equal(profileRequest.headers["x-be-ai-heart-session"], "remote-session");
   assert.equal(documentsRequest.headers["x-be-ai-heart-session"], "remote-session");
   assert.equal(benchmarkRequest.headers["x-be-ai-heart-session"], "remote-session");
   assert.equal(profileRequest.body.profile.profile_slug, "remote-profile");
+  assert.equal(profileRequest.body.workspace_metadata.benchmark_runner.source, "remote-profile-sync");
+  assert.equal(profileRequest.body.workspace_metadata.benchmark_runner.repo_root, fixtureRoot);
   assert.equal(documentsRequest.body.artifact.profile_slug, "remote-profile");
   assert.equal(benchmarkRequest.body.report.profile_slug, "remote-profile");
+  assert.equal(benchmarkRequest.body.report.evidence_bundle.available, true);
+  assert.equal(benchmarkRequest.body.report.evidence_bundle.local_manifest_path, undefined);
+  assert.equal(benchmarkRequest.body.report.evidence_manifest.bundle_id, benchmarkRequest.body.report.report_id);
+  assert.equal(benchmarkRequest.body.report.evidence_manifest.assisted.context_pack.top_citations.length, 0);
 });
 
 function createIo(cwd) {

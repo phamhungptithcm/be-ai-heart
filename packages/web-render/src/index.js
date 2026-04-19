@@ -235,6 +235,7 @@ export function renderDiagramCards(diagrams) {
               <div class="pill">${escapeHtml(diagram.type)}</div>
               <h3>${escapeHtml(diagram.title)}</h3>
               <p>${escapeHtml(diagram.summary ?? "")}</p>
+              <p>${escapeHtml(`Inference: ${diagram.inference_mode ?? "unknown"} · Confidence: ${diagram.confidence ?? "unknown"} · Scope: ${diagram.scope?.focus ?? "unknown"}`)}</p>
             </div>
             <div class="diagram">
               <div class="mermaid">${escapeHtml(diagram.content)}</div>

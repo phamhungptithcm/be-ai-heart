@@ -486,6 +486,10 @@ export function createProjectOverview(
 
 export function createImpactAnalysis(graph, target) {
   const resolved = resolveImpactTarget(graph, target);
+  if (!resolved.found) {
+    return createNotFoundResult(target);
+  }
+
   const dependentFiles = new Set();
   const dependentSymbols = new Set();
   const relatedTests = new Set();
@@ -534,6 +538,8 @@ export function createImpactAnalysis(graph, target) {
 
   return {
     target,
+    status: "ok",
+    found: true,
     resolved_file: resolved.file ?? target,
     resolved_symbol_ids: [...resolved.symbolIds].sort(),
     dependent_files: [...dependentFiles].sort(),
@@ -545,6 +551,10 @@ export function createImpactAnalysis(graph, target) {
 
 export function createDependencyExplanation(graph, target) {
   const resolved = resolveImpactTarget(graph, target);
+  if (!resolved.found) {
+    return createNotFoundResult(target);
+  }
+
   const expandedSymbolIds = expandRelatedSymbolIds(graph, resolved);
   const outgoingImports = new Set();
   const incomingImports = new Set();
@@ -623,6 +633,8 @@ export function createDependencyExplanation(graph, target) {
 
   return {
     target,
+    status: "ok",
+    found: true,
     resolved_file: resolved.file ?? target,
     resolved_symbol_ids: [...resolved.symbolIds].sort(),
     incoming_imports: [...incomingImports].sort(),
@@ -653,6 +665,7 @@ function resolveImpactTarget(graph, target) {
   const directFile = graph.scanResult.files.find((file) => file.relativePath === target);
   if (directFile) {
     return {
+      found: true,
       file: directFile.relativePath,
       symbolIds: new Set(directFile.symbols.map((symbol) => symbol.id)),
     };
@@ -660,11 +673,69 @@ function resolveImpactTarget(graph, target) {
 
   const exactMatches = searchSymbols(graph, target).filter((symbol) => symbol.name === target);
   const matches = exactMatches.length > 0 ? exactMatches : searchSymbols(graph, target);
+  const resolvedFile = matches[0]?.file ?? null;
+  const symbolIds = expandResolvedSymbolIds(graph, matches);
 
   return {
-    file: matches[0]?.file ?? target,
-    symbolIds: new Set(matches.map((symbol) => symbol.id)),
+    found: matches.length > 0,
+    file: resolvedFile,
+    symbolIds,
   };
+}
+
+function createNotFoundResult(target) {
+  return {
+    target,
+    status: "not_found",
+    found: false,
+    resolved_file: null,
+    resolved_symbol_ids: [],
+    incoming_imports: [],
+    outgoing_imports: [],
+    incoming_calls: [],
+    outgoing_calls: [],
+    extends: [],
+    implements: [],
+    related_tests: [],
+    dependent_files: [],
+    dependent_symbols: [],
+    risk_level: "unknown",
+  };
+}
+
+function expandResolvedSymbolIds(graph, matches) {
+  const symbolIds = new Set(matches.map((symbol) => symbol.id));
+
+  for (const symbol of matches) {
+    const file = graph.scanResult.files.find((entry) => entry.relativePath === symbol.file);
+    if (!file) {
+      continue;
+    }
+
+    const queue = [symbol.name];
+    const seenContainers = new Set(queue);
+
+    while (queue.length > 0) {
+      const containerName = queue.shift();
+
+      for (const candidate of file.symbols) {
+        if (candidate.container !== containerName) {
+          continue;
+        }
+
+        if (!symbolIds.has(candidate.id)) {
+          symbolIds.add(candidate.id);
+        }
+
+        if (!seenContainers.has(candidate.name)) {
+          seenContainers.add(candidate.name);
+          queue.push(candidate.name);
+        }
+      }
+    }
+  }
+
+  return symbolIds;
 }
 
 function expandRelatedSymbolIds(graph, resolved) {

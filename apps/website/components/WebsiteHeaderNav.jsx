@@ -3,29 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { listWebsiteServices } from "../src/services.js";
 
-const PLATFORM_ITEMS = Object.freeze([
-  {
-    href: "/product",
-    label: "Platform overview",
-    detail: "Heart memory, sync architecture, and role split",
-  },
-  {
-    href: "/docs/v1/cli-sync",
-    label: "CLI + MCP",
-    detail: "Local-first sync and governed context delivery",
-  },
-  {
-    href: "/security",
-    label: "Security controls",
-    detail: "Tenant scope, policy rails, and hosted trust boundary",
-  },
-  {
-    href: "/docs/v1/portal-admin",
-    label: "Portal + admin",
-    detail: "Customer workspace and internal control plane",
-  },
-]);
+const SERVICE_ITEMS = Object.freeze(
+  listWebsiteServices().map((service) => ({
+    href: `/services/${service.slug}`,
+    label: service.title,
+    detail: service.subtitle,
+  })),
+);
 
 const PRIMARY_LINKS = Object.freeze([
   { href: "/benchmark", label: "Benchmark" },
@@ -51,12 +37,14 @@ function isActivePath(pathname, href) {
 export function WebsiteHeaderNav() {
   const pathname = usePathname() ?? "/";
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [platformOpen, setPlatformOpen] = useState(false);
-  const isPlatformActive = PLATFORM_ITEMS.some((item) => isActivePath(pathname, item.href));
+  const [servicesOpen, setServicesOpen] = useState(false);
+  const isServicesActive =
+    pathname === "/services" || SERVICE_ITEMS.some((item) => isActivePath(pathname, item.href));
+  const mobileNavId = "website-mobile-nav";
 
   useEffect(() => {
     setMobileOpen(false);
-    setPlatformOpen(false);
+    setServicesOpen(false);
   }, [pathname]);
 
   return (
@@ -65,30 +53,33 @@ export function WebsiteHeaderNav() {
         <nav className="website-nav" aria-label="Primary">
           <div
             className="website-nav-dropdown"
-            onMouseEnter={() => setPlatformOpen(true)}
-            onMouseLeave={() => setPlatformOpen(false)}
+            onMouseEnter={() => setServicesOpen(true)}
+            onMouseLeave={() => setServicesOpen(false)}
           >
             <button
               type="button"
               className="website-nav-link website-nav-dropdown-trigger"
-              data-active={isPlatformActive}
-              aria-expanded={platformOpen}
-              onClick={() => setPlatformOpen((current) => !current)}
+              data-active={isServicesActive}
+              aria-expanded={servicesOpen}
+              onClick={() => setServicesOpen((current) => !current)}
             >
-              Platform
+              Services
               <span className="website-nav-caret" aria-hidden="true">
                 <svg viewBox="0 0 12 8" fill="none">
                   <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </span>
             </button>
-            <div className="website-nav-menu" data-open={platformOpen}>
-              {PLATFORM_ITEMS.map((item) => (
+            <div className="website-nav-menu" data-open={servicesOpen}>
+              {SERVICE_ITEMS.map((item) => (
                 <Link key={item.href} href={item.href} className="website-nav-menu-link">
                   <strong>{item.label}</strong>
                   <span>{item.detail}</span>
                 </Link>
               ))}
+              <div className="website-nav-menu-footer">
+                <Link href="/services">Browse all services</Link>
+              </div>
             </div>
           </div>
           {PRIMARY_LINKS.map((item) => (
@@ -109,23 +100,42 @@ export function WebsiteHeaderNav() {
       <button
         type="button"
         className="website-nav-toggle"
+        data-open={mobileOpen}
         aria-expanded={mobileOpen}
-        aria-label="Toggle navigation"
+        aria-controls={mobileNavId}
+        aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
         onClick={() => setMobileOpen((current) => !current)}
       >
-        <span />
-        <span />
+        <strong className="website-nav-toggle-label">{mobileOpen ? "Close" : "Menu"}</strong>
+        <svg className="website-nav-toggle-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d={mobileOpen ? "M4 4 12 12" : "M2.5 5H13.5"}
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d={mobileOpen ? "M12 4 4 12" : "M5.5 11H13.5"}
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
       </button>
 
-      <div className="website-nav-mobile" data-open={mobileOpen}>
+      <div id={mobileNavId} className="website-nav-mobile" data-open={mobileOpen}>
         <div className="website-nav-mobile-group">
-          <p>Platform</p>
-          {PLATFORM_ITEMS.map((item) => (
+          <p>Services</p>
+          {SERVICE_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className="website-nav-mobile-link">
               <strong>{item.label}</strong>
               <span>{item.detail}</span>
             </Link>
           ))}
+          <Link href="/services" className="website-nav-mobile-link">
+            <strong>All Services</strong>
+            <span>See the full service map and how each offering fits together.</span>
+          </Link>
         </div>
         <div className="website-nav-mobile-group">
           <p>Explore</p>

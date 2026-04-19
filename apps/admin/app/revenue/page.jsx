@@ -12,11 +12,11 @@ export const metadata = createAdminMetadata({
 
 export default function AdminRevenuePage() {
   return (
-    <AdminShell title="Revenue and retention" description="Revenue belongs in internal admin because it is part of owner operations, not the customer portal.">
-      <AdminSection eyebrow="Owner cockpit" title="Commercial and retention command center" subtitle="Pipeline, benchmark proof, and expansion signals in one internal view">
+    <AdminShell title="Revenue and retention" description="Commercial pipeline, proof, and expansion health for the internal BeHeart control plane.">
+      <AdminSection eyebrow="Owner cockpit" title="Commercial and retention command center" subtitle="Pipeline, benchmark proof, and expansion signals">
         <AdminRevenueCommandCenterClient />
       </AdminSection>
-      <AdminSection eyebrow="Revenue operations" title="Revenue should stay tied to proof and support load" subtitle="Owner operations">
+      <AdminSection eyebrow="Revenue operations" title="Operational guardrails for commercial decisions" subtitle="Owner operations">
         <div className="admin-control-grid">
           <article>
             <span>Pipeline</span>
@@ -36,39 +36,7 @@ export default function AdminRevenuePage() {
         </div>
       </AdminSection>
 
-      <AdminSection eyebrow="Commercial reading" title="How the owner should interpret this page" subtitle="What matters more than headline MRR">
-        <div className="admin-checklist-grid">
-          <article>
-            <span>Proof</span>
-            <h3>ROI supports the story</h3>
-            <ul>
-              <li>Reports show cost or cleanup improvement</li>
-              <li>Managers can explain the delta internally</li>
-              <li>The product is not being sold on aesthetics alone</li>
-            </ul>
-          </article>
-          <article>
-            <span>Delivery</span>
-            <h3>Support burden is acceptable</h3>
-            <ul>
-              <li>Customers are not blocked by basic sync issues</li>
-              <li>Portal language is clear enough to self-serve</li>
-              <li>Admin can see account health quickly</li>
-            </ul>
-          </article>
-          <article>
-            <span>Expansion</span>
-            <h3>The next upgrade is earned</h3>
-            <ul>
-              <li>Another repo or seat adds real value</li>
-              <li>The team is already using the heart consistently</li>
-              <li>Security and trust concerns are addressed early</li>
-            </ul>
-          </article>
-        </div>
-      </AdminSection>
-
-      <AdminSection eyebrow="Source tables" title="Underlying intake and ROI tables" subtitle="Detailed raw views still available below the command center">
+      <AdminSection eyebrow="Source tables" title="Underlying intake and ROI tables" subtitle="Detailed raw views">
         <div className="admin-stack-block">
           <AdminIntakeRequestsClient />
           <AdminBenchmarkSummaryClient />

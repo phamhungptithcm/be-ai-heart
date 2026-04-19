@@ -12,6 +12,8 @@ test("Next.js surface route scaffolds exist for website, portal, and admin", asy
   const expectedPaths = [
     "apps/website/app/layout.jsx",
     "apps/website/app/page.jsx",
+    "apps/website/app/services/page.jsx",
+    "apps/website/app/services/[slug]/page.jsx",
     "apps/website/app/product/page.jsx",
     "apps/website/app/benchmark/page.jsx",
     "apps/website/app/pricing/page.jsx",
@@ -30,6 +32,14 @@ test("Next.js surface route scaffolds exist for website, portal, and admin", asy
     "apps/portal/app/benchmarks/[reportId]/page.jsx",
     "apps/portal/app/usage/page.jsx",
     "apps/portal/app/billing/page.jsx",
+    "apps/portal/app/members/page.jsx",
+    "apps/portal/app/policies/page.jsx",
+    "apps/portal/app/security/page.jsx",
+    "apps/portal/app/team-access/page.jsx",
+    "apps/portal/app/security-audit/page.jsx",
+    "apps/portal/app/settings/page.jsx",
+    "apps/portal/app/sign-in/page.jsx",
+    "apps/portal/app/auth/complete/page.jsx",
     "apps/admin/app/layout.jsx",
     "apps/admin/app/page.jsx",
     "apps/admin/app/documents/page.jsx",
@@ -40,6 +50,11 @@ test("Next.js surface route scaffolds exist for website, portal, and admin", asy
     "apps/admin/app/support/page.jsx",
     "apps/admin/app/revenue/page.jsx",
     "apps/admin/app/ops-health/page.jsx",
+    "apps/admin/app/sessions-audit/page.jsx",
+    "apps/admin/app/observability/page.jsx",
+    "apps/admin/app/billing-ops/page.jsx",
+    "apps/admin/app/sign-in/page.jsx",
+    "apps/admin/app/auth/complete/page.jsx",
   ];
 
   await Promise.all(

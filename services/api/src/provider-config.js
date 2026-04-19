@@ -10,11 +10,9 @@ export function listConfiguredAuthProviders({
   surface = "portal",
   returnTo,
 } = {}) {
-  const providers = [
-    buildAuth0ProviderDefinition({ apiBaseUrl, surface, returnTo }),
-    buildClerkProviderDefinition({ apiBaseUrl, surface, returnTo }),
-    buildGenericOidcProviderDefinition({ apiBaseUrl, surface, returnTo }),
-  ].filter((provider) => provider.enabled);
+  const providers = buildConfiguredAuthProviders({ apiBaseUrl, surface, returnTo }).map(
+    toPublicProviderDefinition,
+  );
 
   return {
     providers,
@@ -32,17 +30,25 @@ export function resolveHostedAuthProvider(
   } = {},
 ) {
   const safeProviderId = sanitizeSlug(providerId ?? "");
-  const registry = listConfiguredAuthProviders({
+  const providers = buildConfiguredAuthProviders({
     apiBaseUrl,
     surface,
     returnTo,
   });
-  const provider = registry.providers.find((entry) => entry.id === safeProviderId);
+  const provider = providers.find((entry) => entry.id === safeProviderId);
   if (!provider) {
     throw new Error(`Auth provider is not configured: ${providerId}`);
   }
 
   return provider;
+}
+
+function buildConfiguredAuthProviders({ apiBaseUrl, surface = "portal", returnTo } = {}) {
+  return [
+    buildAuth0ProviderDefinition({ apiBaseUrl, surface, returnTo }),
+    buildClerkProviderDefinition({ apiBaseUrl, surface, returnTo }),
+    buildGenericOidcProviderDefinition({ apiBaseUrl, surface, returnTo }),
+  ].filter((provider) => provider.enabled);
 }
 
 export function resolveSurfaceBaseUrls() {
@@ -244,6 +250,21 @@ function createProviderDefinition({
       scope: String(scope ?? "openid profile email").trim(),
     },
     return_to: resolvedReturnTo,
+  };
+}
+
+function toPublicProviderDefinition(provider) {
+  return {
+    id: provider.id,
+    label: provider.label,
+    description: provider.description,
+    kind: provider.kind,
+    enabled: provider.enabled,
+    authorize_url: provider.authorize_url,
+    provider_config: {
+      ...provider.provider_config,
+    },
+    return_to: provider.return_to,
   };
 }
 

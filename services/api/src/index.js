@@ -2,32 +2,61 @@ export const apiManifest = {
   service: "api",
   endpoints: [
     "/health",
-    "/v1/repositories",
-    "/v1/portal/repository-profiles",
-    "/v1/portal/repository-profiles/:slug",
-    "/v1/portal/benchmarks",
-    "/v1/portal/benchmarks/:reportId",
-    "/v1/portal/workspaces",
-    "/v1/portal/document-submissions",
-    "/v1/portal/documents",
-    "/v1/portal/documents/:profileSlug",
-    "/v1/portal/licenses",
-    "/v1/admin/customers",
-    "/v1/admin/benchmarks",
-    "/v1/admin/workspaces",
-    "/v1/admin/revenue",
-    "/v1/admin/support-cases",
-    "/v1/admin/intake",
-    "/v1/admin/document-submissions",
-    "/v1/admin/repository-profiles/:slug",
-    "/v1/public/intake",
+    "/metrics",
+    "/api/auth/providers",
+    "/auth/authorize/:providerId",
+    "/auth/callback/:providerId",
+    "/api/session",
+    "/api/session/provider",
+    "/api/account",
+    "/api/overview",
+    "/api/usage/summary",
+    "/api/members",
+    "/api/policies",
+    "/api/security",
+    "/api/settings",
+    "/api/sessions",
+    "/api/audit/events",
+    "/api/workspaces",
+    "/api/repositories",
+    "/api/repositories/:slug",
+    "/api/documents",
+    "/api/documents/submissions",
+    "/api/benchmarks",
+    "/api/benchmarks/:reportId",
+    "/api/benchmarks/runs",
+    "/api/benchmarks/runs/:launchId",
+    "/proxy/openai/runs/:runId/v1/*",
+    "/api/public/intake",
+    "/api/admin/intake",
+    "/api/admin/overview",
+    "/api/admin/customers/inventory",
+    "/api/admin/billing-ops",
+    "/api/admin/session",
+    "/api/admin/session/provider",
+    "/api/admin/workspaces",
+    "/api/admin/repositories",
+    "/api/admin/repositories/:slug",
+    "/api/admin/documents",
+    "/api/admin/documents/submissions",
+    "/api/admin/benchmarks",
+    "/api/admin/benchmarks/:reportId",
+    "/api/admin/audit/events",
+    "/api/admin/sessions",
+    "/api/admin/observability/requests",
+    "/api/admin/observability/metrics",
+    "/api/admin/observability/alerts",
+    "/api/admin/observability/exports",
   ],
 };
 
 export {
   listAccessibleRepositoryProfiles,
+  listAccessibleRepositoryProfilesPage,
   listAccessibleWorkspaces,
+  listAccessibleWorkspacesPage,
   loadAccessibleBenchmarkIndex,
+  loadAccessibleBenchmarkIndexPage,
   loadAccessibleBenchmarkReport,
   loadAccessibleDocumentsView,
   loadAccessibleRepositoryView,
@@ -44,7 +73,21 @@ export {
 } from "./identity.js";
 
 export {
+  ensureCustomer,
+  listCustomers,
+  loadCustomer,
+} from "./customer-registry.js";
+
+export {
   getServiceStoragePaths,
+  consumeRateLimitWindow,
+  loadAgentRunCapture,
+  loadAgentRunRecord,
+  loadBenchmarkLaunchRecord,
+  listAuditEvents,
+  listBenchmarkLaunchRecords,
+  listLlmCallRecords,
+  listRequestTraces,
   loadWorkspaceCatalog,
   publishDocumentsToSurface,
   listDocumentSubmissionRecords,
@@ -52,8 +95,14 @@ export {
   publishBenchmarksToSurface,
   publishDocumentSubmissionsToSurface,
   publishWorkspacesToSurface,
+  pruneExpiredRateLimits,
   resolveServiceDatabasePath,
   resolveServiceStorageRoot,
+  writeAgentRunRecord,
+  writeAuditEvent,
+  writeLlmCallRecord,
+  writeBenchmarkLaunchRecord,
+  writeRequestTrace,
   writeRepositoryDocumentArtifactRecord,
   writeRepositoryProfileArtifactRecord,
   writeBenchmarkArtifactRecord,
@@ -61,10 +110,29 @@ export {
 } from "./storage.js";
 
 export {
+  deliverPendingObservabilityExports,
+  isObservabilityExportEnabled,
+  listObservabilityExports,
+  queueObservabilityExport,
+  resolveObservabilityExportConfig,
+} from "./observability-export.js";
+
+export {
+  listWorkspaceBenchmarkLaunches,
+  loadWorkspaceBenchmarkLaunchDetail,
+  requestWorkspaceBenchmarkLaunch,
+  resolveWorkspaceBenchmarkRunnerCapability,
+} from "./benchmark-launcher.js";
+
+export {
   ensureDefaultSessions,
   issueWorkspaceSession,
+  revokeWorkspaceSession,
+  revokeWorkspaceSessions,
+  listWorkspaceSessions,
   resolveRequestAuthContext,
   resolveWorkspaceSession,
+  rotateWorkspaceSession,
 } from "./session.js";
 
 export {
@@ -88,6 +156,11 @@ export {
 export { runHostedAuthSmoke } from "./hosted-auth-smoke.js";
 export { startMockOidcProvider } from "./mock-oidc-provider.js";
 export { startServiceHost } from "./server.js";
+export {
+  listOperationalAlerts,
+  renderPrometheusMetrics,
+  summarizeHostedTrafficMetrics,
+} from "./observability.js";
 
 export {
   listConfiguredAuthProviders,
@@ -107,5 +180,29 @@ export {
 export {
   createWebsiteIntakeRequest,
   listWebsiteIntakeRequests,
+  listWebsiteIntakeRequestsPage,
+  summarizeWebsiteIntakeRequestsByQuery,
   summarizeWebsiteIntakeRequests,
 } from "./intake.js";
+
+export {
+  loadPortalAccountView,
+  loadPortalOverviewSummary,
+  loadPortalUsageSummary,
+  loadPortalMembersView,
+  loadPortalPoliciesView,
+  loadPortalSecurityView,
+  loadPortalBillingSnapshot,
+  loadPortalSettingsView,
+} from "./customer-portal.js";
+
+export {
+  loadAdminBillingOpsView,
+  loadAdminCustomerInventoryView,
+  loadAdminOverviewView,
+} from "./admin-control-plane.js";
+
+export {
+  resolveAuthProviderAdapter,
+  resolveBillingProviderAdapter,
+} from "./provider-adapters.js";

@@ -129,9 +129,14 @@ async function handleRequest(state, message) {
       return createSuccessResponse(message.id, {});
     case "tools/list":
       ensureReadyForOperations(state);
+      {
+        const workspaceState = await loadWorkspaceState(state);
       return createSuccessResponse(message.id, {
-        tools: createToolRegistry(),
+          tools: createToolRegistry({
+            enabledTools: workspaceState.configState.config.mcp?.enabled_tools,
+          }),
       });
+      }
     case "tools/call":
       ensureReadyForOperations(state);
       return createSuccessResponse(message.id, await handleToolRequest(state, message.params ?? {}));
@@ -143,7 +148,7 @@ async function handleRequest(state, message) {
 async function handleToolRequest(state, params) {
   const name = readString(params.name, "Tool name is required.");
   const argumentsObject = readArgumentsObject(params.arguments);
-  const workspaceState = await state.buildState(state.repoRoot);
+  const workspaceState = await loadWorkspaceState(state);
   const payload = handleToolCall({
     name,
     args: argumentsObject,
@@ -152,9 +157,18 @@ async function handleToolRequest(state, params) {
     heartModel: workspaceState.heartModel,
     scanResult: workspaceState.scanResult,
     policyReport: workspaceState.policyReport,
+    enabledTools: workspaceState.configState.config.mcp?.enabled_tools,
   });
 
   return createToolCallResult(payload);
+}
+
+async function loadWorkspaceState(state) {
+  if (!state.workspaceStatePromise) {
+    state.workspaceStatePromise = state.buildState(state.repoRoot);
+  }
+
+  return await state.workspaceStatePromise;
 }
 
 function ensureReadyForOperations(state) {

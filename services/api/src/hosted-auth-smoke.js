@@ -55,26 +55,29 @@ export async function runHostedAuthSmoke({
     redirect: "manual",
   });
   const completionLocation = callbackResponse.headers.get("location");
+  const sessionCookie = callbackResponse.headers.get("set-cookie");
   if (callbackResponse.status !== 302 || !completionLocation) {
     throw new Error("BeHeart callback did not redirect back to the portal completion route.");
   }
 
   const completionUrl = new URL(completionLocation);
-  const sessionToken = completionUrl.searchParams.get("session_token");
-  if (!sessionToken) {
-    throw new Error("Hosted auth flow completed without issuing a session token.");
+  if (completionUrl.searchParams.get("session_established") !== "1") {
+    throw new Error("Hosted auth flow completed without establishing a hosted session.");
+  }
+  if (!sessionCookie) {
+    throw new Error("Hosted auth callback did not set a session cookie.");
   }
 
   const sessionUrl = new URL("/api/session", resolvedApiBaseUrl);
-  sessionUrl.searchParams.set("session", sessionToken);
   const sessionResponse = await fetch(sessionUrl, {
     headers: {
       Accept: "application/json",
+      Cookie: sessionCookie.split(";")[0],
     },
   });
   const sessionPayload = await sessionResponse.json().catch(() => ({}));
   if (!sessionResponse.ok) {
-    throw new Error(sessionPayload?.error || "Hosted auth flow issued a session token that could not be resolved.");
+    throw new Error(sessionPayload?.error || "Hosted auth flow issued a session cookie that could not be resolved.");
   }
 
   return {
@@ -83,7 +86,7 @@ export async function runHostedAuthSmoke({
     provider_authorize_url: provider.authorize_url,
     callback_url: callbackLocation,
     completion_url: completionLocation,
-    session_token: sessionToken,
+    session_cookie: sessionCookie,
     session: sessionPayload.session ?? null,
     actor: sessionPayload.actor ?? null,
     workspace: sessionPayload.workspace ?? null,

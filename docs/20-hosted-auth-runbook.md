@@ -68,11 +68,23 @@ Flow:
 2. User selects Auth0 or Clerk.
 3. Browser navigates to `/auth/authorize/:provider` on the API host.
 4. Provider redirects back to `/auth/callback/:provider` on the API host.
-5. API host issues a scoped `BeHeart` session token.
-6. API host redirects back to portal `/auth/complete?...session_token=...`.
-7. Portal stores the session token and continues with tenant-scoped reads.
+5. API host issues a scoped `BeHeart` session and sets an HttpOnly session cookie plus server-generated CSRF token.
+6. API host redirects back to portal `/auth/complete?session_established=1`.
+7. Portal continues with tenant-scoped reads using the established cookie-backed session.
 
 This keeps website and portal free from provider secret handling.
+
+## Admin And Observability Operations
+
+Hosted admin operators now have dedicated service routes for:
+
+- `/api/admin/sessions` for redacted session search and revocation by `session_id`, `session_family_id`, `actor_slug`, `customer_slug`, or `customer_id`
+- `/api/admin/observability/exports` for observability outbox inspection and flush delivery
+
+Cookie-backed POST requests to these routes require both:
+
+- an allowed `Origin`
+- a matching `x-be-ai-heart-csrf` header
 
 ## Local Verification
 

@@ -85,6 +85,41 @@ test("parser ignores generated build and automation artifacts by default", async
   assert.equal(relativePaths.some((filePath) => filePath.includes(".heart/cache")), false);
 });
 
+test("parser extracts route metadata for Next app route handlers", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const routeRoot = path.join(repoRoot, "app", "api", "login");
+  await fs.mkdir(routeRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(routeRoot, "route.ts"),
+    [
+      'import { loginUser } from "../../../src/auth/login";',
+      "",
+      "export async function GET() {",
+      '  return loginUser("route-user");',
+      "}",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const scanResult = await scanSourceTree(repoRoot);
+  const routeFile = scanResult.files.find((file) => file.relativePath === "app/api/login/route.ts");
+
+  assert.ok(routeFile);
+  assert.equal(routeFile.routes.length, 1);
+  assert.deepEqual(routeFile.routes[0], {
+    method: "GET",
+    path: "/api/login",
+    handler_name: "GET",
+    handler_expression: "GET",
+    line: 3,
+    route_kind: "next-app-router",
+    framework: "next-app-router",
+    registrar: "",
+  });
+  assert.equal(scanResult.totals.route_count >= 1, true);
+});
+
 test("graph builder promotes typed nodes and collaboration edges", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   await writeTypedGraphFixture(repoRoot);

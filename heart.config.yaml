@@ -12,6 +12,14 @@ project:
     - dist
     - coverage
     - .git
+    - .worktrees
+    - .next
+    - output
+    - .playwright-cli
+    - .heart/benchmarks
+    - .heart/cache
+    - .heart/diagrams
+    - .heart/published
 policies:
   rules_file: .heart/policies.yaml
 indexing:

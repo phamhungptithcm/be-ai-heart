@@ -2,6 +2,14 @@ import http from "node:http";
 import { Buffer } from "node:buffer";
 
 import { handleServiceHttpRequest, resolveHttpConfig } from "./http.js";
+import {
+  deliverPendingObservabilityExports,
+  isObservabilityExportEnabled,
+} from "./observability-export.js";
+
+const OBSERVABILITY_EXPORT_INTERVAL_MS = Number(
+  process.env.BE_AI_HEART_OBSERVABILITY_EXPORT_INTERVAL_MS ?? 30 * 1000,
+);
 
 export function startServiceHost(options = {}) {
   const config = resolveHttpConfig(options);
@@ -12,11 +20,12 @@ export function startServiceHost(options = {}) {
     try {
       const request = await toWebRequest(req, {
         baseUrl: config.apiBaseUrl,
+        maxRequestBodyBytes: config.maxRequestBodyBytes,
       });
       const response = await handleServiceHttpRequest(request, config);
       await sendWebResponse(res, response);
     } catch (error) {
-      res.statusCode = 500;
+      res.statusCode = Number(error?.statusCode ?? 500);
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify(
@@ -29,6 +38,23 @@ export function startServiceHost(options = {}) {
       );
     }
   });
+  const exportInterval = isObservabilityExportEnabled()
+    ? setInterval(() => {
+        deliverPendingObservabilityExports({
+          serviceStorageRoot: config.serviceStorageRoot,
+        }).catch(() => null);
+      }, OBSERVABILITY_EXPORT_INTERVAL_MS)
+    : null;
+  if (exportInterval?.unref) {
+    exportInterval.unref();
+  }
+  const originalClose = server.close.bind(server);
+  server.close = (callback) => {
+    if (exportInterval) {
+      clearInterval(exportInterval);
+    }
+    return originalClose(callback);
+  };
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -45,7 +71,7 @@ export function startServiceHost(options = {}) {
   });
 }
 
-async function toWebRequest(req, { baseUrl } = {}) {
+async function toWebRequest(req, { baseUrl, maxRequestBodyBytes } = {}) {
   const url = new URL(req.url ?? "/", baseUrl);
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
@@ -57,7 +83,9 @@ async function toWebRequest(req, { baseUrl } = {}) {
   }
 
   const body =
-    req.method === "GET" || req.method === "HEAD" ? undefined : await readIncomingBody(req);
+    req.method === "GET" || req.method === "HEAD"
+      ? undefined
+      : await readIncomingBody(req, { maxBytes: maxRequestBodyBytes });
 
   return new Request(url, {
     method: req.method,
@@ -67,11 +95,20 @@ async function toWebRequest(req, { baseUrl } = {}) {
   });
 }
 
-function readIncomingBody(req) {
+function readIncomingBody(req, { maxBytes } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = [];
+    let totalBytes = 0;
     req.on("data", (chunk) => {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.length;
+      if (maxBytes && totalBytes > maxBytes) {
+        reject(createHttpError(413, `Request body is too large. Limit is ${maxBytes} bytes.`));
+        req.destroy();
+        return;
+      }
+
+      chunks.push(buffer);
     });
     req.on("end", () => {
       if (chunks.length === 0) {
@@ -83,6 +120,12 @@ function readIncomingBody(req) {
     });
     req.on("error", reject);
   });
+}
+
+function createHttpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 async function sendWebResponse(res, response) {

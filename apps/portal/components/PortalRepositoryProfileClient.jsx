@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { MermaidDiagram } from "./MermaidDiagram.jsx";
@@ -80,70 +81,141 @@ export function PortalRepositoryProfileClient({ slug }) {
   const { profile, documents, benchmarkHistory } = state;
   const benchmarkSummary = summarizeBenchmarkHistory(benchmarkHistory?.reports ?? []);
   const documentCount = documents?.totals?.document_count ?? profile.documents.document_count;
+  const readinessScore = computeRepositoryReadiness(profile, documentCount, benchmarkSummary.report_count);
+  const actions = buildRepositoryActions({
+    profile,
+    documentCount,
+    benchmarkReportCount: benchmarkSummary.report_count,
+  });
+  const topDocuments = documents?.documents?.slice(0, 6) ?? [];
+  const diagrams = Array.isArray(profile.diagrams) ? profile.diagrams : [];
 
   return (
-    <>
-      <section className="portal-section">
-        <div className="portal-section-head">
+    <div className="portal-enterprise-stack">
+      <section className="portal-enterprise-panel">
+        <div className="portal-enterprise-panel-head">
           <div>
-            <h2>Repository signals</h2>
-            <p>{profile.profile_slug}</p>
+            <span>Repository profile</span>
+            <h3>{profile.repo}</h3>
+            <p>{profile.overview.summary}</p>
+          </div>
+          <div className="portal-enterprise-panel-actions">
+            <Link href="/repositories" className="portal-button-link">
+              All repositories
+            </Link>
+            <Link href={`/benchmarks?workspace=${encodeURIComponent(profile.workspace_slug ?? "")}`} className="portal-button-link portal-button-link-primary">
+              Run benchmark
+            </Link>
           </div>
         </div>
-        <div className="portal-stat-grid">
-          <div><span>Files</span><strong>{profile.overview.file_count}</strong></div>
-          <div><span>Symbols</span><strong>{profile.overview.symbol_count}</strong></div>
-          <div><span>Documents</span><strong>{documentCount}</strong></div>
-          <div><span>Heart Links</span><strong>{profile.heart.relationship_count}</strong></div>
+        <div className="portal-kpi-grid">
+          <article className="portal-kpi-card"><span>Readiness</span><strong>{readinessScore}%</strong></article>
+          <article className="portal-kpi-card"><span>Files</span><strong>{profile.overview.file_count}</strong></article>
+          <article className="portal-kpi-card"><span>Symbols</span><strong>{profile.overview.symbol_count}</strong></article>
+          <article className="portal-kpi-card"><span>Documents</span><strong>{documentCount}</strong></article>
+          <article className="portal-kpi-card"><span>Heart links</span><strong>{profile.heart.relationship_count}</strong></article>
+          <article className="portal-kpi-card"><span>Benchmarks</span><strong>{benchmarkSummary.report_count}</strong></article>
+          <article className="portal-kpi-card"><span>Warnings</span><strong>{profile.overview.policy_warnings}</strong></article>
+          <article className="portal-kpi-card"><span>Cache status</span><strong>{profile.cache?.status ?? "unknown"}</strong></article>
         </div>
       </section>
-      <section className="portal-section">
-        <div className="portal-section-head">
-          <div>
-            <h2>Efficiency controls</h2>
-            <p>Customers should see whether AI use on this repository is saving cost and context effort, not just shipping more activity.</p>
+
+      <div className="portal-enterprise-split">
+        <section className="portal-enterprise-panel">
+          <div className="portal-enterprise-panel-head">
+            <div>
+              <span>Action center</span>
+              <h3>What this repository still needs before broader rollout</h3>
+            </div>
           </div>
-        </div>
-        {benchmarkSummary.report_count === 0 ? (
-          <PortalStateBlock
-            tone="neutral"
-            eyebrow="Efficiency controls"
-            title="No benchmark report for this repository yet"
-            description="Run a benchmark scenario after the next meaningful AI task so the team can judge savings and quality against a baseline."
-            actions={[{ href: "/benchmarks", label: "Open benchmark history" }]}
-          />
-        ) : (
-          <div className="portal-stat-grid">
-            <div><span>Reports</span><strong>{benchmarkSummary.report_count}</strong></div>
-            <div><span>Avg Token Save</span><strong>{benchmarkSummary.avg_token_savings_pct}%</strong></div>
-            <div><span>Avg Cost Save</span><strong>${benchmarkSummary.avg_cost_savings_usd}</strong></div>
-            <div><span>Avg Memory Save</span><strong>{benchmarkSummary.avg_memory_refresh_reduction_pct}%</strong></div>
-          </div>
-        )}
-      </section>
-      <section className="portal-section">
-        <div className="portal-section-head">
-          <div>
-            <h2>Project memory documents</h2>
-            <p>Business and requirement documents already published back from the repository live here.</p>
-          </div>
-        </div>
-        {documents?.documents?.length ? (
-          <div className="portal-list">
-            {documents.documents.slice(0, 6).map((document) => (
-              <article key={document.path} className="portal-card">
-                <div className="portal-card-head">
-                  <div>
-                    <strong>{document.title}</strong>
-                    <p>{document.summary || "No summary available."}</p>
-                  </div>
-                  <span>{document.category}</span>
+          <div className="portal-readiness-list">
+            {actions.map((action) => (
+              <article key={action.label} className="portal-readiness-row">
+                <div className="portal-readiness-copy">
+                  <strong>{action.label}</strong>
+                  <span>{action.note}</span>
                 </div>
-                <div className="portal-inline-metrics">
-                  <span>{document.path}</span>
+                <div className="portal-readiness-meta">
+                  <b>{action.value}</b>
+                  <small>{action.progress}%</small>
+                </div>
+                <div className="portal-mini-track" aria-hidden="true">
+                  <i className="portal-mini-fill" style={{ width: `${action.progress}%` }} />
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="portal-enterprise-panel">
+          <div className="portal-enterprise-panel-head">
+            <div>
+              <span>Efficiency controls</span>
+              <h3>How much benchmark proof is already attached</h3>
+              <p>Customers should see whether AI use on this repository is saving cost and context effort, not just generating activity.</p>
+            </div>
+          </div>
+          {benchmarkSummary.report_count === 0 ? (
+            <PortalStateBlock
+              tone="neutral"
+              eyebrow="Efficiency controls"
+              title="No benchmark report for this repository yet"
+              description="Run a benchmark scenario after the next meaningful AI task so the team can judge savings and quality against a baseline."
+              actions={[{ href: `/benchmarks?workspace=${profile.workspace_slug}`, label: "Launch benchmark", primary: true }]}
+            />
+          ) : (
+            <div className="portal-summary-list">
+              <article>
+                <span>Reports</span>
+                <strong>{benchmarkSummary.report_count} published benchmark report(s)</strong>
+                <p>Benchmark-backed repositories are easier to expand because the value story is already measurable.</p>
+              </article>
+              <article>
+                <span>Average efficiency</span>
+                <strong>{benchmarkSummary.avg_token_savings_pct}% token save with ${benchmarkSummary.avg_cost_savings_usd} average cost delta</strong>
+                <p>{benchmarkSummary.avg_memory_refresh_reduction_pct}% average memory refresh reduction across this repository’s benchmark history.</p>
+              </article>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <section className="portal-enterprise-panel">
+        <div className="portal-enterprise-panel-head">
+          <div>
+            <span>Project memory documents</span>
+            <h3>Business, requirement, and design memory currently attached to this repository</h3>
+          </div>
+        </div>
+        {topDocuments.length ? (
+          <div className="portal-data-table-shell">
+            <table className="portal-data-table">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Category</th>
+                  <th>Summary</th>
+                  <th>Path</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topDocuments.map((document) => (
+                  <tr key={document.path}>
+                    <td className="portal-table-primary">
+                      <strong>{document.title}</strong>
+                      <small>{document.restricted ? "restricted preview" : "synced artifact"}</small>
+                    </td>
+                    <td>
+                      <span className="portal-table-badge" data-tone="neutral">
+                        {document.category}
+                      </span>
+                    </td>
+                    <td>{document.summary || "No summary available."}</td>
+                    <td>{document.path}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <PortalStateBlock
@@ -155,20 +227,22 @@ export function PortalRepositoryProfileClient({ slug }) {
           />
         )}
       </section>
-      <section className="portal-section">
-        <div className="portal-section-head">
+
+      <section className="portal-enterprise-panel">
+        <div className="portal-enterprise-panel-head">
           <div>
-            <h2>Synced diagrams</h2>
-            <p>Customer visual review</p>
+            <span>Synced diagrams</span>
+            <h3>Customer visual review of the current repository heart</h3>
           </div>
         </div>
         <div className="portal-diagram-grid">
-          {profile.diagrams.map((diagram) => (
+          {diagrams.map((diagram) => (
             <article key={diagram.type} className="portal-card">
               <div className="portal-card-head">
                 <div>
                   <strong>{diagram.title}</strong>
                   <p>{diagram.summary}</p>
+                  <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
                 </div>
                 <span>{diagram.type}</span>
               </div>
@@ -177,7 +251,7 @@ export function PortalRepositoryProfileClient({ slug }) {
           ))}
         </div>
       </section>
-    </>
+    </div>
   );
 }
 
@@ -204,4 +278,66 @@ function summarizeBenchmarkHistory(reports) {
 function average(values) {
   const total = values.reduce((sum, value) => sum + Number(value || 0), 0);
   return Math.round((total / Math.max(values.length, 1)) * 10) / 10;
+}
+
+function computeRepositoryReadiness(profile, documentCount, benchmarkCount) {
+  const warningCount = Number(profile?.overview?.policy_warnings ?? 0);
+  const relationshipCount = Number(profile?.heart?.relationship_count ?? 0);
+  const cacheStatus = String(profile?.cache?.status ?? "").toLowerCase();
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (documentCount > 0 ? 34 : 16) +
+          Math.min(24, benchmarkCount * 18) +
+          Math.min(24, relationshipCount / 35) -
+          Math.min(22, warningCount * 10) -
+          (cacheStatus === "stale" || cacheStatus === "rebuild" ? 16 : 0),
+      ),
+    ),
+  );
+}
+
+function buildRepositoryActions({ profile, documentCount, benchmarkReportCount }) {
+  const warningCount = Number(profile?.overview?.policy_warnings ?? 0);
+  const cacheStatus = String(profile?.cache?.status ?? "unknown");
+  const isStale = ["stale", "rebuild"].includes(cacheStatus);
+  return [
+    {
+      label: "Sync freshness",
+      value: isStale ? "Resync needed" : "Fresh",
+      note: isStale
+        ? "Cache status suggests the repository should be rescanned before trusting current diagrams or memory coverage."
+        : "Current cache status is healthy enough for review and follow-through.",
+      progress: isStale ? 28 : 92,
+    },
+    {
+      label: "Document memory",
+      value: documentCount > 0 ? `${documentCount} docs` : "Missing",
+      note:
+        documentCount > 0
+          ? "Repository intent already includes synced business or technical documents."
+          : "This repository still lacks synced requirement or business context.",
+      progress: documentCount > 0 ? 100 : 22,
+    },
+    {
+      label: "Benchmark proof",
+      value: benchmarkReportCount > 0 ? `${benchmarkReportCount} report(s)` : "Missing",
+      note:
+        benchmarkReportCount > 0
+          ? "Benchmark proof already exists for this repository and can support rollout decisions."
+          : "Publish at least one benchmark before treating this repository as financially proven.",
+      progress: benchmarkReportCount > 0 ? Math.min(100, 40 + benchmarkReportCount * 20) : 18,
+    },
+    {
+      label: "Policy posture",
+      value: warningCount > 0 ? `${warningCount} warning(s)` : "Clean",
+      note:
+        warningCount > 0
+          ? "Architecture or policy warnings still need attention before this repo is rollout-ready."
+          : "No active policy warnings are attached to this repository profile.",
+      progress: warningCount > 0 ? Math.max(12, 100 - warningCount * 20) : 94,
+    },
+  ];
 }

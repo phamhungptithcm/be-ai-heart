@@ -1,6 +1,7 @@
 "use client";
 
 const SESSION_STORAGE_KEY = "be_ai_heart.portal.session";
+const DEFAULT_SESSION_MODE = "header";
 
 export function getPortalApiBaseUrl() {
   return normalizeBaseUrl(
@@ -19,11 +20,19 @@ export function getPortalDefaultSessionToken() {
 }
 
 export function getPortalSessionToken() {
+  return getPortalSessionState().sessionToken;
+}
+
+export function getPortalSessionState() {
   if (typeof window === "undefined") {
-    return getPortalDefaultSessionToken();
+    return {
+      mode: DEFAULT_SESSION_MODE,
+      sessionToken: getPortalDefaultSessionToken(),
+      csrfToken: "",
+    };
   }
 
-  return window.localStorage.getItem(SESSION_STORAGE_KEY) ?? getPortalDefaultSessionToken();
+  return normalizePortalSessionState(window.localStorage.getItem(SESSION_STORAGE_KEY));
 }
 
 export function setPortalSessionToken(token) {
@@ -32,14 +41,23 @@ export function setPortalSessionToken(token) {
     return;
   }
 
-  window.localStorage.setItem(SESSION_STORAGE_KEY, safeToken);
-  window.dispatchEvent(
-    new CustomEvent("be-ai-heart:portal-session", {
-      detail: {
-        sessionToken: safeToken,
-      },
-    }),
-  );
+  persistPortalSessionState({
+    mode: "header",
+    sessionToken: safeToken,
+    csrfToken: "",
+  });
+}
+
+export function establishPortalCookieSession(session) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  persistPortalSessionState({
+    mode: "cookie",
+    sessionToken: "",
+    csrfToken: String(session?.csrf_token ?? "").trim(),
+  });
 }
 
 export function clearPortalSessionToken() {
@@ -48,6 +66,11 @@ export function clearPortalSessionToken() {
   }
 
   window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  dispatchPortalSessionEvent({
+    mode: "cleared",
+    sessionToken: "",
+    csrfToken: "",
+  });
 }
 
 export async function fetchPortalJson(resourcePath, options = {}) {
@@ -74,14 +97,24 @@ function buildPortalRequestUrl(resourcePath) {
 }
 
 async function sendPortalRequest(resourcePath, options = {}) {
+  const sessionState = getPortalSessionState();
+  const method = String(options.method ?? "GET").toUpperCase();
+  const isStateChangingRequest = !["GET", "HEAD", "OPTIONS"].includes(method);
   const response = await fetch(buildPortalRequestUrl(resourcePath), {
-    method: options.method ?? "GET",
+    method,
     cache: options.cache ?? "no-store",
+    credentials:
+      options.credentials ?? (sessionState.mode === "cookie" ? "include" : "same-origin"),
     headers: {
       Accept: "application/json",
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers ?? {}),
-      ...(getPortalSessionToken() ? { "x-be-ai-heart-session": getPortalSessionToken() } : {}),
+      ...(sessionState.mode === "cookie" && isStateChangingRequest && sessionState.csrfToken
+        ? { "x-be-ai-heart-csrf": sessionState.csrfToken }
+        : {}),
+      ...(sessionState.mode !== "cookie" && sessionState.sessionToken
+        ? { "x-be-ai-heart-session": sessionState.sessionToken }
+        : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -110,4 +143,55 @@ function safeJsonParse(raw) {
 function normalizeBaseUrl(value) {
   const raw = String(value ?? "").trim();
   return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
+function normalizePortalSessionState(rawValue) {
+  const defaultState = {
+    mode: DEFAULT_SESSION_MODE,
+    sessionToken: getPortalDefaultSessionToken(),
+    csrfToken: "",
+  };
+  if (!rawValue) {
+    return defaultState;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (parsed && typeof parsed === "object") {
+      return {
+        mode: parsed.mode === "cookie" ? "cookie" : DEFAULT_SESSION_MODE,
+        sessionToken:
+          parsed.mode === "cookie"
+            ? ""
+            : String(parsed.sessionToken ?? parsed.session_token ?? defaultState.sessionToken).trim(),
+        csrfToken: String(parsed.csrfToken ?? parsed.csrf_token ?? "").trim(),
+      };
+    }
+  } catch {
+    return {
+      mode: DEFAULT_SESSION_MODE,
+      sessionToken: String(rawValue).trim() || defaultState.sessionToken,
+      csrfToken: "",
+    };
+  }
+
+  return defaultState;
+}
+
+function persistPortalSessionState(state) {
+  const normalized = {
+    mode: state.mode === "cookie" ? "cookie" : DEFAULT_SESSION_MODE,
+    sessionToken: String(state.sessionToken ?? "").trim(),
+    csrfToken: String(state.csrfToken ?? "").trim(),
+  };
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(normalized));
+  dispatchPortalSessionEvent(normalized);
+}
+
+function dispatchPortalSessionEvent(detail) {
+  window.dispatchEvent(
+    new CustomEvent("be-ai-heart:portal-session", {
+      detail,
+    }),
+  );
 }

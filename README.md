@@ -1,153 +1,154 @@
-# be-ai-heart
+# BeHeart
 
-`be-ai-heart` is a startup-ready product concept and execution plan for a context infrastructure layer that helps AI coding agents understand a codebase without repeatedly reloading the same knowledge into the prompt.
+> Stop paying AI to relearn your repo every session.
 
-The core thesis is simple:
+BeHeart gives AI coding tools shared memory for your codebase.
 
-- Teams waste money because AI loses context between sessions.
-- Repeated prompting burns tokens and still produces duplicate, inconsistent, or unsafe code.
-- Enterprises need a durable project memory layer, not just a better prompt.
+It saves the important parts of your project once, then returns the right context when a real task starts.
 
-`be-ai-heart` turns a codebase into a living graph of modules, symbols, architecture rules, decisions, and reusable context packs that AI can consume through CLI and MCP.
+That means:
 
-## Vision
+- less repeated context
+- less token waste
+- less duplicate work
+- more useful AI output
 
-Become the standard context operating system for AI-assisted software teams:
+![BeHeart hero](./docs/assets/readme-hero.svg)
 
-- Stable project memory
-- Lower token spend
-- Safer agent execution
-- Better reuse and less duplicate work
-- More consistent architecture and cleaner output
+## Why This Matters
 
-## Product Naming
+Most teams use AI like this:
 
-- Product/company name: `be-ai-heart`
-- CLI name: `heart`
-- MCP server name: `heart-mcp`
-- Project config file: `heart.config.yaml`
-- Generated knowledge artifact: `heart.lock.json`
+1. open a new session
+2. explain the repo again
+3. pay tokens for old context again
+4. hope the AI understands what already exists
 
-## What Is In This Repo
+That works, but it does not scale well.
 
-- [Agent Instructions](./AGENTS.md)
-- [Executive Summary](./docs/00-executive-summary.md)
-- [Product Story](./docs/01-product-story.md)
-- [PRD](./docs/02-prd.md)
-- [Technical Architecture](./docs/03-technical-architecture.md)
-- [CLI and MCP Spec](./docs/04-mcp-cli-spec.md)
-- [Enterprise Platform Plan](./docs/05-enterprise-platform.md)
-- [Benchmark Framework](./docs/06-benchmark-framework.md)
-- [Go-To-Market and Pricing](./docs/07-go-to-market-pricing.md)
-- [Roadmap and Operating Model](./docs/08-roadmap-operating-model.md)
-- [Investor One-Pager](./docs/09-investor-one-pager.md)
-- [User Stories and Acceptance Criteria](./docs/10-user-stories.md)
-- [Implementation Blueprint](./docs/11-implementation-blueprint.md)
-- [Document Ingestion Context Layer](./docs/12-document-ingestion-context-layer.md)
-- [Competitive Landscape](./docs/13-competitive-landscape.md)
-- [GitHub Delivery Plan](./docs/14-github-delivery-plan.md)
-- [Product Maturity Map](./docs/15-product-maturity-map.md)
-- [SMB Value Strategy](./docs/16-smb-value-strategy.md)
-- [SMB Launch Checklist](./docs/17-smb-launch-checklist.md)
-- [Tenant Auth And Migration Layer](./docs/18-tenant-auth-migration.md)
-- [Adaptive Skill Loop](./docs/19-adaptive-skill-loop.md)
+BeHeart fixes that by helping AI reuse project knowledge instead of rebuilding it from scratch every time.
 
-## Agent Layer
+## Without BeHeart / With BeHeart
 
-This repository now includes a project-level agent governance layer:
+| Without BeHeart | With BeHeart |
+| --- | --- |
+| AI has to relearn the project | AI reuses project memory |
+| Token spend keeps growing on old context | More tokens go to the actual task |
+| Existing code is easier to miss | Existing code is easier to reuse |
+| Results vary too much between sessions | Results become more consistent |
 
-- `AGENTS.md` defines the global operating rules for any Codex or agent workflow.
-- `skills/*/SKILL.md` provides focused instructions for security, architecture, QA, frontend, backend, DevOps, GitHub, Google Cloud, CLI, MCP, and benchmark work.
+## What BeHeart Does
 
-Use this layer before scaling implementation so future AI work remains consistent.
+BeHeart does four simple things:
 
-## Product Summary
+1. scans the codebase
+2. builds project memory
+3. finds the context needed for the task
+4. shares that context through CLI or MCP
 
-`be-ai-heart` has four product layers:
+Think of it like reusable notes for AI.
 
-1. `Core Graph Engine`
-   Builds a semantic graph of the codebase: repositories, modules, files, symbols, dependencies, ownership, decisions, and policies.
-2. `Agent Context Runtime`
-   Compiles the right context pack for a given task and exposes it to AI through MCP and CLI.
-3. `Customer Surface`
-   Covers the public website, docs, signup, licensing, and the customer portal where individuals or organizations manage synced repositories, diagrams, benchmarks, and workspace settings.
-4. `Owner Control Plane`
-   Internal admin surface for the `be-ai-heart` owner to manage customers, revenue, support, configuration, and operational health.
+## What BeHeart Is
 
-It now also treats project documents as first-class context inputs so the heart can preserve business intent, requirements, and system design alongside code.
+BeHeart is not another coding assistant.
 
-## Recommended First Execution Order
+It sits underneath tools like Codex, Cursor, Claude Code, or Copilot and helps them work with better memory.
 
-1. Build the graph engine for one language stack.
-2. Ship the CLI and local MCP server.
-3. Prove value with benchmark scripts and measurable token savings.
-4. Launch a docs site and product website.
-5. Add multi-tenant cloud control plane, billing, and enterprise admin.
+It helps people and teams use AI in a smarter, more cost-aware way.
 
-## Suggested Initial Tech Stack
+## Quick Example
 
-- Parsing/indexing: Tree-sitter + language-specific AST adapters
-- Graph storage: Postgres + `pgvector`, later Neo4j or Memgraph for selected workloads
-- Search: hybrid symbol search + semantic retrieval
-- Backend: TypeScript services or Go for indexing worker
-- CLI: TypeScript or Rust
-- MCP server: TypeScript
-- Frontend: Next.js
-- Auth: Clerk or Auth0
-- Billing: Stripe
-- Product analytics: PostHog
-- CRM: HubSpot first, custom admin later
+Without BeHeart:
 
-## Success Metrics
+```text
+Task: add login audit logging
 
-- `30%+` token reduction on repeated AI coding workflows
-- `20%+` faster time to acceptable patch
-- `40%+` reduction in duplicate implementations
-- `25%+` improvement in architecture compliance score
-- `3` design partners in the first 90 days
-- First paid pilot within 6 months
+"Here is our repo structure..."
+"Here is the auth flow..."
+"Here is where the logging logic lives..."
+"Please do not duplicate what already exists..."
+```
 
-## Repo Status
+With BeHeart:
 
-This repository now contains:
+```text
+Task: add login audit logging
 
-- the execution-grade planning and documentation package
-- a project-level agent/skill governance system
-- a dependency-light MVP monorepo scaffold
-- a minimal parser, graph, context compiler, policy engine, CLI, MCP tool registry, and benchmark layer
-- Mermaid diagram generation for symbol graph, high-level, class, and heuristic sequence views
-- local-first repository profile publishing and sync into portal/admin profile stores
-- canonical service storage under `services/api/data` for profiles, documents, benchmark artifacts, document submissions, and workspace registry snapshots
-- SQLite-backed canonical service storage at `services/api/data/service-storage.sqlite`, with JSON mirrors kept for publish artifacts and backward-compatible local inspection
-- workspace identity records plus actor, membership, and session tables for tenant-scoped portal/admin access
-- tenant-scoped service access in `services/api/src/access.js` with default actors for `portal` and `admin`, plus support for custom `actors.json` and `memberships.json`
-- standalone BeHeart API host under `services/api/src/server.js` for tenant-aware repository, workspace, document, benchmark, intake, and session APIs
-- hosted auth provider discovery and OIDC exchange via `/api/auth/providers`, `/auth/authorize/:provider`, `/auth/callback/:provider`, and `/api/session/provider`
-- tenant-scoped write APIs for repository profiles, repository documents, and benchmark reports
-- CLI HTTP sync commands for remote profile, document, and benchmark publishing
-- hosted Postgres repository adapter behind `BE_AI_HEART_SERVICE_STORAGE_BACKEND=postgres`
-- website, portal, and admin Next.js surfaces separated by role:
-  - `website` for acquisition, docs, benchmark proof, pricing, demo, and trial conversion
-  - `portal` for customer repository memory, docs, diagrams, usage, billing, and benchmark ROI
-  - `admin` for BeHeart internal revenue, support, customer health, and operational analysis
-- migration snapshot export via `heart service export` to prepare future Postgres hosting
-- basic tests that run locally with `npm test`
+1. scan once
+2. reuse project memory
+3. send only the context the task needs
+```
 
-## Local Commands
+![BeHeart CLI demo](./docs/assets/readme-cli-demo.svg)
+
+## Quick Start
+
+### Requirements
+
+- Node.js `>= 22`
+- npm
+
+### Install
+
+```bash
+npm install
+```
+
+### Build And Verify
 
 ```bash
 npm run build
 npm test
-npm run overview
-npm run mcp:tools
-npm run mcp:serve
-node ./packages/cli/bin/heart.js diagram generate symbol-graph
-node ./packages/cli/bin/heart.js diagram generate sequence --task "improve login audit flow"
-node ./packages/cli/bin/heart.js diagram sync --slug be-ai-heart
-node ./packages/cli/bin/heart.js pack --json "improve login audit flow"
-node ./packages/cli/bin/heart.js auth provider-session --url https://portal.example.com --id-token <jwt>
-node ./packages/cli/bin/heart.js sync profile --url https://portal.example.com --session <session-token>
-node ./packages/cli/bin/heart.js sync docs --url https://portal.example.com --session <session-token>
-node ./packages/cli/bin/heart.js sync benchmark --url https://portal.example.com --session <session-token> ./benchmarks/scenarios/login-audit-flow.json
-node ./packages/cli/bin/heart.js service export --json
 ```
+
+### Try The Core Workflow
+
+```bash
+node ./packages/cli/bin/heart.js overview --json
+node ./packages/cli/bin/heart.js pack --json "improve login audit flow"
+node ./packages/cli/bin/heart.js find symbol loginUser
+node ./packages/cli/bin/heart.js deps src/auth/login.ts
+```
+
+## Integration
+
+### CLI
+
+Use BeHeart directly from the command line inside the repo.
+
+```bash
+node ./packages/cli/bin/heart.js overview --json
+node ./packages/cli/bin/heart.js pack --json "add SSO login audit logging"
+node ./packages/cli/bin/heart.js docs search "login requirements"
+node ./packages/cli/bin/heart.js impact src/billing/service.ts
+```
+
+### MCP
+
+If your AI tool supports MCP, it can talk to BeHeart directly.
+
+```bash
+npm run mcp:serve
+```
+
+This starts the local MCP server so the AI tool can ask BeHeart about your project.
+
+## What Is In This Repo
+
+- `packages/` reusable product logic
+- `apps/` product surfaces
+- `services/` service-side runtime and APIs
+- `docs/` product and technical documents
+- `skills/` repo-specific AI operating guidance
+
+## Read More
+
+- [Executive Summary](./docs/00-executive-summary.md)
+- [PRD](./docs/02-prd.md)
+- [Technical Architecture](./docs/03-technical-architecture.md)
+- [CLI and MCP Spec](./docs/04-mcp-cli-spec.md)
+- [Roadmap and Operating Model](./docs/08-roadmap-operating-model.md)
+
+## In One Sentence
+
+BeHeart helps AI remember your project, so teams spend less on repeated context and get more useful work from each session.

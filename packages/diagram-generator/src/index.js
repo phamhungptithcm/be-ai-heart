@@ -14,6 +14,7 @@ import {
 export const DIAGRAM_TYPES = Object.freeze({
   symbolGraph: "symbol-graph",
   highLevel: "high-level",
+  component: "component",
   class: "class",
   sequence: "sequence",
 });
@@ -21,6 +22,7 @@ export const DIAGRAM_TYPES = Object.freeze({
 const DEFAULT_DIAGRAM_TYPES = Object.freeze([
   DIAGRAM_TYPES.symbolGraph,
   DIAGRAM_TYPES.highLevel,
+  DIAGRAM_TYPES.component,
   DIAGRAM_TYPES.class,
   DIAGRAM_TYPES.sequence,
 ]);
@@ -75,6 +77,8 @@ export async function writeDiagramBundle(repoRoot, bundle) {
       title: diagram.title,
       format: diagram.format,
       inference_mode: diagram.inference_mode,
+      confidence: diagram.confidence,
+      scope: diagram.scope,
       artifact_file: diagram.artifact_file,
       summary: diagram.summary,
     })),
@@ -142,6 +146,13 @@ export async function syncRepositoryProfile({
   const persistedProfile = await writeRepositoryProfileArtifactRecord({
     serviceStorageRoot: storageRoot,
     profile: webProfile,
+    workspaceMetadata: {
+      benchmark_runner: {
+        repo_root: repoRoot,
+        connected_at: bundle.generated_at,
+        source: "local-profile-sync",
+      },
+    },
   });
   const publishedDocuments = await syncRepositoryDocumentsToSurfaces({
     repoRoot,
@@ -283,6 +294,8 @@ function generateDiagram(type, options) {
       return generateSymbolGraphDiagram(options.workspaceState);
     case DIAGRAM_TYPES.highLevel:
       return generateHighLevelDiagram(options.workspaceState);
+    case DIAGRAM_TYPES.component:
+      return generateComponentDiagram(options.workspaceState);
     case DIAGRAM_TYPES.class:
       return generateClassDiagram(options.workspaceState);
     case DIAGRAM_TYPES.sequence:
@@ -300,6 +313,7 @@ function generateSymbolGraphDiagram(workspaceState) {
   const repoId = "repo";
   const repoName = path.basename(workspaceState.repoRoot);
   const selectedFiles = workspaceState.scanResult.files.slice(0, 10);
+  const includedSymbols = new Set();
 
   lines.push(`  ${repoId}[${quoteLabel(`Repo: ${repoName}`)}]`);
 
@@ -310,6 +324,7 @@ function generateSymbolGraphDiagram(workspaceState) {
 
     for (const symbol of file.symbols.slice(0, 8)) {
       const symbolId = toMermaidId(symbol.id);
+      includedSymbols.add(symbol.id);
       lines.push(`  ${symbolId}[${quoteLabel(`${symbol.kind}: ${symbol.name}`)}]`);
       lines.push(`  ${fileId} --> ${symbolId}`);
     }
@@ -321,11 +336,30 @@ function generateSymbolGraphDiagram(workspaceState) {
     lines.push(`  ${fromId} -. imports .-> ${toId}`);
   }
 
+  for (const edge of workspaceState.graph.edges
+    .filter((entry) => ["CALLS", "EXTENDS", "IMPLEMENTS"].includes(entry.type))
+    .slice(0, 16)) {
+    if (!includedSymbols.has(edge.from) || !includedSymbols.has(edge.to)) {
+      continue;
+    }
+
+    const relation = edge.type.toLowerCase();
+    lines.push(`  ${toMermaidId(edge.from)} == ${quoteLabel(relation)} ==> ${toMermaidId(edge.to)}`);
+  }
+
   return {
     type: DIAGRAM_TYPES.symbolGraph,
     title: "Symbol Graph",
     format: "mermaid",
     inference_mode: "static-ast-graph",
+    confidence: workspaceState.graph.edges.some((edge) => ["CALLS", "EXTENDS", "IMPLEMENTS"].includes(edge.type))
+      ? "high"
+      : "medium",
+    scope: {
+      focus: "symbol-discovery",
+      file_count: selectedFiles.length,
+      symbol_count: [...includedSymbols].length,
+    },
     summary: `Shows repository files and symbol nodes for classes, functions, constants, and other extracted symbols.`,
     content: lines.join("\n"),
   };
@@ -338,6 +372,15 @@ function generateHighLevelDiagram(workspaceState) {
   const domains = [...workspaceState.heartModel.domains]
     .sort((left, right) => right.file_paths.length - left.file_paths.length || left.name.localeCompare(right.name))
     .slice(0, 6);
+  const componentGraph = buildComponentGraph(workspaceState);
+  const componentsByDomain = new Map();
+
+  for (const component of componentGraph.components) {
+    const domainName = component.key.split("/")[0];
+    const existing = componentsByDomain.get(domainName) ?? [];
+    existing.push(component);
+    componentsByDomain.set(domainName, existing);
+  }
 
   lines.push(`  ${repoId}[${quoteLabel(`Repo: ${repoName}`)}]`);
   lines.push(`  docs[${quoteLabel(`Docs: ${workspaceState.documentIndex.totals.document_count}`)}]`);
@@ -348,10 +391,20 @@ function generateHighLevelDiagram(workspaceState) {
     lines.push(`  ${domainId}[${quoteLabel(`Domain: ${domain.name}`)}]`);
     lines.push(`  ${repoId} --> ${domainId}`);
 
-    for (const filePath of domain.file_paths.slice(0, 3)) {
-      const fileId = toMermaidId(`hl-${filePath}`);
-      lines.push(`  ${fileId}[${quoteLabel(shortFileLabel(filePath))}]`);
-      lines.push(`  ${domainId} --> ${fileId}`);
+    const domainComponents = (componentsByDomain.get(domain.name) ?? []).slice(0, 3);
+    if (domainComponents.length > 0) {
+      for (const component of domainComponents) {
+        const componentId = toMermaidId(`high-level-${component.key}`);
+        lines.push(`  ${componentId}[${quoteLabel(`Component: ${component.label}`)}]`);
+        lines.push(`  ${domainId} --> ${componentId}`);
+      }
+      continue;
+    }
+
+    for (const filePath of domain.file_paths.slice(0, 2)) {
+      const fallbackId = toMermaidId(`hl-${filePath}`);
+      lines.push(`  ${fallbackId}[${quoteLabel(shortFileLabel(filePath))}]`);
+      lines.push(`  ${domainId} --> ${fallbackId}`);
     }
   }
 
@@ -360,7 +413,53 @@ function generateHighLevelDiagram(workspaceState) {
     title: "High-Level Architecture",
     format: "mermaid",
     inference_mode: "static-heart-model",
-    summary: `Shows top domains, representative files, and project document count from the persisted heart model.`,
+    confidence: domains.length > 0 && componentGraph.components.length > 0 ? "medium" : "low",
+    scope: {
+      focus: "domain-overview",
+      domain_count: domains.length,
+      component_count: componentGraph.components.length,
+    },
+    summary: `Shows top domains, component anchors, and project document count from the persisted heart model.`,
+    content: lines.join("\n"),
+  };
+}
+
+function generateComponentDiagram(workspaceState) {
+  const componentGraph = buildComponentGraph(workspaceState);
+  const lines = ["flowchart LR"];
+
+  if (componentGraph.components.length === 0) {
+    lines.push("  repo[\"Repo Components\"]");
+    lines.push("  repo --> none[\"No component-level source modules discovered\"]");
+  } else {
+    for (const component of componentGraph.components) {
+      const componentId = toMermaidId(`component-${component.key}`);
+      lines.push(
+        `  ${componentId}[${quoteLabel(`Component: ${component.label}\n${component.file_count} file(s), ${component.symbol_count} symbol(s)`)}]`,
+      );
+    }
+
+    if (componentGraph.relations.length > 0) {
+      for (const relation of componentGraph.relations) {
+        lines.push(
+          `  ${toMermaidId(`component-${relation.from}`)} -- ${quoteLabel(relation.label)} --> ${toMermaidId(`component-${relation.to}`)}`,
+        );
+      }
+    }
+  }
+
+  return {
+    type: DIAGRAM_TYPES.component,
+    title: "Component Diagram",
+    format: "mermaid",
+    inference_mode: "static-component-graph",
+    confidence: componentGraph.relations.length > 0 ? "medium" : "low",
+    scope: {
+      focus: "component-boundaries",
+      component_count: componentGraph.components.length,
+      relation_count: componentGraph.relations.length,
+    },
+    summary: `Shows static component boundaries and aggregated dependency signals between the most connected implementation modules.`,
     content: lines.join("\n"),
   };
 }
@@ -427,6 +526,12 @@ function generateClassDiagram(workspaceState) {
     title: "Class Diagram",
     format: "mermaid",
     inference_mode: "static-type-shape",
+    confidence: typeSymbols.length > 0 ? "medium" : "low",
+    scope: {
+      focus: "type-structure",
+      type_count: typeSymbols.length,
+      declared_symbol_count: declaredNames.size,
+    },
     summary: `Shows extracted classes, interfaces, enums, and basic inheritance or implementation relationships when available.`,
     content: lines.join("\n"),
   };
@@ -441,17 +546,36 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     heartModel: workspaceState.heartModel,
     policyReport: workspaceState.policyReport,
   });
-  const lines = ["sequenceDiagram", "  autonumber", "  actor User"];
+  const relevantRoutes = collectRelevantRoutes(workspaceState.scanResult, task, pack);
+  const actorLabel = relevantRoutes.length > 0 ? "Client" : "User";
+  const lines = ["sequenceDiagram", "  autonumber", `  actor ${actorLabel}`];
   const fileParticipants = [];
+  const testParticipants = [];
   const aliasByFile = new Map();
-  let fallbackParticipant = "User";
+  let fallbackParticipant = actorLabel;
 
   if (pack.relevant_documents.length > 0) {
     lines.push("  participant Docs as Project Docs");
     fallbackParticipant = "Docs";
   }
 
+  for (const route of relevantRoutes) {
+    if (aliasByFile.has(route.file_path)) {
+      continue;
+    }
+
+    const alias = toParticipantAlias(route.file_path, aliasByFile.size);
+    aliasByFile.set(route.file_path, alias);
+    fileParticipants.push(route.file_path);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(route.file_path))}`);
+    fallbackParticipant = alias;
+  }
+
   for (const file of pack.relevant_files.slice(0, 4)) {
+    if (aliasByFile.has(file.path)) {
+      continue;
+    }
+
     const alias = toParticipantAlias(file.path, aliasByFile.size);
     aliasByFile.set(file.path, alias);
     fileParticipants.push(file.path);
@@ -459,23 +583,76 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     fallbackParticipant = alias;
   }
 
+  for (const supportPath of dedupe([
+    ...pack.call_paths.flatMap((callPath) => [callPath.from_file, callPath.to_file]),
+    ...pack.graph_context.related_files.map((file) => file.path),
+  ]).slice(0, 3)) {
+    if (!supportPath || aliasByFile.has(supportPath)) {
+      continue;
+    }
+
+    const alias = toParticipantAlias(supportPath, aliasByFile.size);
+    aliasByFile.set(supportPath, alias);
+    fileParticipants.push(supportPath);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(supportPath))}`);
+  }
+
+  for (const testPath of pack.tests_to_run.slice(0, 2)) {
+    if (aliasByFile.has(testPath)) {
+      continue;
+    }
+
+    const alias = toParticipantAlias(testPath, aliasByFile.size);
+    aliasByFile.set(testPath, alias);
+    testParticipants.push(testPath);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(testPath))}`);
+  }
+
+  const orderedParticipants = [...fileParticipants, ...testParticipants];
   const noteTarget =
-    fileParticipants.length > 0 ? aliasByFile.get(fileParticipants[fileParticipants.length - 1]) : fallbackParticipant;
+    orderedParticipants.length > 0
+      ? aliasByFile.get(orderedParticipants[orderedParticipants.length - 1])
+      : fallbackParticipant;
+  const noteText =
+    relevantRoutes.length > 0
+      ? "Best-effort route trace inferred from parsed HTTP routes, typed call graph, tests, and import fallback edges."
+      : pack.call_paths.length > 0
+      ? "Heuristic static sequence inferred from typed call paths, tests, and import edges."
+      : "Heuristic static sequence inferred from context pack and import edges.";
   lines.push(
-    `  Note over User,${noteTarget}: Heuristic static sequence inferred from context pack and import edges.`,
+    `  Note over ${actorLabel},${noteTarget}: ${noteText}`,
   );
 
   if (fileParticipants.length === 0) {
-    lines.push(`  User->>${fallbackParticipant}: ${escapeSequenceText(task)}`);
+    lines.push(`  ${actorLabel}->>${fallbackParticipant}: ${escapeSequenceText(task)}`);
   } else {
     const firstAlias = aliasByFile.get(fileParticipants[0]);
-    lines.push(`  User->>${firstAlias}: ${escapeSequenceText(task)}`);
+    if (relevantRoutes.length > 0) {
+      for (const route of relevantRoutes) {
+        const routeAlias = aliasByFile.get(route.file_path);
+        if (!routeAlias) {
+          continue;
+        }
+
+        lines.push(`  ${actorLabel}->>${routeAlias}: ${escapeSequenceText(`${route.method} ${route.path}`)}`);
+      }
+    } else {
+      lines.push(`  ${actorLabel}->>${firstAlias}: ${escapeSequenceText(task)}`);
+    }
 
     if (pack.relevant_documents.length > 0) {
       lines.push(`  ${firstAlias}->>Docs: verify requirements and design`);
     }
 
-    const interactions = buildSequenceInteractions(workspaceState.graph.edges, fileParticipants, aliasByFile);
+    const interactions = buildSequenceInteractions(
+      workspaceState.graph,
+      orderedParticipants,
+      aliasByFile,
+      {
+        callPaths: pack.call_paths,
+        routes: relevantRoutes,
+      },
+    );
     for (const interaction of interactions) {
       lines.push(`  ${interaction.from}->>${interaction.to}: ${escapeSequenceText(interaction.label)}`);
     }
@@ -494,17 +671,86 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     type: DIAGRAM_TYPES.sequence,
     title: "Sequence Diagram",
     format: "mermaid",
-    inference_mode: "static-context-heuristic",
-    summary: `Shows a best-effort interaction flow derived from relevant files, imports, linked documents, and reuse targets.`,
+    inference_mode: relevantRoutes.length > 0 ? "route-trace-heuristic" : "static-context-heuristic",
+    confidence: relevantRoutes.length > 0 || pack.call_paths.length > 0 || pack.tests_to_run.length > 0 ? "medium" : "low",
+    scope: {
+      focus: "interaction-flow",
+      task,
+      participant_count: orderedParticipants.length + (pack.relevant_documents.length > 0 ? 1 : 0),
+      call_path_count: pack.call_paths.length,
+      route_count: relevantRoutes.length,
+    },
+    summary: relevantRoutes.length > 0
+      ? `Shows a best-effort route trace derived from parsed HTTP routes, typed call paths, tests, linked documents, and import fallback edges.`
+      : `Shows a best-effort interaction flow derived from typed call paths, tests, linked documents, and import fallback edges.`,
     content: lines.join("\n"),
   };
 }
 
-function buildSequenceInteractions(edges, fileParticipants, aliasByFile) {
+function buildSequenceInteractions(graph, fileParticipants, aliasByFile, options = {}) {
   const participantSet = new Set(fileParticipants);
+  const callPaths = options.callPaths ?? [];
+  const routes = options.routes ?? [];
   const interactions = [];
 
-  for (const edge of edges.filter((entry) => entry.type === "IMPORTS")) {
+  interactions.push(...buildRouteTraceInteractions(graph, routes, participantSet, aliasByFile));
+
+  for (const callPath of callPaths) {
+    if (
+      !callPath?.from_file ||
+      !callPath?.to_file ||
+      !participantSet.has(callPath.from_file) ||
+      !participantSet.has(callPath.to_file)
+    ) {
+      continue;
+    }
+
+    interactions.push({
+      from: aliasByFile.get(callPath.from_file),
+      to: aliasByFile.get(callPath.to_file),
+      label: `${callPath.from} calls ${callPath.to}`,
+    });
+  }
+
+  for (const edge of (graph.edges ?? []).filter((entry) => entry.type === "CALLS")) {
+    const fromNode = findGraphNode(graph, edge.from);
+    const toNode = findGraphNode(graph, edge.to);
+
+    if (!fromNode?.path || !toNode?.path) {
+      continue;
+    }
+
+    if (!participantSet.has(fromNode.path) || !participantSet.has(toNode.path)) {
+      continue;
+    }
+
+    interactions.push({
+      from: aliasByFile.get(fromNode.path),
+      to: aliasByFile.get(toNode.path),
+      label: `${fromNode.name} calls ${toNode.name}`,
+    });
+  }
+
+  for (const edge of (graph.edges ?? []).filter((entry) => entry.type === "TESTED_BY")) {
+    const targetNode = findGraphNode(graph, edge.from);
+    const testNode = findGraphNode(graph, edge.to);
+
+    if (!targetNode?.path || !testNode?.path) {
+      continue;
+    }
+
+    if (!participantSet.has(targetNode.path) || !participantSet.has(testNode.path)) {
+      continue;
+    }
+
+    interactions.push({
+      from: aliasByFile.get(testNode.path),
+      to: aliasByFile.get(targetNode.path),
+      label: `exercise ${targetNode.name}`,
+    });
+  }
+
+  for (const edge of (graph.edges ?? []).filter((entry) => entry.type === "IMPORTS")) {
     const fromFile = edge.from.replace(/^file:/, "");
     const toFile = edge.to.replace(/^file:/, "");
 
@@ -535,6 +781,265 @@ function buildSequenceInteractions(edges, fileParticipants, aliasByFile) {
   }
 
   return fallback;
+}
+
+function collectRelevantRoutes(scanResult, task, pack, limit = 2) {
+  const taskTokens = tokenize(task);
+  const relevantFiles = new Set(pack.relevant_files.map((file) => file.path));
+  const relevantSymbols = new Set(pack.relevant_symbols.map((symbol) => symbol.name.toLowerCase()));
+
+  return (scanResult.files ?? [])
+    .flatMap((file) =>
+      (file.routes ?? []).map((route) => ({
+        ...route,
+        file_path: file.relativePath,
+        score: scoreRoute(route, file.relativePath, taskTokens, relevantFiles, relevantSymbols),
+      })),
+    )
+    .filter((route) => route.score > 0)
+    .sort((left, right) => right.score - left.score || left.file_path.localeCompare(right.file_path) || left.path.localeCompare(right.path))
+    .slice(0, limit);
+}
+
+function scoreRoute(route, filePath, taskTokens, relevantFiles, relevantSymbols) {
+  const haystack = `${filePath} ${route.method} ${route.path} ${route.handler_name} ${route.framework}`.toLowerCase();
+  const lexicalScore = taskTokens.reduce((score, token) => score + (haystack.includes(token) ? 2 : 0), 0);
+  const fileBoost = relevantFiles.has(filePath) ? 2 : 0;
+  const symbolBoost = relevantSymbols.has(String(route.handler_name ?? "").toLowerCase()) ? 2 : 0;
+  const routeIntentBoost = taskTokens.some((token) => ["route", "routes", "api", "endpoint", "request", "http"].includes(token))
+    ? 1
+    : 0;
+
+  return lexicalScore + fileBoost + symbolBoost + routeIntentBoost;
+}
+
+function buildRouteTraceInteractions(graph, routes, participantSet, aliasByFile, limit = 6) {
+  const interactions = [];
+  const seenEdges = new Set();
+
+  for (const route of routes) {
+    if (interactions.length >= limit) {
+      break;
+    }
+
+    const entrySymbol = resolveRouteEntrySymbol(graph, route);
+    if (!entrySymbol?.path) {
+      continue;
+    }
+
+    if (participantSet.has(route.file_path) && participantSet.has(entrySymbol.path) && route.file_path !== entrySymbol.path) {
+      interactions.push({
+        from: aliasByFile.get(route.file_path),
+        to: aliasByFile.get(entrySymbol.path),
+        label: `${route.method} ${route.path} -> ${entrySymbol.name}`,
+      });
+    }
+
+    const queue = [entrySymbol.id];
+    const visitedSymbols = new Set(queue);
+    while (queue.length > 0 && interactions.length < limit) {
+      const currentSymbolId = queue.shift();
+      const outgoingEdges = (graph.edges ?? [])
+        .filter((edge) => edge.type === "CALLS" && edge.from === currentSymbolId)
+        .sort((left, right) => {
+          const leftLine = Number(left.metadata?.line ?? 0);
+          const rightLine = Number(right.metadata?.line ?? 0);
+          return leftLine - rightLine || left.id.localeCompare(right.id);
+        });
+
+      for (const edge of outgoingEdges) {
+        if (seenEdges.has(edge.id)) {
+          continue;
+        }
+
+        const fromNode = findGraphNode(graph, edge.from);
+        const toNode = findGraphNode(graph, edge.to);
+        if (!fromNode?.path || !toNode?.path) {
+          continue;
+        }
+
+        if (!participantSet.has(fromNode.path) || !participantSet.has(toNode.path)) {
+          continue;
+        }
+
+        interactions.push({
+          from: aliasByFile.get(fromNode.path),
+          to: aliasByFile.get(toNode.path),
+          label: `${fromNode.name} calls ${toNode.name}`,
+        });
+        seenEdges.add(edge.id);
+
+        if (!visitedSymbols.has(toNode.id)) {
+          visitedSymbols.add(toNode.id);
+          queue.push(toNode.id);
+        }
+
+        if (interactions.length >= limit) {
+          break;
+        }
+      }
+    }
+  }
+
+  return interactions;
+}
+
+function resolveRouteEntrySymbol(graph, route) {
+  const candidates = (graph.nodes ?? []).filter((node) => {
+    if (!["Function", "Method"].includes(node.type)) {
+      return false;
+    }
+
+    return node.name === route.handler_name;
+  });
+
+  const localCandidate = candidates.find((node) => node.path === route.file_path);
+  if (localCandidate) {
+    return localCandidate;
+  }
+
+  return candidates[0] ?? null;
+}
+
+function tokenize(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((token) => token.length >= 3);
+}
+
+function buildComponentGraph(workspaceState) {
+  const componentMap = new Map();
+  const componentByFile = new Map();
+
+  for (const file of workspaceState.scanResult.files.filter((entry) => isComponentCandidateFile(entry.relativePath))) {
+    const key = toComponentKey(file.relativePath);
+    const existing = componentMap.get(key) ?? {
+      key,
+      label: key,
+      file_count: 0,
+      symbol_count: 0,
+      relation_count: 0,
+    };
+
+    existing.file_count += 1;
+    existing.symbol_count += file.symbols.length;
+    componentMap.set(key, existing);
+    componentByFile.set(file.relativePath, key);
+  }
+
+  const relationMap = new Map();
+  for (const edge of workspaceState.graph.edges ?? []) {
+    const { fromFile, toFile, relationType } = resolveComponentRelation(workspaceState.graph, edge);
+    if (!fromFile || !toFile) {
+      continue;
+    }
+
+    const fromComponent = componentByFile.get(fromFile);
+    const toComponent = componentByFile.get(toFile);
+    if (!fromComponent || !toComponent || fromComponent === toComponent) {
+      continue;
+    }
+
+    const relationKey = `${fromComponent}:${toComponent}`;
+    const relation = relationMap.get(relationKey) ?? {
+      from: fromComponent,
+      to: toComponent,
+      total: 0,
+      counts: new Map(),
+    };
+
+    relation.total += 1;
+    relation.counts.set(relationType, (relation.counts.get(relationType) ?? 0) + 1);
+    relationMap.set(relationKey, relation);
+  }
+
+  for (const relation of relationMap.values()) {
+    componentMap.get(relation.from).relation_count += relation.total;
+    componentMap.get(relation.to).relation_count += relation.total;
+  }
+
+  const rankedComponents = [...componentMap.values()]
+    .sort(
+      (left, right) =>
+        right.relation_count - left.relation_count ||
+        right.symbol_count - left.symbol_count ||
+        left.label.localeCompare(right.label),
+    )
+    .slice(0, 8);
+  const selectedComponentKeys = new Set(rankedComponents.map((component) => component.key));
+  const relations = [...relationMap.values()]
+    .filter((relation) => selectedComponentKeys.has(relation.from) && selectedComponentKeys.has(relation.to))
+    .sort(
+      (left, right) =>
+        right.total - left.total || left.from.localeCompare(right.from) || left.to.localeCompare(right.to),
+    )
+    .slice(0, 12)
+    .map((relation) => ({
+      from: relation.from,
+      to: relation.to,
+      label: formatComponentRelationLabel(relation.counts),
+    }));
+
+  return {
+    components: rankedComponents,
+    relations,
+  };
+}
+
+function resolveComponentRelation(graph, edge) {
+  switch (edge.type) {
+    case "IMPORTS":
+      return {
+        fromFile: edge.from.replace(/^file:/, ""),
+        toFile: edge.to.replace(/^file:/, ""),
+        relationType: "imports",
+      };
+    case "CALLS":
+    case "EXTENDS":
+    case "IMPLEMENTS": {
+      const fromNode = findGraphNode(graph, edge.from);
+      const toNode = findGraphNode(graph, edge.to);
+      return {
+        fromFile: fromNode?.path ?? "",
+        toFile: toNode?.path ?? "",
+        relationType: edge.type.toLowerCase(),
+      };
+    }
+    default:
+      return {
+        fromFile: "",
+        toFile: "",
+        relationType: "",
+      };
+  }
+}
+
+function formatComponentRelationLabel(counts) {
+  return [...counts.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([relationType, count]) => `${relationType} x${count}`)
+    .join(", ");
+}
+
+function isComponentCandidateFile(filePath) {
+  return !/\.test\.[^.]+$/u.test(filePath) && !/\.spec\.[^.]+$/u.test(filePath) && !filePath.startsWith("docs/");
+}
+
+function toComponentKey(filePath) {
+  const normalizedPath = String(filePath).replace(/\\/g, "/");
+  const segments = normalizedPath.split("/");
+  const stem = segments[segments.length - 1].replace(/\.[^.]+$/u, "");
+
+  if (segments[0] === "src" && segments.length >= 3) {
+    return `${segments[1]}/${stem}`;
+  }
+
+  if (["packages", "services", "apps"].includes(segments[0]) && segments.length >= 4) {
+    return `${segments[0]}/${segments[1]}/${segments[2]}/${stem}`;
+  }
+
+  return normalizedPath.replace(/\.[^.]+$/u, "");
 }
 
 function normalizeDiagramTypes(types) {
@@ -628,6 +1133,8 @@ function createWebRepositoryProfile(profile, artifacts) {
       title: diagram.title,
       format: diagram.format,
       inference_mode: diagram.inference_mode,
+      confidence: diagram.confidence,
+      scope: diagram.scope,
       summary: diagram.summary,
       content: diagram.content,
     })),
@@ -681,6 +1188,10 @@ function dedupeByKey(items, getKey) {
   }
 
   return output;
+}
+
+function findGraphNode(graph, nodeId) {
+  return (graph.nodes ?? []).find((node) => node.id === nodeId) ?? null;
 }
 
 async function pathExists(targetPath) {

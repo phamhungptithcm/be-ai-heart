@@ -45,6 +45,7 @@ Output:
 
 - Normalized symbol records
 - File dependency records
+- Parsed route descriptors for HTTP handlers and framework route files
 - Structural fingerprints for incremental re-indexing
 
 ### 2. Symbol Extractor
@@ -81,8 +82,12 @@ Responsibilities:
 
 - scan configured project-document paths
 - classify documents such as business, requirements, technical, and execution artifacts
-- extract titles, headings, summaries, and retrieval metadata
-- support future redaction and access controls for sensitive documents
+- extract titles, headings, summaries, and retrieval metadata from `md`, `mdx`, `txt`, `json`, `yaml`, `docx`, and `pdf`
+- use layout-aware `pdf` extraction when a text layer exists and, when text is weak plus `ocrmypdf` is available, apply local OCR before falling back to raw-text parsing
+- attach lineage, freshness, source type, and sensitivity metadata
+- build deterministic local semantic vectors so document retrieval can bridge synonym-heavy queries without a hosted embedding dependency
+- prefer latest document versions during retrieval while preserving lineage references for auditability
+- redact secret-like content from previews and restricted summaries before sync artifacts are published
 
 Why this matters:
 
@@ -103,6 +108,7 @@ Ranking inputs:
 - Symbol relevance
 - Call graph proximity
 - Document relevance
+- Local semantic similarity for document memory
 - Ownership proximity
 - Recent change activity
 - Policy importance

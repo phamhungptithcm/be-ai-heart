@@ -2,10 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
+import http from "node:http";
 import path from "node:path";
 import { createTempRepoCopy } from "./helpers/temp-repo.js";
 import { writeTypedGraphFixture } from "./helpers/typed-graph-fixture.js";
 import { writeWebDocumentSubmission } from "../packages/document-sync/src/index.js";
+import {
+  writeAgentRunRecord,
+  writeLlmCallRecord,
+} from "../services/api/src/index.js";
+import { resolveServiceStorageRoot } from "../services/api/src/storage.js";
 
 const cliPath = path.resolve("packages/cli/bin/heart.js");
 
@@ -36,6 +42,7 @@ test("CLI pack returns JSON context pack", async (t) => {
   assert.equal(result.task, "add login audit visibility");
   assert.ok(result.relevant_files.length >= 1);
   assert.ok(result.quality.relevance_score > 0.5);
+  assert.equal(result.evidence_summary.citation_count, result.citations.length);
 });
 
 test("CLI find symbol returns matching typed symbol records", async (t) => {
@@ -79,6 +86,31 @@ test("CLI impact uses typed graph evidence instead of import-only file analysis"
   assert.ok(result.dependent_files.includes("src/auth/service.ts"));
   assert.ok(result.related_tests.includes("src/auth/login.test.ts"));
   assert.ok(result.dependent_symbols.includes("authenticate"));
+});
+
+test("CLI policy check returns repo policy violations", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  await fs.mkdir(path.join(fixtureRoot, ".heart"), { recursive: true });
+  await fs.writeFile(
+    path.join(fixtureRoot, ".heart", "policies.yaml"),
+    `rules:
+  - id: auth-internal-imports
+    from_prefix: src/auth/
+    blocked_prefix: src/auth/
+    description: auth files should not import sibling auth modules
+`,
+    "utf8",
+  );
+
+  const raw = execFileSync("node", [cliPath, "policy", "check", "--json", "--root", fixtureRoot], {
+    encoding: "utf8",
+  });
+  const result = JSON.parse(raw);
+
+  assert.equal(result.rules[0].id, "auth-internal-imports");
+  assert.ok(result.violations.length >= 1);
+  assert.ok(result.violations.every((violation) => violation.rule_id === "auth-internal-imports"));
+  assert.ok(result.violations.some((violation) => violation.file.startsWith("src/auth/")));
 });
 
 test("CLI diagram generate prints a single mermaid diagram", async (t) => {
@@ -250,7 +282,14 @@ test("CLI benchmark compare writes local report and publishes portal/admin bench
   assert.equal(result.report.model, "gpt-5.4");
   assert.equal(result.report.metrics.token_savings_pct, 40);
   assert.equal(result.report.metrics.memory_refresh_reduction_pct, 67);
+  assert.equal(result.report.evidence_bundle.available, true);
   assert.ok(result.persisted.report_path.endsWith(".heart/benchmarks/" + `${result.report.report_id}.json`));
+  assert.ok(result.persisted.markdown_path.endsWith(".heart/benchmarks/" + `${result.report.report_id}.md`));
+  assert.ok(
+    result.report.evidence_bundle.local_manifest_path.endsWith(
+      `.heart/benchmarks/evidence/${result.report.report_id}/manifest.json`,
+    ),
+  );
   assert.equal(portalIndex.reports.length, 1);
   assert.equal(adminIndex.reports.length, 1);
   assert.equal(portalIndex.reports[0].report_id, result.report.report_id);
@@ -261,19 +300,35 @@ test("CLI benchmark run loads a scenario manifest and publishes benchmark artifa
   const workspaceRoot = path.dirname(fixtureRoot);
   const portalRoot = path.join(workspaceRoot, "apps", "portal");
   const adminRoot = path.join(workspaceRoot, "apps", "admin");
+  const datasetPath = path.join(workspaceRoot, "auth-audit-memory.json");
   const scenarioPath = path.join(workspaceRoot, "login-audit-flow.json");
 
   await Promise.all([
     fs.mkdir(portalRoot, { recursive: true }),
     fs.mkdir(adminRoot, { recursive: true }),
     fs.writeFile(
+      datasetPath,
+      `${JSON.stringify(
+        {
+          id: "auth-audit-memory",
+          title: "Auth Audit Memory",
+          repo_strategy: "current-repo",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+    fs.writeFile(
       scenarioPath,
       `${JSON.stringify(
         {
           id: "login-audit-flow",
+          title: "Login Audit Flow",
           repo: "sample-repo",
           provider: "openai",
           model: "gpt-5.4",
+          dataset: datasetPath,
           baseline: {
             tokens: 2400,
             minutes: 34,
@@ -328,7 +383,411 @@ test("CLI benchmark run loads a scenario manifest and publishes benchmark artifa
   assert.equal(result.report.scenario, "login-audit-flow");
   assert.equal(result.report.metrics.token_savings_pct, 40);
   assert.equal(result.report.metrics.memory_refresh_reduction_pct, 80);
+  assert.equal(result.report.evidence_bundle.available, true);
+  assert.equal(result.report.framework.dataset.id, "auth-audit-memory");
   assert.equal(portalIndex.reports.length, 1);
+});
+
+test("CLI benchmark capture writes a capture artifact for a launcher-bound run", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const workspaceRoot = path.dirname(fixtureRoot);
+  const datasetPath = path.join(workspaceRoot, "auth-audit-memory.json");
+  const scenarioPath = path.join(workspaceRoot, "login-audit-flow.json");
+  const upstreamServer = http.createServer((req, res) => {
+    res.statusCode = 204;
+    res.end();
+  });
+
+  await new Promise((resolve) => upstreamServer.listen(0, "127.0.0.1", resolve));
+  const upstreamAddress = upstreamServer.address();
+  const upstreamBaseUrl = `http://127.0.0.1:${upstreamAddress.port}/v1`;
+
+  t.after(() => {
+    upstreamServer.close();
+  });
+
+  await Promise.all([
+    fs.writeFile(
+      datasetPath,
+      `${JSON.stringify(
+        {
+          id: "auth-audit-memory",
+          title: "Auth Audit Memory",
+          repo_strategy: "current-repo",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+    fs.writeFile(
+      scenarioPath,
+      `${JSON.stringify(
+        {
+          id: "login-audit-flow",
+          title: "Login Audit Flow",
+          provider: "openai",
+          model: "gpt-5.4",
+          dataset: datasetPath,
+          baseline: {
+            tokens: 2400,
+            minutes: 34,
+          },
+          assisted: {
+            tokens: 1450,
+            minutes: 20,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+  ]);
+
+  const raw = execFileSync(
+    "node",
+    [
+      cliPath,
+      "benchmark",
+      "capture",
+      "baseline",
+      scenarioPath,
+      "--json",
+      "--root",
+      fixtureRoot,
+      "--slug",
+      "fixture-profile",
+      "--upstream-base-url",
+      upstreamBaseUrl,
+      "--",
+      "node",
+      "--input-type=module",
+      "-e",
+      [
+        "if (!process.env.BE_AI_HEART_AGENT_RUN_ID) process.exit(2);",
+        "if (process.env.BE_AI_HEART_BENCHMARK_MODE !== 'baseline') process.exit(3);",
+        "if (process.env.BE_AI_HEART_BENCHMARK_SCENARIO !== 'login-audit-flow') process.exit(4);",
+        "process.exit(0);",
+      ].join(" "),
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+  const artifact = JSON.parse(await fs.readFile(result.artifact.capture_path, "utf8"));
+
+  assert.equal(result.run.mode, "baseline");
+  assert.equal(result.run.scenario_id, "login-audit-flow");
+  assert.equal(result.command.exit_code, 0);
+  assert.equal(result.summary.measurement_mode, "estimated");
+  assert.equal(artifact.mode, "baseline");
+  assert.equal(artifact.run.run_id, result.run.run_id);
+  assert.equal(artifact.summary.measurement_mode, "estimated");
+  assert.match(result.artifact.capture_path, /\/\.heart\/benchmarks\/captures\/.+\.json$/);
+});
+
+test("CLI benchmark run prefers observed agent run telemetry when run ids are supplied", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const workspaceRoot = path.dirname(fixtureRoot);
+  const datasetPath = path.join(workspaceRoot, "auth-audit-memory.json");
+  const scenarioPath = path.join(workspaceRoot, "login-audit-flow.json");
+  const serviceStorageRoot = resolveServiceStorageRoot({ repoRoot: fixtureRoot });
+
+  await Promise.all([
+    fs.writeFile(
+      datasetPath,
+      `${JSON.stringify(
+        {
+          id: "auth-audit-memory",
+          title: "Auth Audit Memory",
+          repo_strategy: "current-repo",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+    fs.writeFile(
+      scenarioPath,
+      `${JSON.stringify(
+        {
+          id: "login-audit-flow",
+          title: "Login Audit Flow",
+          provider: "openai",
+          model: "gpt-5.4",
+          dataset: datasetPath,
+          baseline: {
+            tokens: 2400,
+            minutes: 34,
+            duplicates: 3,
+            policy_violations: 2,
+            review_edits: 8,
+            memory_refreshes: 5,
+            token_cost_usd: 0.48,
+          },
+          assisted: {
+            tokens: 1450,
+            minutes: 20,
+            duplicates: 1,
+            policy_violations: 0,
+            review_edits: 3,
+            memory_refreshes: 1,
+            token_cost_usd: 0.29,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+  ]);
+
+  await Promise.all([
+    writeAgentRunRecord({
+      serviceStorageRoot,
+      run: {
+        run_id: "baseline-run-1",
+        profile_slug: "fixture-profile",
+        workspace_slug: "fixture-profile",
+        customer_slug: "fixture-profile",
+        repo: path.basename(fixtureRoot),
+        scenario_id: "login-audit-flow",
+        mode: "baseline",
+        status: "completed",
+        provider: "openai",
+        model: "gpt-5.4",
+        started_at: "2026-04-19T15:00:00.000Z",
+        ended_at: "2026-04-19T15:30:00.000Z",
+      },
+    }),
+    writeAgentRunRecord({
+      serviceStorageRoot,
+      run: {
+        run_id: "assisted-run-1",
+        profile_slug: "fixture-profile",
+        workspace_slug: "fixture-profile",
+        customer_slug: "fixture-profile",
+        repo: path.basename(fixtureRoot),
+        scenario_id: "login-audit-flow",
+        mode: "assisted",
+        status: "completed",
+        provider: "openai",
+        model: "gpt-5.4",
+        started_at: "2026-04-19T16:00:00.000Z",
+        ended_at: "2026-04-19T16:10:00.000Z",
+      },
+    }),
+    writeLlmCallRecord({
+      serviceStorageRoot,
+      call: {
+        llm_call_id: "baseline-call-1",
+        run_id: "baseline-run-1",
+        sequence: 1,
+        provider: "openai",
+        model: "gpt-5.4",
+        request_kind: "chat_completions",
+        method: "POST",
+        path: "/chat/completions",
+        status_code: 200,
+        latency_ms: 1250,
+        prompt_tokens: 1000,
+        completion_tokens: 400,
+        total_tokens: 1400,
+        cost_usd: 0.18,
+        usage_available: true,
+      },
+    }),
+    writeLlmCallRecord({
+      serviceStorageRoot,
+      call: {
+        llm_call_id: "assisted-call-1",
+        run_id: "assisted-run-1",
+        sequence: 1,
+        provider: "openai",
+        model: "gpt-5.4",
+        request_kind: "chat_completions",
+        method: "POST",
+        path: "/chat/completions",
+        status_code: 200,
+        latency_ms: 900,
+        prompt_tokens: 500,
+        completion_tokens: 200,
+        total_tokens: 700,
+        cost_usd: 0.08,
+        usage_available: true,
+      },
+    }),
+  ]);
+
+  const raw = execFileSync(
+    "node",
+    [
+      cliPath,
+      "benchmark",
+      "run",
+      "--json",
+      "--root",
+      fixtureRoot,
+      "--slug",
+      "fixture-profile",
+      "--baseline-run",
+      "baseline-run-1",
+      "--assisted-run",
+      "assisted-run-1",
+      scenarioPath,
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+
+  assert.equal(result.report.baseline.tokens, 1400);
+  assert.equal(result.report.assisted.tokens, 700);
+  assert.equal(result.report.baseline.minutes, 30);
+  assert.equal(result.report.assisted.minutes, 10);
+  assert.equal(result.report.baseline.token_cost_usd, 0.18);
+  assert.equal(result.report.assisted.token_cost_usd, 0.08);
+  assert.equal(result.report.baseline.measurement.mode, "observed");
+  assert.equal(result.report.assisted.measurement.mode, "observed");
+  assert.equal(result.report.baseline.measurement.run_id, "baseline-run-1");
+  assert.equal(result.report.assisted.measurement.run_id, "assisted-run-1");
+  assert.equal(result.report.metrics.token_savings_pct, 50);
+  assert.equal(result.report.metrics.time_savings_pct, 67);
+});
+
+test("CLI benchmark run --all executes the full local suite and writes a suite report", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const benchmarkRoot = path.join(fixtureRoot, "benchmarks");
+  const datasetRoot = path.join(fixtureRoot, "benchmarks", "datasets");
+  const scenarioRoot = path.join(fixtureRoot, "benchmarks", "scenarios");
+
+  await fs.mkdir(benchmarkRoot, { recursive: true });
+  await Promise.all([fs.mkdir(datasetRoot, { recursive: true }), fs.mkdir(scenarioRoot, { recursive: true })]);
+
+  await Promise.all([
+    fs.writeFile(
+      path.join(datasetRoot, "shared.json"),
+      `${JSON.stringify(
+        {
+          id: "shared",
+          title: "Shared Dataset",
+          repo_strategy: "current-repo",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(scenarioRoot, "a.json"),
+      `${JSON.stringify(
+        {
+          id: "a",
+          title: "Scenario A",
+          dataset_id: "shared",
+          baseline: { tokens: 120, minutes: 12, duplicates: 1, review_edits: 2, memory_refreshes: 2 },
+          assisted: { tokens: 80, minutes: 8, duplicates: 0, review_edits: 1, memory_refreshes: 1 },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(scenarioRoot, "b.json"),
+      `${JSON.stringify(
+        {
+          id: "b",
+          title: "Scenario B",
+          dataset_id: "shared",
+          baseline: { tokens: 220, minutes: 18, duplicates: 2, review_edits: 3, memory_refreshes: 2 },
+          assisted: { tokens: 140, minutes: 10, duplicates: 1, review_edits: 1, memory_refreshes: 1 },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    ),
+  ]);
+
+  const raw = execFileSync(
+    "node",
+    [cliPath, "benchmark", "run", "--all", "--json", "--root", fixtureRoot, "--slug", "fixture-profile"],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+
+  assert.equal(result.suite.scenario_count, 2);
+  assert.equal(result.scenario_reports.length, 2);
+  assert.ok(result.suite.aggregate_metrics.avg_token_savings_pct > 0);
+  assert.ok(result.suite_persisted.report_path.endsWith(".json"));
+  assert.ok(result.suite_persisted.markdown_path.endsWith(".md"));
+});
+
+test("CLI agent run binds a spawned command to the proxy launcher environment", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const upstreamServer = http.createServer((req, res) => {
+    res.statusCode = 204;
+    res.end();
+  });
+
+  await new Promise((resolve) => upstreamServer.listen(0, "127.0.0.1", resolve));
+  const upstreamAddress = upstreamServer.address();
+  const upstreamBaseUrl = `http://127.0.0.1:${upstreamAddress.port}/v1`;
+
+  t.after(() => {
+    upstreamServer.close();
+  });
+
+  const raw = execFileSync(
+    "node",
+    [
+      cliPath,
+      "agent",
+      "run",
+      "--json",
+      "--root",
+      fixtureRoot,
+      "--slug",
+      "fixture-profile",
+      "--scenario",
+      "login-audit-flow",
+      "--mode",
+      "baseline",
+      "--provider",
+      "openai",
+      "--model",
+      "gpt-5.4",
+      "--upstream-base-url",
+      upstreamBaseUrl,
+      "--",
+      "node",
+      "--input-type=module",
+      "-e",
+      [
+        "if (!process.env.OPENAI_BASE_URL || !process.env.OPENAI_BASE_URL.includes('/proxy/openai/runs/')) process.exit(2);",
+        "if (process.env.OPENAI_API_BASE !== process.env.OPENAI_BASE_URL) process.exit(3);",
+        "if (process.env.OPENAI_API_BASE_URL !== process.env.OPENAI_BASE_URL) process.exit(4);",
+        "process.exit(0);",
+      ].join(" "),
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+
+  assert.equal(result.run.mode, "baseline");
+  assert.equal(result.run.scenario_id, "login-audit-flow");
+  assert.equal(result.command.exit_code, 0);
+  assert.equal(result.summary.measurement_mode, "estimated");
+  assert.equal(result.summary.total_tokens, 0);
+  assert.match(result.proxy.base_url, /\/proxy\/openai\/runs\/.+\/v1$/);
 });
 
 test("CLI service export writes a canonical migration snapshot", async (t) => {

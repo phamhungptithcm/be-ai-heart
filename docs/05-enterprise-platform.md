@@ -1,199 +1,197 @@
-# Enterprise Platform Plan
+# Enterprise Platform Boundaries
 
-`BeHeart` has three web surfaces on purpose. They should not collapse into one blended UI:
+`be-ai-heart` has three separate web surfaces on purpose:
 
-- `Website`: public marketing, docs, benchmark proof, sign-up, and demo booking
-- `Portal`: customer-only workspace for synced repositories, documents, usage, benchmarks, and tenant settings
-- `Admin`: internal BeHeart control plane for revenue, support, customer health, ops, and platform governance
+- `website`: public acquisition, docs, trust, pricing, benchmark proof, sign-in entry
+- `portal`: customer and org-admin workspace for tenant-scoped operations
+- `admin`: internal-only BeHeart control plane for support, revenue, billing ops, audit, and observability
 
-## Purpose
+These surfaces must not collapse into one blended application. Customer actors must never see internal admin controls, internal session registries, platform observability, or control-plane actions.
 
-The enterprise surface should support acquisition, activation, governance, and revenue operations without forcing the product team to overbuild the back office too early.
+## Boundary Rules
 
-## Platform Layers
+### Website
 
-### 1. Public Website
+Use the website for:
 
-Goals:
+- product narrative
+- docs and onboarding guidance
+- benchmark proof and trust posture
+- pricing and plan framing
+- sign-in and trial/demo entry points
 
-- Explain the product clearly
-- Show token savings and quality improvement narrative
-- Capture leads
-- Support self-serve trial signup
-- Support sign-in and redirect users into the customer portal
-- Host docs, pricing, security overview, and benchmark proof points
+Do not use the website for authenticated tenant operations or internal control-plane work.
 
-Suggested pages:
+### Portal
 
-- Home
-- Product
-- How It Works
-- Benchmark
-- Pricing
-- Security
-- Docs
-- Book Demo
-- Customers/Case Studies
+Use the portal for:
 
-### 2. Docs Experience
+- tenant-scoped repository readiness and sync truth
+- documents and project memory artifacts
+- benchmark evidence and ROI explanation
+- usage and billing posture for the customer org
+- team access, security audit, and org settings
 
-Goals:
+Portal data must be tenant-safe by default. Customer-facing metrics must come from workspace or tenant truth, not repo-global demo data.
 
-- Installation guide
-- CLI docs
-- MCP integration docs
-- Policies and configuration docs
-- Benchmark guide
-- Enterprise deployment guide
+### Admin
 
-Implementation direction:
+Use admin for:
 
-- Keep docs on the public website so buying, onboarding, and trust signals stay connected.
-- Do not create a fourth product surface unless versioning/search needs force it later.
+- internal customer inventory and account health
+- support queues and internal notes scaffolding
+- revenue, expansion, retention, and plan posture
+- admin session registry and audit review
+- hosted observability, alerts, request traces, and exports
+- billing operations and entitlement posture
 
-### 3. Customer Portal
+Admin is internal-only. Admin routes, actions, and payloads must stay inaccessible to portal actors.
 
-Goals:
+## Role Model
 
-- Let individuals and organizations access the product after signup or purchase
-- Manage repositories and CLI sync targets
-- See project memory status, synced diagrams, and linked documents on the web
-- Review benchmark history
-- Monitor token savings and usage analytics
-- Manage organization members, policies, licenses, and workspace settings
-- Download reports
+### Internal Admin Roles
 
-UX rules:
+- `owner`
+- `support_admin`
+- `sales_ops`
+- `customer_success`
+- `engineering_admin`
 
-- Optimize for operational clarity and ROI visibility, not marketing novelty
-- Prefer tables, trend panels, inventory rows, and scoped detail views over decorative cards
-- Keep CLI sync status and hosted API trust boundary visible
+Admin RBAC is additive and least-privilege. `owner` is the only broad internal role. Other roles get only the read or action scopes they need.
 
-### 4. Admin Control Plane
+### Portal Roles
 
-Goals:
+- `org_admin`
+- `engineer`
+- `finance_viewer`
+- `security_viewer`
 
-- Internal-only website for the `BeHeart` owner and staff
-- Manage customers and licenses
-- View revenue metrics
-- Track trial conversions
-- Support onboarding and customer health
-- Configure platform settings and service health
+Portal RBAC is also additive and least-privilege:
 
-UX rules:
+- `org_admin`: full tenant administration across workspace, governance, billing, and settings
+- `engineer`: repository rollout, document memory, benchmark readiness, and repo policy settings
+- `finance_viewer`: benchmark ROI, usage framing, plan posture, seats, invoices, and upgrade readiness
+- `security_viewer`: tenant-scoped sessions, audit trail, retention posture, and auth visibility
 
-- Optimize for auditability and decision-making speed
-- Show revenue, retention, intake, benchmark health, and service health in one coherent control plane
-- Avoid exposing internal operations to portal users
+Legacy local or demo roles can be normalized into the canonical set at request time, but UI navigation and API contracts should emit the canonical role names above.
 
-## Build vs Buy Recommendation
+## Portal Information Architecture
 
-For the first 12 months, do not build a full CRM from scratch.
+Portal pages for Phase 1:
 
-Use:
+- `Overview`
+- `Repositories`
+- `Documents`
+- `Benchmarks`
+- `Usage`
+- `Billing`
+- `Team & Access`
+- `Security & Audit`
+- `Settings`
 
-- Stripe for billing and subscription management
-- HubSpot for CRM and pipeline
-- PostHog for product analytics
-- Clerk/Auth0 for auth
-- internal admin pages plus optional Metabase for deeper reporting
+Portal overview should make activation and trust obvious:
 
-Build custom admin only for:
+- repos onboarded
+- memory-ready repos
+- stale repos
+- latest sync freshness
+- benchmark-backed repos
+- average token savings
+- average review cleanup reduction
+- estimated monthly savings USD
+- open critical alerts
+- plan and entitlement status
 
-- tenant management
-- license status
-- benchmark report management
-- operational health
+Portal page intent:
 
-## Website Messaging Strategy
+- `Repositories`: readiness and sync truth, not just artifact counts
+- `Benchmarks`: benchmark history plus a local-first launcher when the hosted service still has access to the workspace repo path on the current host
+- `Usage`: benchmark-derived ROI separated from real metered usage
+- `Billing`: plan, seats, invoices, entitlements, and upgrade readiness
+- `Team & Access`: members, roles, SSO status, invites, active sessions
+- `Security & Audit`: tenant-scoped audit events, session history, retention and export posture
+- `Settings`: org profile, repo policy defaults, integration state
 
-### Primary message
+## Admin Information Architecture
 
-Stop paying AI to relearn your codebase.
+Admin pages for Phase 1:
 
-### Supporting messages
+- `Overview`
+- `Customers`
+- `Support`
+- `Documents`
+- `Benchmarks`
+- `Revenue`
+- `Ops Health`
+- `Sessions & Audit`
+- `Observability`
+- `Billing Ops`
 
-- Give coding agents durable project memory
-- Reduce token spend and duplicate work
-- Keep AI aligned to architecture and reusable code
-- Measure cost savings with benchmark reports
+Admin overview should answer internal operating questions quickly:
 
-### CTA strategy
+- active orgs
+- active trials
+- benchmark-backed orgs
+- expansion-ready orgs
+- queued submissions
+- failed syncs
+- auth failures
+- 5xx and alert posture
+- at-risk accounts
 
-- Start local free
-- Run a benchmark
-- Book an enterprise pilot
+Admin page intent:
 
-## Enterprise Features Roadmap
+- `Customers`: real account inventory with health, readiness, plan, and renewal context
+- `Support`: actionable queues, assignment fields, and internal notes scaffolding
+- `Revenue`: pipeline, conversion, expansion, and retention separated clearly
+- `Sessions & Audit`: internal session registry and admin audit events
+- `Observability`: requests, metrics, alerts, and export posture from hosted APIs
+- `Billing Ops`: plan posture, entitlements, billing status, adapter-friendly mock or live contracts
 
-### Wave 1
+## Metric Taxonomy And Source Of Truth
 
-- Team billing
-- Usage metering
-- Report export
-- Basic org/workspace management
+Every enterprise metric should identify its source type:
 
-### Wave 2
+- `repo_artifact`
+- `benchmark_artifact`
+- `hosted_telemetry`
+- `external_integration`
 
-- SSO/SAML
-- RBAC
-- Audit logs
-- Policy packs
-- Private deployment options
+Source-of-truth rules:
 
-### Wave 3
+- Repository readiness, sync freshness, stale repo status, and memory coverage come from tenant-scoped workspace and profile artifacts.
+- Savings, review cleanup reduction, and benchmark readiness come from benchmark artifacts and must be labeled as benchmark-derived.
+- Metered requests, auth failures, 5xx posture, and alert counts come from hosted telemetry.
+- Seats, invoices, subscriptions, plan posture, and auth-provider state come from external-integration adapters when configured, or mock-safe fallbacks when not configured.
+- `.worktrees` must be excluded from default scanning so customer-facing counts are not inflated by local engineering worktrees.
+- Customer-facing surfaces must not present repo-global demo truth as tenant truth.
 
-- VPC deployment
-- On-prem package
-- data retention controls
-- compliance posture artifacts
+## Build Vs Buy
 
-## Admin Roles
+For this phase, do not build a full CRM or full billing stack from scratch.
 
-- `Super Admin`
-- `Support Admin`
-- `Sales Ops`
-- `Customer Success`
-- `Org Admin`
-- `Engineering Admin`
+Build directly in BeHeart only what is core to product trust and tenant operations:
 
-## Key Admin Views
+- tenant and workspace inventory
+- repository readiness and sync truth
+- benchmark evidence presentation
+- admin customer health and support queues
+- session, audit, and observability visibility
+- entitlement and plan posture contracts
 
-- Account list
-- Customer portal access status
-- Active trials
-- Usage and token savings
-- Billing status
-- Benchmark results by customer
-- Error queues and failed scans
-- License seat allocation
+Buy or integrate for the rest behind adapter seams:
 
-## Suggested SaaS Data Domains
+- billing and subscriptions: `Stripe`
+- hosted auth and SSO: `Auth0` or `Clerk`
+- CRM and pipeline: `HubSpot` or equivalent
+- deeper reporting: internal admin plus optional BI tooling
 
-- Organizations
-- Users
-- Repositories
-- Graph jobs
-- Policies
-- Benchmarks
-- Reports
-- Licenses
-- Invoices
-- Leads and opportunities
+Provider adapters must support mock-safe operation without live credentials. UI payloads must never expose secrets, raw access tokens, or client secrets.
 
-## Compliance Readiness
+## Non-Negotiable Enterprise Rules
 
-You do not need full enterprise compliance on day one, but you should design toward it:
-
-- auditability
-- tenant isolation
-- encryption at rest and in transit
-- least privilege access
-- secret redaction and path exclusions
-
-## Enterprise Sales Motion
-
-1. Demo using benchmark narrative
-2. 2-week pilot on selected repos
-3. Deliver token savings and code quality report
-4. Convert to annual license with team expansion path
+- Keep `website`, `portal`, and `admin` separate.
+- Reuse existing packages, services, and API routes before adding new ones.
+- Keep local-first workflows obvious even when hosted surfaces are enabled.
+- Prefer boring, testable contracts over custom platform sprawl.
+- Treat auth, billing, admin, audit, and observability work as security-sensitive by default.

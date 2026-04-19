@@ -21,6 +21,7 @@ apps/portal/uploads/
 apps/admin/uploads/
 services/api/data/
 output/
+.playwright-cli/
 services/api/apps/
 services/api/services/
 tests/fixtures/**/.heart/

@@ -1,13 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { resolveActorAccess } from "../../../packages/shared-schema/src/enterprise.js";
+import { ensureCustomer } from "./customer-registry.js";
 import { getServiceStoragePaths, loadWorkspaceCatalog } from "./storage.js";
 import { withServiceDatabase } from "./database.js";
 import {
   clearMembershipsForActorInPostgres,
   isPostgresStorageEnabled,
+  loadBenchmarkIndexPageFromPostgres,
   loadActorsFromPostgres,
   loadMembershipsFromPostgres,
+  loadRepositoryProfilesPageFromPostgres,
+  loadWorkspaceRowsPageFromPostgres,
   writeActorsToPostgres,
   writeMembershipsToPostgres,
 } from "./postgres-repository.js";
@@ -17,13 +22,15 @@ const DEFAULT_ACTORS = Object.freeze([
     actor_slug: "owner-admin",
     surface: "admin",
     role: "owner",
+    roles: ["owner"],
     access_mode: "all",
     customer_slug: "internal",
   },
   {
     actor_slug: "demo-customer",
     surface: "portal",
-    role: "customer",
+    role: "org_admin",
+    roles: ["org_admin"],
     access_mode: "all",
     customer_slug: "demo-customer",
   },
@@ -71,6 +78,67 @@ export async function listAccessibleWorkspaces({ serviceStorageRoot, surface, ac
   return filterWorkspacesForActor(catalog.workspaces ?? [], actor, registry.memberships ?? []);
 }
 
+export async function listAccessibleWorkspacesPage({
+  serviceStorageRoot,
+  surface,
+  actorSlug,
+  repo,
+  limit = 50,
+  offset = 0,
+} = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  if (!actor) {
+    return {
+      items: [],
+      total_count: 0,
+    };
+  }
+
+  const accessScope = buildWorkspaceAccessScope(actor, registry.memberships ?? []);
+  if (isPostgresStorageEnabled()) {
+    return loadWorkspaceRowsPageFromPostgres({
+      ...accessScope,
+      repo,
+      limit,
+      offset,
+    }).then((result) => ({
+      items: result.items,
+      total_count: result.total_count,
+    }));
+  }
+
+  return withServiceDatabase(serviceStorageRoot, (database) => {
+    const { whereClause, values } = buildSqliteAccessScopeFilters({
+      accessScope,
+      extraFilters: repo ? [{ sql: "repo = ?", value: String(repo) }] : [],
+    });
+    const countStatement = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM workspaces
+      ${whereClause}
+    `);
+    const dataStatement = database.prepare(`
+      SELECT payload_json
+      FROM workspaces
+      ${whereClause}
+      ORDER BY workspace_slug ASC
+      LIMIT ?
+      OFFSET ?
+    `);
+    const total_count = Number(countStatement.get(...values)?.count ?? 0);
+    const items = dataStatement
+      .all(...values, Number(limit), Number(offset))
+      .map((row) => parsePayload(row.payload_json, null))
+      .filter(Boolean);
+
+    return {
+      items,
+      total_count,
+    };
+  });
+}
+
 export async function listAccessibleRepositoryProfiles({ serviceStorageRoot, surface, actorSlug } = {}) {
   const registry = await loadAccessRegistry({ serviceStorageRoot });
   const actor = resolveActorFromRegistry(registry, surface, actorSlug);
@@ -90,6 +158,86 @@ export async function listAccessibleRepositoryProfiles({ serviceStorageRoot, sur
   );
 
   return (index.profiles ?? []).filter((profile) => allowedWorkspaceSlugs.has(profile.workspace_slug ?? profile.profile_slug));
+}
+
+export async function listAccessibleRepositoryProfilesPage({
+  serviceStorageRoot,
+  surface,
+  actorSlug,
+  repo,
+  profileSlug,
+  limit = 50,
+  offset = 0,
+} = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  if (!actor) {
+    return {
+      items: [],
+      total_count: 0,
+    };
+  }
+
+  const accessScope = buildWorkspaceAccessScope(actor, registry.memberships ?? []);
+  if (isPostgresStorageEnabled()) {
+    return loadRepositoryProfilesPageFromPostgres({
+      ...accessScope,
+      repo,
+      profileSlug,
+      limit,
+      offset,
+    }).then((result) => ({
+      items: result.items,
+      total_count: result.total_count,
+    }));
+  }
+
+  return withServiceDatabase(serviceStorageRoot, (database) => {
+    const extraFilters = [];
+    if (repo) {
+      extraFilters.push({ sql: "repo = ?", value: String(repo) });
+    }
+    if (profileSlug) {
+      extraFilters.push({ sql: "profile_slug = ?", value: String(profileSlug) });
+    }
+    const { whereClause, values } = buildSqliteAccessScopeFilters({
+      accessScope,
+      extraFilters,
+    });
+    const countStatement = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM repository_profiles
+      ${whereClause}
+    `);
+    const dataStatement = database.prepare(`
+      SELECT profile_slug, workspace_slug, customer_slug, repo, generated_at, payload_json
+      FROM repository_profiles
+      ${whereClause}
+      ORDER BY profile_slug ASC
+      LIMIT ?
+      OFFSET ?
+    `);
+    const total_count = Number(countStatement.get(...values)?.count ?? 0);
+    const items = dataStatement.all(...values, Number(limit), Number(offset)).map((row) => {
+      const payload = parsePayload(row.payload_json, {});
+      return {
+        profile_slug: row.profile_slug,
+        workspace_slug: row.workspace_slug,
+        customer_slug: row.customer_slug,
+        repo: row.repo,
+        generated_at: row.generated_at,
+        overview: payload.overview,
+        heart: payload.heart,
+        documents: payload.documents,
+        cache: payload.cache,
+      };
+    });
+
+    return {
+      items,
+      total_count,
+    };
+  });
 }
 
 export async function loadAccessibleRepositoryView({
@@ -197,6 +345,106 @@ export async function loadAccessibleBenchmarkIndex({ serviceStorageRoot, surface
   };
 }
 
+export async function loadAccessibleBenchmarkIndexPage({
+  serviceStorageRoot,
+  surface,
+  actorSlug,
+  repo,
+  profileSlug,
+  scenario,
+  limit = 50,
+  offset = 0,
+} = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  if (!actor) {
+    return {
+      reports: [],
+      total_count: 0,
+    };
+  }
+
+  const accessScope = buildWorkspaceAccessScope(actor, registry.memberships ?? []);
+  if (isPostgresStorageEnabled()) {
+    const result = await loadBenchmarkIndexPageFromPostgres({
+      ...accessScope,
+      repo,
+      profileSlug,
+      scenario,
+      limit,
+      offset,
+      createBenchmarkIndexEntry: (report) => ({
+        report_id: report.report_id,
+        repo: report.repo,
+        profile_slug: report.profile_slug,
+        scenario: report.scenario,
+        provider: report.provider,
+        model: report.model,
+        generated_at: report.generated_at,
+        metrics: report.metrics,
+        summary: report.summary,
+        manager_summary: report.manager_summary,
+      }),
+    });
+    return {
+      reports: result.items,
+      total_count: result.total_count,
+    };
+  }
+
+  return withServiceDatabase(serviceStorageRoot, (database) => {
+    const extraFilters = [];
+    if (repo) {
+      extraFilters.push({ sql: "repo = ?", value: String(repo) });
+    }
+    if (profileSlug) {
+      extraFilters.push({ sql: "profile_slug = ?", value: String(profileSlug) });
+    }
+    if (scenario) {
+      extraFilters.push({ sql: "scenario = ?", value: String(scenario) });
+    }
+    const { whereClause, values } = buildSqliteAccessScopeFilters({
+      accessScope,
+      extraFilters,
+    });
+    const countStatement = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM benchmark_reports
+      ${whereClause}
+    `);
+    const dataStatement = database.prepare(`
+      SELECT payload_json
+      FROM benchmark_reports
+      ${whereClause}
+      ORDER BY generated_at DESC, report_id ASC
+      LIMIT ?
+      OFFSET ?
+    `);
+    const total_count = Number(countStatement.get(...values)?.count ?? 0);
+    const reports = dataStatement
+      .all(...values, Number(limit), Number(offset))
+      .map((row) => parsePayload(row.payload_json, null))
+      .filter(Boolean)
+      .map((report) => ({
+        report_id: report.report_id,
+        repo: report.repo,
+        profile_slug: report.profile_slug,
+        scenario: report.scenario,
+        provider: report.provider,
+        model: report.model,
+        generated_at: report.generated_at,
+        metrics: report.metrics,
+        summary: report.summary,
+        manager_summary: report.manager_summary,
+      }));
+
+    return {
+      reports,
+      total_count,
+    };
+  });
+}
+
 export async function loadAccessibleBenchmarkReport({
   serviceStorageRoot,
   surface,
@@ -214,6 +462,10 @@ export async function loadAccessibleBenchmarkReport({
   if (!report) {
     return null;
   }
+  const evidenceManifest = await readJsonOrDefault(
+    path.join(paths.benchmarkEvidenceRoot, `${sanitizeSlug(reportId)}.json`),
+    null,
+  );
 
   const allowedWorkspaceSlugs = new Set(
     filterWorkspacesForActor(
@@ -223,7 +475,14 @@ export async function loadAccessibleBenchmarkReport({
     ).map((workspace) => workspace.workspace_slug),
   );
 
-  return allowedWorkspaceSlugs.has(report.profile_slug) ? report : null;
+  if (!allowedWorkspaceSlugs.has(report.profile_slug)) {
+    return null;
+  }
+
+  return {
+    ...report,
+    evidence_manifest: evidenceManifest ?? report.evidence_manifest,
+  };
 }
 
 export async function resolveActor({ serviceStorageRoot, surface, actorSlug } = {}) {
@@ -236,9 +495,31 @@ export async function upsertActor({ serviceStorageRoot, actor } = {}) {
     throw new Error("actor is required.");
   }
 
-  await writeActorsToDatabase(serviceStorageRoot, [actor]);
+  const resolvedActor = resolveActorAccess(actor);
+  const persistedActor = {
+    ...actor,
+    ...resolvedActor,
+    role: resolvedActor.primary_role || String(actor.role ?? "").trim(),
+  };
+  const customer = persistedActor.customer_slug
+    ? await ensureCustomer({
+        serviceStorageRoot,
+        customerSlug: persistedActor.customer_slug,
+        displayName: persistedActor.customer_slug,
+      })
+    : null;
+  await writeActorsToDatabase(serviceStorageRoot, [
+    {
+      ...persistedActor,
+      customer_id: customer?.customer_id ?? persistedActor.customer_id ?? "",
+    },
+  ]);
   const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const persisted = resolveActorFromRegistry(registry, actor.surface, actor.actor_slug);
+  const persisted = resolveActorFromRegistry(
+    registry,
+    persistedActor.surface,
+    persistedActor.actor_slug,
+  );
   return persisted;
 }
 
@@ -275,14 +556,13 @@ export async function replaceActorMemberships({ serviceStorageRoot, actorSlug, m
 
 function resolveActorFromRegistry(registry, surface, actorSlug) {
   const safeActorSlug = sanitizeSlug(actorSlug ?? defaultActorSlugForSurface(surface));
-
-  return (
+  const actor =
     registry.actors.find(
-      (actor) =>
-        sanitizeSlug(actor.actor_slug) === safeActorSlug &&
-        (actor.surface === surface || actor.surface === "all"),
-    ) ?? null
-  );
+      (entry) =>
+        sanitizeSlug(entry.actor_slug) === safeActorSlug &&
+        (entry.surface === surface || entry.surface === "all"),
+    ) ?? null;
+  return actor ? resolveActorAccess(actor) : null;
 }
 
 function defaultActorSlugForSurface(surface) {
@@ -298,7 +578,7 @@ function filterWorkspacesForActor(workspaces, actor, memberships = []) {
     return [];
   }
 
-  if (actor.access_mode === "all" || actor.role === "owner") {
+  if (actor.surface === "admin" || actor.access_mode === "all" || actor.role === "owner") {
     return workspaces;
   }
 
@@ -322,6 +602,53 @@ function filterWorkspacesForActor(workspaces, actor, memberships = []) {
 
     return false;
   });
+}
+
+function buildWorkspaceAccessScope(actor, memberships = []) {
+  const membershipWorkspaceSlugs = memberships
+    .filter((membership) => sanitizeSlug(membership.actor_slug) === sanitizeSlug(actor.actor_slug))
+    .map((membership) => sanitizeSlug(membership.workspace_slug))
+    .filter(Boolean);
+
+  return {
+    accessAll:
+      actor.surface === "admin" || actor.access_mode === "all" || actor.role === "owner",
+    customerSlug: actor.customer_slug ? sanitizeSlug(actor.customer_slug) : "",
+    workspaceSlugs: [...new Set([
+      ...(actor.workspace_scopes ?? []).map((value) => sanitizeSlug(value)).filter((value) => value && value !== "*"),
+      ...membershipWorkspaceSlugs,
+    ])],
+  };
+}
+
+function buildSqliteAccessScopeFilters({ accessScope, extraFilters = [] } = {}) {
+  const clauses = [];
+  const values = [];
+
+  if (!accessScope.accessAll) {
+    const scopeClauses = [];
+    if ((accessScope.workspaceSlugs ?? []).length > 0) {
+      scopeClauses.push(
+        `workspace_slug IN (${accessScope.workspaceSlugs.map(() => "?").join(", ")})`,
+      );
+      values.push(...accessScope.workspaceSlugs);
+    }
+    if (accessScope.customerSlug) {
+      scopeClauses.push("customer_slug = ?");
+      values.push(accessScope.customerSlug);
+    }
+    clauses.push(scopeClauses.length > 0 ? `(${scopeClauses.join(" OR ")})` : "1 = 0");
+  }
+
+  for (const filter of extraFilters) {
+    clauses.push(filter.sql);
+    values.push(filter.value);
+  }
+
+  return {
+    whereClause: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",
+    values,
+  };
 }
 
 async function readJsonOrDefault(filePath, fallback) {
@@ -389,6 +716,7 @@ async function writeActorsToDatabase(serviceStorageRoot, actors) {
         surface,
         role,
         access_mode,
+        customer_id,
         customer_slug,
         payload_json
       )
@@ -397,24 +725,32 @@ async function writeActorsToDatabase(serviceStorageRoot, actors) {
         :surface,
         :role,
         :access_mode,
+        :customer_id,
         :customer_slug,
         :payload_json
       )
       ON CONFLICT(actor_slug, surface) DO UPDATE SET
         role = excluded.role,
         access_mode = excluded.access_mode,
+        customer_id = excluded.customer_id,
         customer_slug = excluded.customer_slug,
         payload_json = excluded.payload_json
     `);
 
     for (const actor of actors) {
+      const resolvedActor = resolveActorAccess(actor);
       statement.run({
         actor_slug: String(actor.actor_slug ?? ""),
         surface: String(actor.surface ?? "portal"),
-        role: String(actor.role ?? "customer"),
+        role: String(resolvedActor.primary_role ?? actor.role ?? ""),
         access_mode: String(actor.access_mode ?? "memberships"),
+        customer_id: actor.customer_id ?? null,
         customer_slug: actor.customer_slug ?? null,
-        payload_json: JSON.stringify(actor),
+        payload_json: JSON.stringify({
+          ...actor,
+          ...resolvedActor,
+          role: resolvedActor.primary_role ?? actor.role ?? "",
+        }),
       });
     }
   });
