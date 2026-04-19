@@ -30,8 +30,10 @@ export function WebsiteServicesVisual({ activeSlug = "", title = "Service map", 
             <p className="website-services-visual-descriptor">{service.descriptor}</p>
             <div className="website-services-visual-card-meta">
               <small>{service.category}</small>
-              <span className="website-services-visual-card-link">Open service</span>
             </div>
+            <span className="website-services-visual-card-link" aria-hidden="true">
+              Open service
+            </span>
           </Link>
         ))}
       </div>
