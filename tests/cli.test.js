@@ -14,6 +14,16 @@ async function createCliConnectRepo(t) {
   return { repoRoot };
 }
 
+async function createCliConnectInstallRepo(t) {
+  const { repoRoot } = await createConnectTestContext(t);
+  const workspaceRoot = path.resolve(".");
+
+  await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+  await fs.symlink(path.join(workspaceRoot, "packages"), path.join(repoRoot, "packages"), "dir");
+
+  return { repoRoot };
+}
+
 test("CLI overview returns JSON summary", () => {
   const raw = execFileSync("node", [cliPath, "overview", "--json", "--root", fixtureRoot], {
     encoding: "utf8",
@@ -130,32 +140,52 @@ test("CLI connect verify requires a client", () => {
   );
 });
 
-test("CLI connect install rejects unsupported backup flag", async (t) => {
-  const { repoRoot } = await createCliConnectRepo(t);
-
-  assert.throws(
-    () => {
-      execFileSync(
-        "node",
-        [
-          cliPath,
-          "connect",
-          "install",
-          "--json",
-          "--dry-run",
-          "--backup",
-          "--client",
-          "continue",
-          "--root",
-          repoRoot,
-        ],
-        {
-          encoding: "utf8",
+test("CLI connect install creates backups when requested", async (t) => {
+  const { repoRoot } = await createCliConnectInstallRepo(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+  const originalConfig = JSON.stringify(
+    {
+      mcpServers: {
+        existing: {
+          command: "node",
+          args: ["--version"],
         },
-      );
+      },
     },
-    /Unsupported flag: --backup/,
+    null,
+    2,
   );
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(cursorConfigPath, originalConfig, "utf8");
+
+  const raw = execFileSync(
+    "node",
+    [
+      cliPath,
+      "connect",
+      "install",
+      "--json",
+      "--backup",
+      "--client",
+      "cursor",
+      "--scope",
+      "repo",
+      "--root",
+      repoRoot,
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  const result = JSON.parse(raw);
+
+  assert.equal(result.client, "cursor");
+  assert.equal(result.backups.length, 1);
+  assert.equal(result.backups[0].source, cursorConfigPath);
+  assert.equal(result.backups[0].backup, `${cursorConfigPath}.bak`);
+  assert.equal(await fs.readFile(result.backups[0].backup, "utf8"), originalConfig);
+  assert.ok(JSON.parse(await fs.readFile(cursorConfigPath, "utf8")).mcpServers["heart-mcp"]);
 });
 
 test("CLI connect doctor returns repo diagnostics", async (t) => {
@@ -189,5 +219,6 @@ test("CLI help includes connect commands", () => {
 
   assert.match(raw, /heart connect detect/);
   assert.match(raw, /heart connect verify --client CLIENT/);
+  assert.match(raw, /--backup/);
   assert.match(raw, /heart connect doctor/);
 });

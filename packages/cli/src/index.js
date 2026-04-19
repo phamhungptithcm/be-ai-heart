@@ -222,26 +222,23 @@ async function handleConnectInstall(flags, io) {
     return 1;
   }
 
-  if (flags.backup) {
-    io.stderr.write(
-      "Unsupported flag: --backup is not available in the CLI install flow.\n",
-    );
-    return 1;
-  }
-
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const scope = flags.scope ?? "repo";
+  const plan = await buildInstallPlan({
+    client: flags.client,
+    scope,
+    repoRoot,
+    modelRuntime: flags.model,
+  });
 
   if (flags.dryRun) {
-    const plan = await buildInstallPlan({
-      client: flags.client,
-      scope,
-      repoRoot,
-      modelRuntime: flags.model,
-    });
     writeOutput({ plan }, flags.json, io);
     return 0;
   }
+
+  const backups = flags.backup
+    ? await createPlanBackups(plan.files_to_backup ?? [])
+    : [];
 
   const result = await installConnection({
     client: flags.client,
@@ -255,6 +252,10 @@ async function handleConnectInstall(flags, io) {
         plan: normalizeVerificationPlan(plan),
       }),
   });
+
+  if (flags.backup) {
+    result.backups = backups;
+  }
 
   writeOutput(result, flags.json, io);
   return 0;
@@ -398,7 +399,7 @@ Usage:
   heart pack [--json] [--root PATH] <task description>
   heart docs search [--json] [--root PATH] <query>
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
   heart connect verify --client CLIENT [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
   heart mcp tools [--json]
@@ -411,7 +412,7 @@ function connectHelpText() {
 
 Usage:
   heart connect detect [--json] [--root PATH] [--agents] [--models]
-  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
+  heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
   heart connect verify --client CLIENT [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
 `;
@@ -470,4 +471,33 @@ function isSpawnableMcpEntry(entry) {
 
 function toFlagKey(flagName) {
   return flagName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+async function createPlanBackups(filePaths) {
+  const backups = [];
+
+  for (const source of filePaths) {
+    const backup = await createDeterministicBackupPath(source);
+    await fs.mkdir(path.dirname(backup), { recursive: true });
+    await fs.copyFile(source, backup);
+    backups.push({ source, backup });
+  }
+
+  return backups;
+}
+
+async function createDeterministicBackupPath(source) {
+  let suffix = "";
+  let attempt = 0;
+
+  while (true) {
+    const backup = `${source}.bak${suffix}`;
+    try {
+      await fs.access(backup);
+      attempt += 1;
+      suffix = `.${attempt}`;
+    } catch {
+      return backup;
+    }
+  }
 }
