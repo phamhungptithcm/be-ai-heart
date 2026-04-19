@@ -24,6 +24,15 @@ async function createCliConnectInstallRepo(t) {
   return { repoRoot };
 }
 
+function runCliExpectFailure(args) {
+  try {
+    execFileSync("node", args, { encoding: "utf8" });
+    assert.fail("expected command to fail");
+  } catch (error) {
+    return error;
+  }
+}
+
 test("CLI overview returns JSON summary", () => {
   const raw = execFileSync("node", [cliPath, "overview", "--json", "--root", fixtureRoot], {
     encoding: "utf8",
@@ -140,6 +149,61 @@ test("CLI connect verify requires a client", () => {
   );
 });
 
+test("CLI connect install rejects invalid scope values", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+  const error = runCliExpectFailure([
+    cliPath,
+    "connect",
+    "install",
+    "--json",
+    "--dry-run",
+    "--client",
+    "continue",
+    "--scope",
+    "typo",
+    "--root",
+    repoRoot,
+  ]);
+
+  assert.match(error.stderr, /Invalid --scope value: typo\. Expected repo or user\./);
+  assert.doesNotMatch(error.stderr, /at .*index\.js/);
+});
+
+test("CLI connect install reports unsupported clients as a CLI error", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+  const error = runCliExpectFailure([
+    cliPath,
+    "connect",
+    "install",
+    "--json",
+    "--dry-run",
+    "--client",
+    "not-a-client",
+    "--root",
+    repoRoot,
+  ]);
+
+  assert.match(error.stderr, /Unsupported connect client: not-a-client\./);
+  assert.doesNotMatch(error.stderr, /at .*index\.js/);
+});
+
+test("CLI connect verify reports unsupported clients as a CLI error", async (t) => {
+  const { repoRoot } = await createCliConnectRepo(t);
+  const error = runCliExpectFailure([
+    cliPath,
+    "connect",
+    "verify",
+    "--json",
+    "--client",
+    "not-a-client",
+    "--root",
+    repoRoot,
+  ]);
+
+  assert.match(error.stderr, /Unsupported connect client: not-a-client\./);
+  assert.doesNotMatch(error.stderr, /at .*index\.js/);
+});
+
 test("CLI connect install creates backups when requested", async (t) => {
   const { repoRoot } = await createCliConnectInstallRepo(t);
   const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
@@ -201,15 +265,17 @@ test("CLI connect doctor returns repo diagnostics", async (t) => {
   assert.equal(result.warnings.length, 0);
 });
 
-test("CLI connect help is not a subcommand", () => {
-  assert.throws(
-    () => {
-      execFileSync("node", [cliPath, "connect", "help"], {
-        encoding: "utf8",
-      });
-    },
-    /heart connect detect/,
-  );
+test("CLI connect help aliases print connect usage", () => {
+  const help = execFileSync("node", [cliPath, "connect", "help"], {
+    encoding: "utf8",
+  });
+  const alias = execFileSync("node", [cliPath, "connect", "--help"], {
+    encoding: "utf8",
+  });
+
+  assert.match(help, /heart connect/);
+  assert.match(help, /heart connect verify --client CLIENT/);
+  assert.equal(alias, help);
 });
 
 test("CLI help includes connect commands", () => {

@@ -178,6 +178,11 @@ async function handleDocs(subcommand, flags, positional, io) {
 }
 
 async function handleConnect(subcommand, flags, io) {
+  if (flags.help || subcommand === "help") {
+    writeOutput(connectHelpText(), flags.json, io);
+    return 0;
+  }
+
   if (subcommand === "detect") {
     return handleConnectDetect(flags, io);
   }
@@ -224,12 +229,24 @@ async function handleConnectInstall(flags, io) {
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const scope = flags.scope ?? "repo";
-  const plan = await buildInstallPlan({
-    client: flags.client,
-    scope,
-    repoRoot,
-    modelRuntime: flags.model,
-  });
+  const scopeError = validateConnectScope(scope);
+  if (scopeError) {
+    io.stderr.write(`${scopeError}\n`);
+    return 1;
+  }
+
+  let plan;
+  try {
+    plan = await buildInstallPlan({
+      client: flags.client,
+      scope,
+      repoRoot,
+      modelRuntime: flags.model,
+    });
+  } catch (error) {
+    io.stderr.write(`${formatConnectClientError(error, flags.client)}\n`);
+    return 1;
+  }
 
   if (flags.dryRun) {
     writeOutput({ plan }, flags.json, io);
@@ -271,12 +288,25 @@ async function handleConnectVerify(flags, io) {
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
   const client = flags.client;
-  const plan = await buildInstallPlan({
-    client,
-    scope: flags.scope ?? "repo",
-    repoRoot,
-    modelRuntime: flags.model,
-  });
+  const scope = flags.scope ?? "repo";
+  const scopeError = validateConnectScope(scope);
+  if (scopeError) {
+    io.stderr.write(`${scopeError}\n`);
+    return 1;
+  }
+
+  let plan;
+  try {
+    plan = await buildInstallPlan({
+      client,
+      scope,
+      repoRoot,
+      modelRuntime: flags.model,
+    });
+  } catch (error) {
+    io.stderr.write(`${formatConnectClientError(error, client)}\n`);
+    return 1;
+  }
 
   const result = await verifyConnection({
     client,
@@ -310,6 +340,7 @@ function parseArgs(argv) {
     "dry-run",
     "backup",
     "rebuild",
+    "help",
   ]);
   const valueFlags = new Set([
     "root",
@@ -471,6 +502,22 @@ function isSpawnableMcpEntry(entry) {
 
 function toFlagKey(flagName) {
   return flagName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function validateConnectScope(scope) {
+  if (scope !== "repo" && scope !== "user") {
+    return `Invalid --scope value: ${scope}. Expected repo or user.`;
+  }
+
+  return null;
+}
+
+function formatConnectClientError(error, client) {
+  if (error instanceof Error && error.message.startsWith("Unsupported install client:")) {
+    return `Unsupported connect client: ${client}.`;
+  }
+
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function createPlanBackups(filePaths) {
