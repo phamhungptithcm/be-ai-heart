@@ -3,6 +3,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "code-graph",
     title: "Code Graph",
     subtitle: "Symbols, dependencies, impact paths",
+    descriptor: "Maps repository structure, dependencies, and likely impact",
+    trustTag: "Core memory",
     category: "Core memory",
     summary:
       "Map the repository into typed symbols, dependency edges, and impact paths so AI starts from structure instead of search noise.",
@@ -59,6 +61,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "document-memory",
     title: "Document Memory",
     subtitle: "Requirements, ADRs, design context",
+    descriptor: "Keeps requirements, ADRs, and design context retrievable",
+    trustTag: "Citable",
     category: "Core memory",
     summary:
       "Pull requirements, design docs, ADRs, and operational notes into the same memory layer as code so intent travels with implementation.",
@@ -115,6 +119,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "policy-rails",
     title: "Policy Rails",
     subtitle: "Reuse paths, boundaries, exclusions",
+    descriptor: "Applies governed boundaries, exclusions, and reuse paths",
+    trustTag: "Governed",
     category: "Governance",
     summary:
       "Guide AI toward preferred reuse paths, boundary-safe changes, and excluded areas so speed does not come at the cost of architecture drift.",
@@ -171,6 +177,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "cli-mcp-runtime",
     title: "CLI + MCP Runtime",
     subtitle: "Local-first delivery into agent workflows",
+    descriptor: "Delivers local-first memory into agent workflows",
+    trustTag: "Deterministic",
     category: "Runtime",
     summary:
       "Deliver project memory where engineers already work: local CLI for scans and benchmarks, MCP tools for structured agent access.",
@@ -227,6 +235,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "portal-admin-surfaces",
     title: "Portal + Admin Surfaces",
     subtitle: "Customer workspace plus internal control plane",
+    descriptor: "Separates tenant workspace from internal control plane",
+    trustTag: "Tenant-safe",
     category: "Surfaces",
     summary:
       "Give customers a tenant-safe workspace for memory and ROI, while internal teams get a separate control plane for support, revenue, billing, audit, and observability.",
@@ -283,6 +293,8 @@ export const WEBSITE_SERVICES = Object.freeze([
     slug: "benchmark-roi",
     title: "Benchmark ROI",
     subtitle: "Token, cleanup, and trust proof",
+    descriptor: "Turns savings and cleanup claims into measurable proof",
+    trustTag: "Measured",
     category: "Proof",
     summary:
       "Quantify whether BeHeart actually reduced token waste, review cleanup, and duplicate work instead of relying on demo language or anecdotal wins.",
