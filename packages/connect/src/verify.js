@@ -6,7 +6,7 @@ import { detectConnections } from "./detect.js";
 const HANDSHAKE_TIMEOUT_MS = 5_000;
 const PROTOCOL_VERSION = "2025-06-18";
 
-export async function verifyConnection({ client, repoRoot, plan } = {}) {
+export async function verifyConnection({ client, repoRoot, plan, spawnImpl = spawn } = {}) {
   const report = {
     client,
     repo_root: repoRoot,
@@ -23,7 +23,7 @@ export async function verifyConnection({ client, repoRoot, plan } = {}) {
   const stderrChunks = [];
 
   try {
-    const child = spawn(mcpEntry.command, normalizeArgs(mcpEntry.args), {
+    const child = spawnImpl(mcpEntry.command, normalizeArgs(mcpEntry.args), {
       cwd: repoRoot,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -98,7 +98,14 @@ export async function verifyConnection({ client, repoRoot, plan } = {}) {
 
 export async function runConnectDoctor(options = {}) {
   const detectImpl = options.detectImpl ?? detectConnections;
-  const detection = await detectImpl();
+  const detection = await detectImpl({
+    repoRoot: options.repoRoot,
+    env: options.env,
+    fetchImpl: options.fetchImpl,
+    execFileImpl: options.execFileImpl,
+    detectAgentsImpl: options.detectAgentsImpl,
+    detectModelsImpl: options.detectModelsImpl,
+  });
   const warnings = Array.isArray(detection?.warnings)
     ? [...detection.warnings]
     : [];
@@ -151,17 +158,41 @@ async function readResponse(stdoutIterator, expectedId) {
 }
 
 async function stopChildProcess(child) {
-  if (child.exitCode !== null || child.killed) {
+  if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
 
-  child.kill();
-  await withTimeout(
-    new Promise((resolve) => {
-      child.once("close", resolve);
-    }),
-    "Timed out waiting for MCP verification process to exit.",
-  ).catch(() => {});
+  const closedAfterTerm = await terminateChildProcess(child, "SIGTERM");
+  if (closedAfterTerm) {
+    return;
+  }
+
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+
+  const closedAfterKill = await terminateChildProcess(child, "SIGKILL");
+  if (!closedAfterKill) {
+    throw new Error("Timed out waiting for MCP verification process to exit.");
+  }
+}
+
+async function terminateChildProcess(child, signal) {
+  const closePromise = new Promise((resolve) => {
+    child.once("close", resolve);
+  });
+
+  child.kill(signal);
+
+  try {
+    await withTimeout(
+      closePromise,
+      `Timed out waiting for MCP verification process to exit after ${signal}.`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function withTimeout(promise, message) {
