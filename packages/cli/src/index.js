@@ -399,7 +399,7 @@ Usage:
   heart docs search [--json] [--root PATH] <query>
   heart connect detect [--json] [--root PATH] [--agents] [--models]
   heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
-  heart connect verify [--client CLIENT] [--json] [--root PATH]
+  heart connect verify --client CLIENT [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
   heart mcp tools [--json]
   heart mcp serve [--root PATH]
@@ -412,7 +412,7 @@ function connectHelpText() {
 Usage:
   heart connect detect [--json] [--root PATH] [--agents] [--models]
   heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run]
-  heart connect verify [--client CLIENT] [--json] [--root PATH]
+  heart connect verify --client CLIENT [--json] [--root PATH]
   heart connect doctor [--json] [--root PATH]
 `;
 }

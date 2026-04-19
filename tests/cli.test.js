@@ -188,5 +188,6 @@ test("CLI help includes connect commands", () => {
   });
 
   assert.match(raw, /heart connect detect/);
+  assert.match(raw, /heart connect verify --client CLIENT/);
   assert.match(raw, /heart connect doctor/);
 });
