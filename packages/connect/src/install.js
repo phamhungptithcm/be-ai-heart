@@ -2,43 +2,47 @@ import fs from "node:fs/promises";
 
 import { buildInstallPlan } from "./planner.js";
 import {
-  MANAGED_CONTINUE_CONFIG_HEADER,
-  resolveContinueManagedConfigPath,
+  createContinueManagedConfig,
+  inspectContinueManagedConfig,
 } from "./agent-adapters/continue.js";
-import { readJsonFile, writeJsonFile, writeTextFile } from "./filesystem.js";
+import { writeJsonFile, writeTextFile } from "./filesystem.js";
 
 function defaultExecFileImpl() {
   return Promise.resolve({ stdout: "", stderr: "" });
 }
 
-function createContinueManagedConfig(model) {
-  if (model === "ollama") {
-    return `${MANAGED_CONTINUE_CONFIG_HEADER}
-version: 1
-models:
-  - name: qwen3.5-coder:latest
-    provider: ollama
-    model: qwen3.5-coder:latest
-`;
-  }
+async function readExistingJsonFile(filePath, label) {
+  try {
+    const content = await fs.readFile(filePath, "utf8");
+    return {
+      exists: true,
+      payload: JSON.parse(content),
+    };
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return {
+        exists: false,
+        payload: null,
+      };
+    }
 
-  if (model === "lm-studio") {
-    return `${MANAGED_CONTINUE_CONFIG_HEADER}
-version: 1
-models:
-  - name: qwen3.5-coder:latest
-    provider: lm-studio
-    model: qwen3.5-coder:latest
-`;
-  }
+    if (error instanceof SyntaxError) {
+      throw new Error(
+        `Cannot install because existing ${label} contains invalid JSON at ${filePath}.`,
+      );
+    }
 
-  throw new Error(`Unsupported Continue model runtime: ${model}`);
+    throw error;
+  }
 }
 
 async function installCursor(plan) {
   const targetPath = plan.target_file;
-  const existingPayload = (await readJsonFile(targetPath)) ?? { mcpServers: {} };
-  const payload = {
+  const { payload } = targetPath
+    ? await readExistingJsonFile(targetPath, "Cursor config")
+    : { payload: null };
+  const existingPayload = payload ?? { mcpServers: {} };
+  const nextPayload = {
     ...existingPayload,
     mcpServers: {
       ...(existingPayload.mcpServers ?? {}),
@@ -46,7 +50,7 @@ async function installCursor(plan) {
     },
   };
 
-  await writeJsonFile(targetPath, payload);
+  await writeJsonFile(targetPath, nextPayload);
 }
 
 async function installClaudeCode(plan, execFileImpl) {
@@ -60,29 +64,21 @@ async function maybeWriteContinueManagedConfig({ env, model }) {
     return [];
   }
 
-  const configPath = resolveContinueManagedConfigPath(env);
-  if (!configPath) {
-    return ["Continue managed config path could not be resolved."];
+  const managedConfig = await inspectContinueManagedConfig({
+    scope: "user",
+    env,
+    modelRuntime: model,
+  });
+
+  if (managedConfig.filesToModify.length === 0) {
+    return managedConfig.warnings;
   }
 
-  let existingText = null;
-  try {
-    existingText = await fs.readFile(configPath, "utf8");
-  } catch {
-    existingText = null;
-  }
-
-  if (
-    existingText !== null &&
-    !existingText.startsWith(MANAGED_CONTINUE_CONFIG_HEADER)
-  ) {
-    return [
-      "Continue user config already exists and is not BeHeart-managed; skipping managed model config.",
-    ];
-  }
-
-  await writeTextFile(configPath, createContinueManagedConfig(model));
-  return [];
+  await writeTextFile(
+    managedConfig.managedConfigPath,
+    createContinueManagedConfig(model),
+  );
+  return managedConfig.warnings;
 }
 
 async function installContinue(plan, { env, model }) {

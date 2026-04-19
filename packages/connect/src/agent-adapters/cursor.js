@@ -111,6 +111,11 @@ export async function buildCursorInstallPlan({
   const configLocations = resolveCursorConfigLocations({ repoRoot, env });
   const targetPath =
     scope === "user" ? configLocations.user : configLocations.repo;
+  if (scope === "user" && !targetPath) {
+    throw new Error(
+      "Cannot resolve user home path for Cursor install. Set HOME or USERPROFILE.",
+    );
+  }
   const existingTarget = targetPath ? await fileExists(targetPath) : false;
   const warnings = [];
 

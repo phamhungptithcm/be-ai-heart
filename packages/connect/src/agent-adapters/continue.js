@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs/promises";
 
 import { fileExists, readJsonFile } from "../filesystem.js";
 
@@ -24,6 +25,91 @@ function resolveContinueConfigLocations({ repoRoot, env = process.env } = {}) {
 export function resolveContinueManagedConfigPath(env = process.env) {
   const homeRoot = resolveHomeRoot(env);
   return homeRoot ? path.join(homeRoot, ".continue", "config.yaml") : null;
+}
+
+export function createContinueManagedConfig(modelRuntime) {
+  if (modelRuntime === "ollama") {
+    return `${MANAGED_CONTINUE_CONFIG_HEADER}
+version: 1
+models:
+  - name: qwen3.5-coder:latest
+    provider: ollama
+    model: qwen3.5-coder:latest
+`;
+  }
+
+  if (modelRuntime === "lm-studio") {
+    return `${MANAGED_CONTINUE_CONFIG_HEADER}
+version: 1
+models:
+  - name: qwen3.5-coder:latest
+    provider: lm-studio
+    model: qwen3.5-coder:latest
+`;
+  }
+
+  throw new Error(`Unsupported Continue model runtime: ${modelRuntime}`);
+}
+
+export async function inspectContinueManagedConfig({
+  scope,
+  env = process.env,
+  modelRuntime = null,
+} = {}) {
+  if (scope !== "user" || !modelRuntime) {
+    return {
+      managedConfigPath: null,
+      filesToModify: [],
+      filesToBackup: [],
+      warnings: [],
+    };
+  }
+
+  const managedConfigPath = resolveContinueManagedConfigPath(env);
+  if (!managedConfigPath) {
+    throw new Error(
+      "Cannot resolve user home path for Continue install. Set HOME or USERPROFILE.",
+    );
+  }
+
+  let existingText = null;
+  try {
+    existingText = await fs.readFile(managedConfigPath, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  if (existingText === null) {
+    return {
+      managedConfigPath,
+      filesToModify: [managedConfigPath],
+      filesToBackup: [],
+      warnings: [],
+    };
+  }
+
+  const expectedManagedConfig = createContinueManagedConfig(modelRuntime);
+  if (existingText === expectedManagedConfig) {
+    return {
+      managedConfigPath,
+      filesToModify: [managedConfigPath],
+      filesToBackup: [managedConfigPath],
+      warnings: [],
+    };
+  }
+
+  const warning = existingText.startsWith(MANAGED_CONTINUE_CONFIG_HEADER)
+    ? "Continue managed config contains user edits; skipping managed model config."
+    : "Continue user config exists and is not BeHeart-managed; skipping managed model config.";
+
+  return {
+    managedConfigPath,
+    filesToModify: [],
+    filesToBackup: [],
+    warnings: [warning],
+  };
 }
 
 function buildHeartMcpEntry(repoRoot, modelRuntime = null) {
@@ -110,34 +196,39 @@ export async function buildContinueInstallPlan({
   const configLocations = resolveContinueConfigLocations({ repoRoot, env });
   const targetPath =
     scope === "user" ? configLocations.user : configLocations.repo;
+  if (scope === "user" && !targetPath) {
+    throw new Error(
+      "Cannot resolve user home path for Continue install. Set HOME or USERPROFILE.",
+    );
+  }
   const existingTarget = targetPath ? await fileExists(targetPath) : false;
-  const managedConfigPath = scope === "user" && modelRuntime
-    ? resolveContinueManagedConfigPath(env)
-    : null;
-  const existingManagedConfig = managedConfigPath
-    ? await fileExists(managedConfigPath)
-    : false;
+  const managedConfig = await inspectContinueManagedConfig({
+    scope,
+    env,
+    modelRuntime,
+  });
 
   return {
     client: "continue",
     scope,
     repo_root: repoRoot,
     target_file: targetPath,
-    managed_config_file: managedConfigPath,
+    managed_config_file: managedConfig.managedConfigPath,
     mcp_entry: {
       mcpServers: [buildHeartMcpEntry(repoRoot, modelRuntime)],
     },
     model_binding: modelRuntime,
     files_to_backup: [
       ...(existingTarget ? [targetPath] : []),
-      ...(existingManagedConfig ? [managedConfigPath] : []),
+      ...managedConfig.filesToBackup,
     ],
     files_to_modify: [
       ...(targetPath ? [targetPath] : []),
-      ...(managedConfigPath ? [managedConfigPath] : []),
+      ...managedConfig.filesToModify,
     ],
     warnings: [
       "Continue planning targets explicit repo or user MCP JSON files only.",
+      ...managedConfig.warnings,
     ],
     actions: ["write-continue-mcp-json"],
   };

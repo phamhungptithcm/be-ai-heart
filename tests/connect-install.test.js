@@ -190,3 +190,94 @@ test("installConnection creates a managed Continue config for Ollama only when t
   assert.match(configText, /model: qwen3.5-coder:latest/);
   assert.equal(result.status, "ready");
 });
+
+test("installConnection fails deterministically and preserves malformed existing Cursor config", async (t) => {
+  const { repoRoot, env } = await createConnectTestContext(t);
+  const cursorConfigPath = path.join(repoRoot, ".cursor", "mcp.json");
+  const malformedConfig = "{ invalid json";
+
+  await fs.mkdir(path.dirname(cursorConfigPath), { recursive: true });
+  await fs.writeFile(cursorConfigPath, malformedConfig);
+
+  await assert.rejects(
+    installConnection({
+      client: "cursor",
+      scope: "repo",
+      repoRoot,
+      env,
+      verifyImpl: async () => ({ status: "ready", warnings: [] }),
+    }),
+    /existing Cursor config.*invalid json/i,
+  );
+
+  assert.equal(await fs.readFile(cursorConfigPath, "utf8"), malformedConfig);
+});
+
+test("buildInstallPlan does not claim unmanaged Continue config.yaml will be modified", async (t) => {
+  const { repoRoot, env, homeRoot } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(homeRoot, ".continue", "config.yaml");
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(continueConfigPath, "name: User Config\nmodels: []\n");
+
+  const plan = await buildInstallPlan({
+    client: "continue",
+    scope: "user",
+    repoRoot,
+    env,
+    modelRuntime: "ollama",
+  });
+
+  assert.equal(plan.files_to_modify.includes(continueConfigPath), false);
+  assert.equal(plan.files_to_backup.includes(continueConfigPath), false);
+  assert.match(plan.warnings.at(-1), /not BeHeart-managed/i);
+});
+
+test("installConnection preserves header-prefixed Continue config with user edits", async (t) => {
+  const { repoRoot, env, homeRoot } = await createConnectTestContext(t);
+  const continueConfigPath = path.join(homeRoot, ".continue", "config.yaml");
+  const existingConfig = [
+    "name: BeHeart Local Config",
+    "version: 1",
+    "models:",
+    "  - name: qwen3.5-coder:latest",
+    "    provider: ollama",
+    "    model: qwen3.5-coder:latest",
+    "extra: keep-me",
+    "",
+  ].join("\n");
+
+  await fs.mkdir(path.dirname(continueConfigPath), { recursive: true });
+  await fs.writeFile(continueConfigPath, existingConfig);
+
+  const result = await installConnection({
+    client: "continue",
+    scope: "user",
+    repoRoot,
+    env,
+    model: "ollama",
+    verifyImpl: async () => ({ status: "ready", warnings: [] }),
+  });
+
+  assert.equal(await fs.readFile(continueConfigPath, "utf8"), existingConfig);
+  assert.match(
+    result.warnings.join("\n"),
+    /user edits|skipping managed model config/i,
+  );
+});
+
+test("installConnection fails deterministically for user scope without a home path", async (t) => {
+  const { repoRoot } = await createConnectTestContext(t);
+
+  await assert.rejects(
+    installConnection({
+      client: "continue",
+      scope: "user",
+      repoRoot,
+      env: {},
+      model: "ollama",
+      verifyImpl: async () => ({ status: "ready", warnings: [] }),
+    }),
+    /home path.*HOME.*USERPROFILE/i,
+  );
+});
