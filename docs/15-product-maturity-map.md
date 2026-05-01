@@ -167,32 +167,30 @@ Failure signal:
 
 ## Current Stage Assessment
 
-As of the current repository state, `be-ai-heart` is between `Stage 0` and early `Stage 1`.
+As of the current repository state, `be-ai-heart` is between late `Stage 1` and early `Stage 2`.
 
 Reasons:
 
-- there is already a real local scaffold, AST-backed parser, MCP server, tests, and document ingestion
-- persistent storage does not exist yet
-- full TypeScript migration does not exist yet
-- benchmark system is still too light for customer-proof ROI
-- website/portal/admin are still shells, not real product surfaces
+- there is a real local-first loop with AST-backed parsing, typed graph behavior, document memory, stable CLI/MCP contracts, and regression coverage
+- persistent storage, incremental indexing, and entity linking now exist in code and are exercised by tests
+- benchmark artifacts, capture flows, and hosted read/write surfaces are real, but the proof set is still too narrow for paid-beta sales claims
+- portal/admin/website surfaces are beyond shell status, but they are still early-product surfaces rather than field-proven customer UX
 
 Short version:
 
-- technically beyond concept-only
-- commercially not yet MVP-complete
+- technically beyond concept-only and into MVP-capable local-first workflow
+- commercially not yet paid-beta complete
 
-## What Must Happen Before Claiming MVP
+## What Must Happen Before Claiming Design Partner And Paid-Beta Readiness
 
 These are the non-negotiable items:
 
-1. TypeScript migration for core runtime
-2. Persistent graph and document storage
-3. Entity linking between code, documents, and architecture decisions
-4. Stable `symbol_lookup`, `impact_analysis`, and `context_pack` contracts
-5. Document-aware retrieval that is demonstrably useful
-6. Context quality scoring with explicit uncertainty
-7. Security baseline for ignored paths, redaction, and secret-safe outputs
+1. Expand benchmark repeatability across more customer-like repos, scenarios, and observed captures
+2. Implement the artifact-first agent context lane (`minimal_context`, compressed agent artifacts, shared scan artifacts)
+3. Lock the onboarding, deployment, and support playbooks for a guided pilot
+4. Publish at least one sales-grade benchmark report and stable demo flow backed by current artifacts
+5. Clarify pilot offer, pricing hypothesis, and explicit beta scope limits
+6. Keep hosted surfaces tenant-safe while improving operational readiness and support ergonomics
 8. Benchmark harness with repeatable and defensible results
 
 Do not claim MVP before those are complete.

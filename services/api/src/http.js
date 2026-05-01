@@ -360,6 +360,14 @@ export function resolveHttpConfig(options = {}) {
           60,
       ),
     },
+    localDemoAuth:
+      typeof options.localDemoAuth === "boolean"
+        ? options.localDemoAuth
+        : ["1", "true", "yes", "on", "enabled"].includes(
+            String(process.env.BE_AI_HEART_ENABLE_LOCAL_DEMO_AUTH ?? "")
+              .trim()
+              .toLowerCase(),
+          ),
     sessionSecurity: {
       cookieName: String(
         options.sessionSecurity?.cookieName ??
@@ -443,6 +451,7 @@ async function handleSessionRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (request.method === "GET") {
@@ -494,6 +503,7 @@ async function handleSessionRoute(request, config, surface) {
       workspaceSlug: payload.workspace_slug ?? authContext.workspace_slug,
       customerSlug: payload.customer_slug ?? authContext.customer_slug,
       sessionToken: payload.session_token,
+      localDemoAuth: config.localDemoAuth,
       metadata: {
         source: `${surface}-api-session`,
       },
@@ -547,6 +557,7 @@ async function handlePortalAccountRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -561,6 +572,7 @@ async function handlePortalOverviewRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -577,6 +589,7 @@ async function handlePortalUsageSummaryRoute(request, config) {
     authContext,
     apiBaseUrl: config.apiBaseUrl,
     windowDays: Number(requestUrl.searchParams.get("window_days") ?? 30),
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -591,6 +604,7 @@ async function handlePortalBillingRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -605,6 +619,7 @@ async function handlePortalMembersRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -619,6 +634,7 @@ async function handlePortalPoliciesRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -633,6 +649,7 @@ async function handlePortalSecurityRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -647,6 +664,7 @@ async function handlePortalSettingsRoute(request, config) {
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
     apiBaseUrl: config.apiBaseUrl,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -870,6 +888,7 @@ async function handleAdminOverviewRoute(request, config) {
   const payload = await loadAdminOverviewView({
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -887,6 +906,7 @@ async function handleAdminCustomerInventoryRoute(request, config) {
   const payload = await loadAdminCustomerInventoryView({
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -904,6 +924,7 @@ async function handleAdminBillingOpsRoute(request, config) {
   const payload = await loadAdminBillingOpsView({
     serviceStorageRoot: config.serviceStorageRoot,
     authContext,
+    localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
 }
@@ -914,6 +935,7 @@ async function handleWorkspacesRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (request.method === "GET") {
@@ -923,6 +945,7 @@ async function handleWorkspacesRoute(request, config, surface) {
       serviceStorageRoot: config.serviceStorageRoot,
       surface,
       actorSlug: authContext.actor_slug,
+      localDemoAuth: config.localDemoAuth,
       repo: requestUrl.searchParams.get("repo") ?? undefined,
       limit: pagination.limit,
       offset: (pagination.page - 1) * pagination.limit,
@@ -988,6 +1011,7 @@ async function handleRepositoriesRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (request.method === "GET") {
@@ -997,6 +1021,7 @@ async function handleRepositoriesRoute(request, config, surface) {
       serviceStorageRoot: config.serviceStorageRoot,
       surface,
       actorSlug: authContext.actor_slug,
+      localDemoAuth: config.localDemoAuth,
       repo: requestUrl.searchParams.get("repo") ?? undefined,
       profileSlug: requestUrl.searchParams.get("profile_slug") ?? undefined,
       limit: pagination.limit,
@@ -1052,11 +1077,13 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   const payload = await loadAccessibleRepositoryView({
     serviceStorageRoot: config.serviceStorageRoot,
     surface,
     actorSlug: authContext.actor_slug,
+    localDemoAuth: config.localDemoAuth,
     profileSlug: slug,
     graphMode: requestUrl.searchParams.get("graph_mode") ?? "focused",
   });
@@ -1070,6 +1097,7 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
           serviceStorageRoot: config.serviceStorageRoot,
           authContext,
           apiBaseUrl: config.apiBaseUrl,
+          localDemoAuth: config.localDemoAuth,
           profile: payload.profile,
         })
       : null;
@@ -1093,6 +1121,7 @@ async function loadRepositoryRuntimeSignals({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
   profile,
 } = {}) {
   const usage = await loadPortalUsageSummary({
@@ -1100,6 +1129,7 @@ async function loadRepositoryRuntimeSignals({
     authContext,
     apiBaseUrl,
     windowDays: 30,
+    localDemoAuth,
   });
   const workspaceSlug = String(profile?.workspace_slug ?? profile?.profile_slug ?? "");
   const repo = String(profile?.repo ?? "");
@@ -1152,6 +1182,7 @@ async function handleDocumentsRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (request.method === "GET") {
@@ -1159,6 +1190,7 @@ async function handleDocumentsRoute(request, config, surface) {
       serviceStorageRoot: config.serviceStorageRoot,
       surface,
       actorSlug: authContext.actor_slug,
+      localDemoAuth: config.localDemoAuth,
     });
     return jsonResponse(payload);
   }
@@ -1215,6 +1247,7 @@ async function handleDocumentSubmissionsRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -1276,6 +1309,7 @@ async function handleBenchmarksRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (request.method === "GET") {
@@ -1285,6 +1319,7 @@ async function handleBenchmarksRoute(request, config, surface) {
       serviceStorageRoot: config.serviceStorageRoot,
       surface,
       actorSlug: authContext.actor_slug,
+      localDemoAuth: config.localDemoAuth,
       repo: requestUrl.searchParams.get("repo") ?? undefined,
       profileSlug: requestUrl.searchParams.get("profile_slug") ?? undefined,
       scenario: requestUrl.searchParams.get("scenario") ?? undefined,
@@ -1335,6 +1370,7 @@ async function handleBenchmarkRunsRoute(request, config, surface) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
 
   if (!authContext.actor) {
@@ -1424,11 +1460,13 @@ async function handleBenchmarkDetailRoute(request, config, surface, reportId) {
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   const report = await loadAccessibleBenchmarkReport({
     serviceStorageRoot: config.serviceStorageRoot,
     surface,
     actorSlug: authContext.actor_slug,
+    localDemoAuth: config.localDemoAuth,
     reportId,
   });
   if (!report) {
@@ -1448,6 +1486,7 @@ async function handleBenchmarkRunDetailRoute(request, config, surface, launchId)
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -2426,6 +2465,7 @@ async function requirePortalAuthContext(request, config, requiredPermission) {
     surface: "portal",
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   if (!authContext.actor || authContext.actor.surface !== "portal") {
     throw createHttpError(401, "Unauthenticated request.");
@@ -2441,6 +2481,7 @@ async function requireAdminAuthContext(request, config, requiredPermission) {
     surface: "admin",
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
+    localDemoAuth: config.localDemoAuth,
   });
   if (!authContext.actor || authContext.actor.surface !== "admin") {
     throw createHttpError(401, "Unauthenticated request.");

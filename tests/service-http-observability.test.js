@@ -15,6 +15,7 @@ test("admin observability and audit routes expose hosted traces, metrics, alerts
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
     rateLimits: {
       "public-intake": {
         windowMs: 60 * 1000,
@@ -172,6 +173,7 @@ test("admin observability export route lists queued exports and flushes them to 
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
   const adminHeaders = {
     "x-be-ai-heart-session": "admin-owner-session",

@@ -1,11 +1,25 @@
 "use client";
 
+import { useState } from "react";
+
 import { buildAdminCustomerHealthMix } from "../src/dashboard-visuals.js";
+import { buildAdminCustomerExpansionSummary } from "../src/dashboard-visuals.js";
+import {
+  buildAdminCustomerTableRows,
+  queryAdminCustomerRows,
+} from "../src/table-state.js";
 import { useAdminResource } from "../src/use-admin-resource.js";
 import { AdminStateBlock } from "./AdminStateBlock.jsx";
 
 export function AdminCustomerInventoryClient() {
   const inventoryState = useAdminResource("/api/customers/inventory");
+  const [tableState, setTableState] = useState({
+    query: "",
+    posture: "all",
+    expansion: "all",
+    sortKey: "readiness",
+    sortDirection: "desc",
+  });
 
   if (inventoryState.status === "loading" || inventoryState.status === "idle") {
     return (
@@ -32,6 +46,7 @@ export function AdminCustomerInventoryClient() {
   const payload = inventoryState.data ?? {};
   const customers = payload.customers ?? [];
   const mix = buildAdminCustomerHealthMix(customers);
+  const expansionSummary = buildAdminCustomerExpansionSummary(customers);
   const seatsUsed = customers.reduce((total, customer) => total + Number(customer.seats_used ?? 0), 0);
   const seatsTotal = customers.reduce((total, customer) => total + Number(customer.seats_total ?? 0), 0);
   const queuedSubmissionCount = customers.reduce(
@@ -43,28 +58,8 @@ export function AdminCustomerInventoryClient() {
     0,
   );
   const renewalSoonCount = customers.filter((customer) => daysUntil(customer.renewal_date) <= 21).length;
-  const rows = [...customers]
-    .map((customer) => {
-      const readinessScore = Math.max(
-        0,
-        Math.min(
-          100,
-          Math.round(
-            20 +
-              Math.min(28, Number(customer.memory_ready_repositories ?? 0) * 12) +
-              Math.min(24, Number(customer.benchmark_backed_repositories ?? 0) * 14) -
-              Math.min(18, Number(customer.failed_syncs ?? 0) * 10) -
-              Math.min(12, Number(customer.stale_repositories ?? 0) * 4),
-          ),
-        ),
-      );
-
-      return {
-        ...customer,
-        readinessScore,
-      };
-    })
-    .sort((left, right) => right.readinessScore - left.readinessScore);
+  const allRows = buildAdminCustomerTableRows(customers);
+  const rows = queryAdminCustomerRows(allRows, tableState);
   const actions = [
     {
       label: "High-risk accounts",
@@ -167,55 +162,170 @@ export function AdminCustomerInventoryClient() {
         </section>
       </div>
 
+      <div className="admin-command-grid">
+        <section className="admin-command-panel">
+          <header className="admin-command-head">
+            <div>
+              <span>Expansion map</span>
+              <h3>Commercial pressure and rollout readiness</h3>
+              <p>Sales, support, and platform should all see the same expansion pressure signals before any plan change is proposed.</p>
+            </div>
+          </header>
+          <div className="admin-summary-list">
+            <article>
+              <span>Benchmark-backed accounts</span>
+              <strong>{expansionSummary.benchmark_backed_count} organization(s)</strong>
+              <p>{expansionSummary.benchmark_backed_pct}% of visible accounts already have at least one benchmark-backed repository.</p>
+            </article>
+            <article>
+              <span>Renewals soon</span>
+              <strong>{expansionSummary.renewal_soon_count} organization(s)</strong>
+              <p>These accounts are close enough to renewal that support quality and proof coverage directly affect retention.</p>
+            </article>
+            <article>
+              <span>Seat pressure</span>
+              <strong>{expansionSummary.seat_pressure_count} organization(s)</strong>
+              <p>High seat utilization can signal healthy expansion or poor entitlement hygiene. Review before quoting more seats.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="admin-command-panel">
+          <header className="admin-command-head">
+            <div>
+              <span>Operational backlog</span>
+              <h3>Queues that affect customer confidence</h3>
+              <p>Queued submissions and stale repositories are product trust problems before they become support tickets.</p>
+            </div>
+          </header>
+          <div className="admin-summary-list">
+            <article>
+              <span>Queued submissions</span>
+              <strong>{expansionSummary.queued_submission_count} pending update(s)</strong>
+              <p>Portal or CLI uploads that still need follow-through by support or platform operations.</p>
+            </article>
+            <article>
+              <span>Stale repositories</span>
+              <strong>{expansionSummary.stale_repository_count} stale repository surface(s)</strong>
+              <p>These repositories need refresh before any benchmark, billing, or policy conversation is treated as current.</p>
+            </article>
+            <article>
+              <span>Commercial mix</span>
+              <strong>{mix.active_count} active · {mix.trial_count} trial</strong>
+              <p>Use this split to decide whether the customer base is maturing or still over-indexed on short-lived evaluation accounts.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+
       <div className="admin-data-table-shell">
+        <div className="admin-table-toolbar">
+          <div className="admin-table-controls">
+            <label className="admin-field">
+              <span>Search accounts</span>
+              <input
+                className="admin-input"
+                type="search"
+                value={tableState.query}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, query: event.target.value }))
+                }
+                placeholder="Org, slug, plan, or status"
+              />
+            </label>
+            <label className="admin-field">
+              <span>Posture</span>
+              <select
+                className="admin-input"
+                value={tableState.posture}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, posture: event.target.value }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="trial">Trial</option>
+                <option value="high-risk">High risk</option>
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Expansion</span>
+              <select
+                className="admin-input"
+                value={tableState.expansion}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, expansion: event.target.value }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="ready">Ready</option>
+                <option value="watch">Watch</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </label>
+          </div>
+          <p className="admin-table-summary">
+            Showing {rows.length} of {allRows.length} accounts.
+          </p>
+        </div>
         <table className="admin-data-table">
           <thead>
             <tr>
-              <th>Org</th>
-              <th>Status</th>
-              <th>Plan</th>
-              <th>Readiness</th>
-              <th>Memory-ready repos</th>
-              <th>Benchmark-backed repos</th>
-              <th>Seat usage</th>
-              <th>Queued</th>
-              <th>Risk</th>
-              <th>Renewal</th>
+              <th aria-sort={getSortAria(tableState, "org")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "org"} onClick={() => setTableState((current) => nextSortState(current, "org"))}>Org<span>{getSortLabel(tableState, "org")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "status")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "status"} onClick={() => setTableState((current) => nextSortState(current, "status"))}>Status<span>{getSortLabel(tableState, "status")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "plan")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "plan"} onClick={() => setTableState((current) => nextSortState(current, "plan"))}>Plan<span>{getSortLabel(tableState, "plan")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "readiness")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "readiness"} onClick={() => setTableState((current) => nextSortState(current, "readiness"))}>Readiness<span>{getSortLabel(tableState, "readiness")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "memory-ready")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "memory-ready"} onClick={() => setTableState((current) => nextSortState(current, "memory-ready"))}>Memory-ready repos<span>{getSortLabel(tableState, "memory-ready")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "benchmark-backed")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "benchmark-backed"} onClick={() => setTableState((current) => nextSortState(current, "benchmark-backed"))}>Benchmark-backed repos<span>{getSortLabel(tableState, "benchmark-backed")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "seat-usage")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "seat-usage"} onClick={() => setTableState((current) => nextSortState(current, "seat-usage"))}>Seat usage<span>{getSortLabel(tableState, "seat-usage")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "queued")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "queued"} onClick={() => setTableState((current) => nextSortState(current, "queued"))}>Queued<span>{getSortLabel(tableState, "queued")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "risk")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "risk"} onClick={() => setTableState((current) => nextSortState(current, "risk"))}>Risk<span>{getSortLabel(tableState, "risk")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "motion")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "motion"} onClick={() => setTableState((current) => nextSortState(current, "motion"))}>Motion<span>{getSortLabel(tableState, "motion")}</span></button></th>
+              <th aria-sort={getSortAria(tableState, "renewal")}><button type="button" className="admin-table-sort" data-active={tableState.sortKey === "renewal"} onClick={() => setTableState((current) => nextSortState(current, "renewal"))}>Renewal<span>{getSortLabel(tableState, "renewal")}</span></button></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((customer) => (
-              <tr key={customer.customer_id}>
-                <td className="admin-table-primary">
-                  <strong>{customer.display_name}</strong>
-                  <small>{customer.customer_slug}</small>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="admin-table-empty">
+                  No customer account matches the current search and filter state.
                 </td>
-                <td>
-                  <span className="admin-table-badge" data-tone={customer.status === "active" ? "positive" : "neutral"}>
-                    {customer.status}
-                  </span>
-                </td>
-                <td>{customer.plan_code}</td>
-                <td>
-                  <div className="admin-table-stat">
-                    <strong>{customer.readinessScore}%</strong>
-                    <div className="admin-mini-track" aria-hidden="true">
-                      <i className="admin-mini-fill" style={{ width: `${customer.readinessScore}%` }} />
-                    </div>
-                  </div>
-                </td>
-                <td>{customer.memory_ready_repositories}</td>
-                <td>{customer.benchmark_backed_repositories}</td>
-                <td>{customer.seats_used}/{customer.seats_total}</td>
-                <td>{customer.queued_submissions}</td>
-                <td>
-                  <span className="admin-table-badge" data-tone={customer.risk_level === "high" ? "neutral" : "positive"}>
-                    {customer.risk_level}
-                  </span>
-                </td>
-                <td>{formatDate(customer.renewal_date)}</td>
               </tr>
-            ))}
+            ) : (
+              rows.map((customer) => (
+                <tr key={customer.customer_id}>
+                  <td className="admin-table-primary">
+                    <strong>{customer.display_name}</strong>
+                    <small>{customer.customer_slug}</small>
+                  </td>
+                  <td>
+                    <span className="admin-table-badge" data-tone={customer.status === "active" ? "positive" : "neutral"}>
+                      {customer.status}
+                    </span>
+                  </td>
+                  <td>{customer.plan_code}</td>
+                  <td>
+                    <div className="admin-table-stat">
+                      <strong>{customer.readinessScore}%</strong>
+                      <div className="admin-mini-track" aria-hidden="true">
+                        <i className="admin-mini-fill" style={{ width: `${customer.readinessScore}%` }} />
+                      </div>
+                    </div>
+                  </td>
+                  <td>{customer.memory_ready_repositories}</td>
+                  <td>{customer.benchmark_backed_repositories}</td>
+                  <td>{customer.seats_used}/{customer.seats_total}</td>
+                  <td>{customer.queued_submissions}</td>
+                  <td>
+                    <span className="admin-table-badge" data-tone={customer.riskLabel === "Healthy" ? "positive" : "neutral"}>
+                      {customer.riskLabel}
+                    </span>
+                  </td>
+                  <td>{customer.expansion_readiness}</td>
+                  <td>{formatDate(customer.renewal_date)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -260,4 +370,35 @@ function ValuePill({ label, value, progress }) {
       </div>
     </article>
   );
+}
+
+function nextSortState(current, sortKey) {
+  if (current.sortKey === sortKey) {
+    return {
+      ...current,
+      sortDirection: current.sortDirection === "desc" ? "asc" : "desc",
+    };
+  }
+
+  return {
+    ...current,
+    sortKey,
+    sortDirection: ["org", "status", "plan", "risk", "motion"].includes(sortKey) ? "asc" : "desc",
+  };
+}
+
+function getSortAria(state, sortKey) {
+  if (state.sortKey !== sortKey) {
+    return "none";
+  }
+
+  return state.sortDirection === "asc" ? "ascending" : "descending";
+}
+
+function getSortLabel(state, sortKey) {
+  if (state.sortKey !== sortKey) {
+    return "sort";
+  }
+
+  return state.sortDirection;
 }

@@ -18,6 +18,7 @@ export const DIAGRAM_TYPES = Object.freeze({
   component: "component",
   class: "class",
   sequence: "sequence",
+  mindmap: "mindmap",
 });
 
 const DEFAULT_DIAGRAM_TYPES = Object.freeze([
@@ -26,6 +27,7 @@ const DEFAULT_DIAGRAM_TYPES = Object.freeze([
   DIAGRAM_TYPES.component,
   DIAGRAM_TYPES.class,
   DIAGRAM_TYPES.sequence,
+  DIAGRAM_TYPES.mindmap,
 ]);
 
 export function generateDiagramBundle({
@@ -37,11 +39,13 @@ export function generateDiagramBundle({
   const normalizedTypes = normalizeDiagramTypes(types);
   const generatedAt = new Date().toISOString();
   const diagrams = normalizedTypes.map((type) =>
-    generateDiagram(type, {
-      workspaceState,
-      task,
-      target,
-    }),
+    finalizeDiagram(
+      generateDiagram(type, {
+        workspaceState,
+        task,
+        target,
+      }),
+    ),
   );
 
   return {
@@ -79,6 +83,8 @@ export async function writeDiagramBundle(repoRoot, bundle) {
       format: diagram.format,
       inference_mode: diagram.inference_mode,
       confidence: diagram.confidence,
+      trust: diagram.trust,
+      validation: diagram.validation,
       scope: diagram.scope,
       artifact_file: diagram.artifact_file,
       summary: diagram.summary,
@@ -324,6 +330,8 @@ function generateDiagram(type, options) {
         task: options.task,
         target: options.target,
       });
+    case DIAGRAM_TYPES.mindmap:
+      return generateMindmapDiagram(options.workspaceState);
     default:
       throw new Error(`Unsupported diagram type: ${type}`);
   }
@@ -573,6 +581,7 @@ function generateSequenceDiagram(workspaceState, options = {}) {
   const fileParticipants = [];
   const testParticipants = [];
   const aliasByFile = new Map();
+  const participantLabels = new Set();
   let fallbackParticipant = actorLabel;
 
   if (pack.relevant_documents.length > 0) {
@@ -588,7 +597,9 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     const alias = toParticipantAlias(route.file_path, aliasByFile.size);
     aliasByFile.set(route.file_path, alias);
     fileParticipants.push(route.file_path);
-    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(route.file_path))}`);
+    lines.push(
+      `  participant ${alias} as ${escapeSequenceText(buildUniqueParticipantLabel(route.file_path, participantLabels))}`,
+    );
     fallbackParticipant = alias;
   }
 
@@ -600,7 +611,7 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     const alias = toParticipantAlias(file.path, aliasByFile.size);
     aliasByFile.set(file.path, alias);
     fileParticipants.push(file.path);
-    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(file.path))}`);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(buildUniqueParticipantLabel(file.path, participantLabels))}`);
     fallbackParticipant = alias;
   }
 
@@ -615,7 +626,7 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     const alias = toParticipantAlias(supportPath, aliasByFile.size);
     aliasByFile.set(supportPath, alias);
     fileParticipants.push(supportPath);
-    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(supportPath))}`);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(buildUniqueParticipantLabel(supportPath, participantLabels))}`);
   }
 
   for (const testPath of pack.tests_to_run.slice(0, 2)) {
@@ -626,7 +637,7 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     const alias = toParticipantAlias(testPath, aliasByFile.size);
     aliasByFile.set(testPath, alias);
     testParticipants.push(testPath);
-    lines.push(`  participant ${alias} as ${escapeSequenceText(shortFileLabel(testPath))}`);
+    lines.push(`  participant ${alias} as ${escapeSequenceText(buildUniqueParticipantLabel(testPath, participantLabels))}`);
   }
 
   const orderedParticipants = [...fileParticipants, ...testParticipants];
@@ -704,6 +715,79 @@ function generateSequenceDiagram(workspaceState, options = {}) {
     summary: relevantRoutes.length > 0
       ? `Shows a best-effort route trace derived from parsed HTTP routes, typed call paths, tests, linked documents, and import fallback edges.`
       : `Shows a best-effort interaction flow derived from typed call paths, tests, linked documents, and import fallback edges.`,
+    content: lines.join("\n"),
+  };
+}
+
+function generateMindmapDiagram(workspaceState) {
+  const repoName = path.basename(workspaceState.repoRoot);
+  const lines = ["mindmap", `  root((Repo: ${escapeMindmapText(repoName)}))`];
+  const documentsByCategory = groupDocumentsByCategory(workspaceState.documentIndex.documents ?? []);
+  const domains = [...(workspaceState.heartModel.domains ?? [])]
+    .sort((left, right) => right.file_paths.length - left.file_paths.length || left.name.localeCompare(right.name))
+    .slice(0, 6);
+  const relationships = (workspaceState.heartModel.links ?? [])
+    .filter((link) => link.type === "DOMAIN_TO_DOMAIN")
+    .sort((left, right) => right.score - left.score || left.from.localeCompare(right.from) || left.to.localeCompare(right.to))
+    .slice(0, 10);
+
+  lines.push("    Documents");
+  appendMindmapCategory(lines, "Business", documentsByCategory.business);
+  appendMindmapCategory(lines, "Requirements", documentsByCategory.requirements);
+  appendMindmapCategory(lines, "Technical", documentsByCategory.technical);
+  appendMindmapCategory(lines, "Execution", documentsByCategory.execution);
+  appendMindmapCategory(lines, "General", documentsByCategory.general);
+
+  lines.push("    Code Domains");
+  if (domains.length === 0) {
+    lines.push("      No domains indexed");
+  } else {
+    for (const domain of domains) {
+      lines.push(`      ${escapeMindmapText(domain.name)}`);
+      lines.push(`        Files: ${domain.file_paths.length}`);
+      lines.push(`        Symbols: ${domain.symbol_ids.length}`);
+      if ((domain.document_paths ?? []).length > 0) {
+        lines.push(`        Docs: ${domain.document_paths.length}`);
+      }
+      const related = relationships
+        .filter((link) => link.from === domain.id || link.to === domain.id)
+        .slice(0, 2);
+      if (related.length > 0) {
+        lines.push("        Related");
+        for (const relationship of related) {
+          const targetId = relationship.from === domain.id ? relationship.to : relationship.from;
+          const targetName = String(targetId).replace(/^domain:/, "");
+          const kinds = (relationship.metadata?.relationship_kinds ?? []).join("+");
+          lines.push(`          ${escapeMindmapText(`${targetName} (${kinds || "linked"})`)}`);
+        }
+      }
+    }
+  }
+
+  lines.push("    Memory Signals");
+  lines.push(`      Heart links: ${workspaceState.heartModel.summary.relationship_count ?? 0}`);
+  lines.push(`      Documents indexed: ${workspaceState.documentIndex.totals.document_count ?? 0}`);
+  lines.push(`      Source files: ${workspaceState.scanResult.totals.file_count ?? 0}`);
+
+  return {
+    type: DIAGRAM_TYPES.mindmap,
+    title: "Cross-Source Mind Map",
+    format: "mermaid",
+    inference_mode: "static-heart-document-map",
+    confidence:
+      (workspaceState.documentIndex.totals.document_count ?? 0) > 0 && domains.length > 0
+        ? "high"
+        : domains.length > 0
+        ? "medium"
+        : "low",
+    scope: {
+      focus: "cross-source-memory",
+      document_count: workspaceState.documentIndex.totals.document_count ?? 0,
+      domain_count: domains.length,
+      relationship_count: relationships.length,
+    },
+    summary:
+      "Shows business, requirements, technical documents, implementation domains, and saved cross-domain memory links in one review map.",
     content: lines.join("\n"),
   };
 }
@@ -905,6 +989,87 @@ function buildRouteTraceInteractions(graph, routes, participantSet, aliasByFile,
   return interactions;
 }
 
+function finalizeDiagram(diagram) {
+  const validation = diagram.validation ?? validateDiagram(diagram);
+
+  return {
+    ...diagram,
+    validation,
+    trust: diagram.trust ?? buildDiagramTrust(diagram, validation),
+  };
+}
+
+function validateDiagram(diagram) {
+  if (diagram.type !== DIAGRAM_TYPES.sequence) {
+    return {
+      status: "passed",
+      warning_count: 0,
+      warnings: [],
+    };
+  }
+
+  const lines = String(diagram.content ?? "").split("\n");
+  const participantLines = lines.filter((line) => line.trim().startsWith("participant "));
+  const aliases = new Set(
+    participantLines
+      .map((line) => line.trim().match(/^participant\s+([A-Za-z0-9_]+)/))
+      .filter(Boolean)
+      .map((match) => match[1]),
+  );
+  aliases.add("Client");
+  aliases.add("User");
+  aliases.add("Docs");
+
+  const participantLabels = participantLines.map((line) => line.split(" as ")[1]?.trim() ?? "");
+  const duplicateLabels = participantLabels.filter(
+    (label, index) => label && participantLabels.indexOf(label) !== index,
+  );
+  const warnings = [];
+
+  if (duplicateLabels.length > 0) {
+    warnings.push(`Duplicate participant labels detected: ${dedupe(duplicateLabels).join(", ")}`);
+  }
+
+  for (const line of lines) {
+    const match = line.trim().match(/^([A-Za-z0-9_]+)(?:--|->)+>([A-Za-z0-9_]+):/);
+    if (!match) {
+      continue;
+    }
+
+    const [, fromAlias, toAlias] = match;
+    if (!aliases.has(fromAlias) || !aliases.has(toAlias)) {
+      warnings.push(`Unresolved interaction alias detected: ${fromAlias} -> ${toAlias}`);
+    }
+  }
+
+  return {
+    status: warnings.length === 0 ? "passed" : "warning",
+    warning_count: warnings.length,
+    warnings,
+  };
+}
+
+function buildDiagramTrust(diagram, validation) {
+  const heuristic = /heuristic/i.test(String(diagram.inference_mode ?? ""));
+
+  if (heuristic) {
+    return {
+      label: "beta",
+      note: "Heuristic diagram. Use as directional review aid, not a canonical source of truth.",
+      validation_status: validation.status,
+    };
+  }
+
+  return {
+    label: diagram.confidence === "high" ? "verified" : "derived",
+    note:
+      diagram.confidence === "high"
+        ? "Derived from typed repository data with no heuristic expansion."
+        : "Derived from static repository analysis and should still be spot-checked.",
+    validation_status: validation.status,
+  };
+}
+
 function resolveRouteEntrySymbol(graph, route) {
   const candidates = (graph.nodes ?? []).filter((node) => {
     if (!["Function", "Method"].includes(node.type)) {
@@ -1006,6 +1171,42 @@ function buildComponentGraph(workspaceState) {
     components: rankedComponents,
     relations,
   };
+}
+
+function groupDocumentsByCategory(documents) {
+  const grouped = {
+    business: [],
+    requirements: [],
+    technical: [],
+    execution: [],
+    general: [],
+  };
+
+  for (const document of documents) {
+    const category = grouped[document.category] ? document.category : "general";
+    grouped[category].push(document);
+  }
+
+  for (const category of Object.keys(grouped)) {
+    grouped[category] = grouped[category]
+      .sort((left, right) => left.path.localeCompare(right.path))
+      .slice(0, 4);
+  }
+
+  return grouped;
+}
+
+function appendMindmapCategory(lines, label, documents = []) {
+  lines.push(`      ${label}`);
+
+  if (documents.length === 0) {
+    lines.push("        None indexed");
+    return;
+  }
+
+  for (const document of documents) {
+    lines.push(`        ${escapeMindmapText(document.title || document.path)}`);
+  }
 }
 
 function resolveComponentRelation(graph, edge) {
@@ -1155,6 +1356,8 @@ function createWebRepositoryProfile(profile, artifacts) {
       format: diagram.format,
       inference_mode: diagram.inference_mode,
       confidence: diagram.confidence,
+      trust: diagram.trust,
+      validation: diagram.validation,
       scope: diagram.scope,
       summary: diagram.summary,
       content: diagram.content,
@@ -1186,8 +1389,37 @@ function shortFileLabel(filePath) {
   return parts.length <= 2 ? filePath : `${parts.slice(-2).join("/")}`;
 }
 
+function buildUniqueParticipantLabel(filePath, usedLabels = new Set()) {
+  const parts = String(filePath ?? "").split("/");
+
+  for (let width = Math.min(parts.length, 4); width >= 2; width -= 1) {
+    const label = parts.slice(-width).join("/");
+    if (!usedLabels.has(label)) {
+      usedLabels.add(label);
+      return label;
+    }
+  }
+
+  const fallback = String(filePath ?? "");
+  let candidate = fallback;
+  let suffix = 2;
+  while (usedLabels.has(candidate)) {
+    candidate = `${fallback} (${suffix})`;
+    suffix += 1;
+  }
+  usedLabels.add(candidate);
+  return candidate;
+}
+
 function escapeSequenceText(value) {
   return String(value).replace(/\n+/g, " ").replace(/"/g, "'");
+}
+
+function escapeMindmapText(value) {
+  return String(value ?? "")
+    .replace(/\n+/g, " ")
+    .replace(/["`]/g, "")
+    .trim();
 }
 
 function dedupe(items) {

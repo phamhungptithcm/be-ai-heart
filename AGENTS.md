@@ -122,3 +122,17 @@ Choose the smallest set of local skills that match the task:
 - Explain tradeoffs in code or docs where the decision is not obvious.
 - Do not introduce flashy architecture that weakens maintainability.
 - Prefer boring, testable building blocks over fragile cleverness.
+
+## graphify
+
+This project is configured for graphify. When `graphify-out/` exists, prefer the generated graph before broad raw-file search.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep; these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After a graph has been built, run `graphify update .` after modifying code files to keep it current (AST-only, no API cost)
+
+## caveman
+
+For response token savings, use concise caveman-style communication by default: cut filler, pleasantries, hedging, and redundant setup while preserving technical accuracy. Keep code, commands, security warnings, irreversible-action confirmations, commit messages, and PR text normal when brevity could cause ambiguity.

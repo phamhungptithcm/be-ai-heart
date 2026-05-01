@@ -188,6 +188,8 @@ export function AdminCustomerProfileClient({ slug }) {
               <ValuePill label="Avg token save" value={`${benchmarkSummary.avg_token_savings_pct}%`} progress={benchmarkSummary.avg_token_savings_pct} />
               <ValuePill label="Avg cost save" value={`$${benchmarkSummary.avg_cost_savings_usd}`} progress={Math.min(100, benchmarkSummary.avg_token_savings_pct)} />
               <ValuePill label="Avg memory save" value={`${benchmarkSummary.avg_memory_refresh_reduction_pct}%`} progress={benchmarkSummary.avg_memory_refresh_reduction_pct} />
+              <ValuePill label="Measurement" value={benchmarkSummary.latest_measurement_mode || "estimated"} progress={benchmarkSummary.latest_measurement_mode === "observed" ? 100 : benchmarkSummary.latest_measurement_mode === "mixed" ? 66 : 34} />
+              <ValuePill label="Confidence" value={benchmarkSummary.latest_confidence_label || "low"} progress={benchmarkSummary.latest_confidence_label === "high" ? 100 : benchmarkSummary.latest_confidence_label === "medium" ? 66 : 34} />
             </div>
           )}
         </section>
@@ -250,7 +252,8 @@ export function AdminCustomerProfileClient({ slug }) {
                 <div>
                   <strong>{diagram.title}</strong>
                   <p>{diagram.summary}</p>
-                  <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
+                  <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Trust: ${diagram.trust?.label ?? "n/a"} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
+                  <p>{diagram.validation?.warning_count ? `${diagram.validation.warning_count} validation warning(s)` : "Validation passed."}</p>
                 </div>
                 <span>{diagram.type}</span>
               </div>
@@ -270,8 +273,14 @@ function summarizeBenchmarkHistory(reports) {
       avg_token_savings_pct: 0,
       avg_cost_savings_usd: 0,
       avg_memory_refresh_reduction_pct: 0,
+      latest_measurement_mode: "",
+      latest_confidence_label: "",
     };
   }
+
+  const latestReport = [...reports].sort(
+    (left, right) => String(right.generated_at ?? "").localeCompare(String(left.generated_at ?? "")),
+  )[0];
 
   return {
     report_count: reports.length,
@@ -280,6 +289,8 @@ function summarizeBenchmarkHistory(reports) {
     avg_memory_refresh_reduction_pct: average(
       reports.map((report) => report.metrics?.memory_refresh_reduction_pct ?? 0),
     ),
+    latest_measurement_mode: latestReport?.provenance?.summary?.measurement_mode ?? "",
+    latest_confidence_label: latestReport?.provenance?.summary?.confidence_label ?? "",
   };
 }
 

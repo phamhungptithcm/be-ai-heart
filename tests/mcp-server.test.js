@@ -135,6 +135,72 @@ test("MCP dependency explain tool returns typed dependency evidence", async (t) 
   assert.ok(result.implements.includes("AuthWorkflow"));
 });
 
+test("MCP workflow hints and agent contracts honor the effective tool allowlist and fail safe on thin packs", async (t) => {
+  const fixtureRepo = await createTempRepoCopy(t);
+
+  await Promise.all([
+    fs.mkdir(path.join(fixtureRepo, "packages", "benchmark", "src"), { recursive: true }),
+    fs.mkdir(path.join(fixtureRepo, "apps", "admin", "components"), { recursive: true }),
+  ]);
+  await Promise.all([
+    fs.writeFile(
+      path.join(fixtureRepo, "packages", "benchmark", "src", "index.js"),
+      [
+        "export function publishBenchmarkReport(run) {",
+        "  return run;",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(fixtureRepo, "apps", "admin", "components", "AdminBenchmarkHistoryClient.jsx"),
+      [
+        "export function AdminBenchmarkHistoryClient() {",
+        '  return "benchmark reporting visibility history for follow-up runs";',
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+  ]);
+
+  const scanResult = await scanSourceTree(fixtureRepo);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+  const policyReport = evaluatePolicyViolations(scanResult);
+  const enabledTools = ["project_overview", "context_pack", "document_search", "policy_check"];
+
+  const overview = handleToolCall({
+    name: "project_overview",
+    graph,
+    documentIndex: { documents: [], totals: { document_count: 0 } },
+    heartModel: { domains: [], links: [], summary: { relationship_count: 0 } },
+    scanResult,
+    policyReport,
+    enabledTools,
+  });
+  assert.deepEqual(overview.agent_workflow.next_tools, ["context_pack", "policy_check"]);
+  assert.doesNotMatch(overview.agent_workflow.guidance, /dependency_explain/);
+
+  const pack = handleToolCall({
+    name: "context_pack",
+    args: {
+      task: "Add benchmark reporting support for login audit visibility and preserve enough context for the same benchmark run.",
+      token_budget: 160,
+    },
+    graph,
+    documentIndex: { documents: [], totals: { document_count: 0 } },
+    heartModel: { domains: [], links: [], summary: { relationship_count: 0 } },
+    scanResult,
+    policyReport,
+    enabledTools,
+  });
+
+  assert.equal(pack.truncated, true);
+  assert.equal(pack.agent_contract.should_scan_repo_wide, true);
+  assert.equal(pack.agent_contract.followup_tools.includes("dependency_explain"), false);
+});
+
 test("MCP document search prefers latest lineage version and redacts restricted summaries", async (t) => {
   const fixtureRepo = await createTempRepoCopy(t);
   const docsRoot = path.join(fixtureRepo, "docs", "governed");

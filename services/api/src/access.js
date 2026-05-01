@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { resolveActorAccess } from "../../../packages/shared-schema/src/enterprise.js";
 import { ensureCustomer } from "./customer-registry.js";
+import { isLocalDemoAuthEnabled } from "./local-demo.js";
 import {
   getServiceStoragePaths,
   loadRepositoryServiceArtifactRecord,
@@ -39,19 +40,23 @@ const DEFAULT_ACTORS = Object.freeze([
     customer_slug: "demo-customer",
   },
 ]);
+const DEFAULT_LOCAL_DEMO_ACTOR_SLUGS = new Set(DEFAULT_ACTORS.map((actor) => sanitizeSlug(actor.actor_slug)));
 
-export async function loadAccessRegistry({ serviceStorageRoot } = {}) {
+export async function loadAccessRegistry({ serviceStorageRoot, localDemoAuth } = {}) {
   const paths = getServiceStoragePaths({ serviceStorageRoot });
   const authRoot = path.join(paths.root, "auth");
   let actors = await loadActorsFromDatabase(paths.root);
   let memberships = await loadMembershipsFromDatabase(paths.root);
+  const demoAuthEnabled = isLocalDemoAuthEnabled({ localDemoAuth });
 
   if (actors.length === 0) {
     const seededActors = await readJsonOrDefault(path.join(authRoot, "actors.json"), {
       actors: [...DEFAULT_ACTORS],
     });
-    actors = seededActors.actors ?? [...DEFAULT_ACTORS];
-    await writeActorsToDatabase(paths.root, actors);
+    actors = seededActors.actors ?? (demoAuthEnabled ? [...DEFAULT_ACTORS] : []);
+    if (actors.length > 0) {
+      await writeActorsToDatabase(paths.root, actors);
+    }
   }
 
   if (memberships.length === 0) {
@@ -65,15 +70,15 @@ export async function loadAccessRegistry({ serviceStorageRoot } = {}) {
   }
 
   return {
-    actors,
+    actors: filterRuntimeActors(actors, { localDemoAuth: demoAuthEnabled }),
     memberships,
     auth_root: authRoot,
   };
 }
 
-export async function listAccessibleWorkspaces({ serviceStorageRoot, surface, actorSlug } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+export async function listAccessibleWorkspaces({ serviceStorageRoot, surface, actorSlug, localDemoAuth } = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return [];
   }
@@ -86,12 +91,13 @@ export async function listAccessibleWorkspacesPage({
   serviceStorageRoot,
   surface,
   actorSlug,
+  localDemoAuth,
   repo,
   limit = 50,
   offset = 0,
 } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return {
       items: [],
@@ -143,9 +149,9 @@ export async function listAccessibleWorkspacesPage({
   });
 }
 
-export async function listAccessibleRepositoryProfiles({ serviceStorageRoot, surface, actorSlug } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+export async function listAccessibleRepositoryProfiles({ serviceStorageRoot, surface, actorSlug, localDemoAuth } = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return [];
   }
@@ -168,13 +174,14 @@ export async function listAccessibleRepositoryProfilesPage({
   serviceStorageRoot,
   surface,
   actorSlug,
+  localDemoAuth,
   repo,
   profileSlug,
   limit = 50,
   offset = 0,
 } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return {
       items: [],
@@ -248,11 +255,12 @@ export async function loadAccessibleRepositoryView({
   serviceStorageRoot,
   surface,
   actorSlug,
+  localDemoAuth,
   profileSlug,
   graphMode = "focused",
 } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return null;
   }
@@ -312,9 +320,9 @@ export async function loadAccessibleRepositoryView({
   };
 }
 
-export async function loadAccessibleDocumentsView({ serviceStorageRoot, surface, actorSlug } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+export async function loadAccessibleDocumentsView({ serviceStorageRoot, surface, actorSlug, localDemoAuth } = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return {
       repositories: [],
@@ -344,9 +352,9 @@ export async function loadAccessibleDocumentsView({ serviceStorageRoot, surface,
   };
 }
 
-export async function loadAccessibleBenchmarkIndex({ serviceStorageRoot, surface, actorSlug } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+export async function loadAccessibleBenchmarkIndex({ serviceStorageRoot, surface, actorSlug, localDemoAuth } = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return {
       reports: [],
@@ -374,14 +382,15 @@ export async function loadAccessibleBenchmarkIndexPage({
   serviceStorageRoot,
   surface,
   actorSlug,
+  localDemoAuth,
   repo,
   profileSlug,
   scenario,
   limit = 50,
   offset = 0,
 } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return {
       reports: [],
@@ -474,10 +483,11 @@ export async function loadAccessibleBenchmarkReport({
   serviceStorageRoot,
   surface,
   actorSlug,
+  localDemoAuth,
   reportId,
 } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  const actor = resolveActorFromRegistry(registry, surface, actorSlug);
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  const actor = resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
   if (!actor) {
     return null;
   }
@@ -510,9 +520,9 @@ export async function loadAccessibleBenchmarkReport({
   };
 }
 
-export async function resolveActor({ serviceStorageRoot, surface, actorSlug } = {}) {
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
-  return resolveActorFromRegistry(registry, surface, actorSlug);
+export async function resolveActor({ serviceStorageRoot, surface, actorSlug, localDemoAuth } = {}) {
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth });
+  return resolveActorFromRegistry(registry, surface, actorSlug, { localDemoAuth });
 }
 
 export async function upsertActor({ serviceStorageRoot, actor } = {}) {
@@ -539,11 +549,12 @@ export async function upsertActor({ serviceStorageRoot, actor } = {}) {
       customer_id: customer?.customer_id ?? persistedActor.customer_id ?? "",
     },
   ]);
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth: true });
   const persisted = resolveActorFromRegistry(
     registry,
     persistedActor.surface,
     persistedActor.actor_slug,
+    { localDemoAuth: true },
   );
   return persisted;
 }
@@ -573,14 +584,17 @@ export async function replaceActorMemberships({ serviceStorageRoot, actorSlug, m
     );
   }
 
-  const registry = await loadAccessRegistry({ serviceStorageRoot });
+  const registry = await loadAccessRegistry({ serviceStorageRoot, localDemoAuth: true });
   return (registry.memberships ?? []).filter(
     (membership) => sanitizeSlug(membership.actor_slug) === safeActorSlug,
   );
 }
 
-function resolveActorFromRegistry(registry, surface, actorSlug) {
-  const safeActorSlug = sanitizeSlug(actorSlug ?? defaultActorSlugForSurface(surface));
+function resolveActorFromRegistry(registry, surface, actorSlug, options = {}) {
+  const safeActorSlug = sanitizeSlug(actorSlug ?? defaultActorSlugForSurface(surface, options));
+  if (!safeActorSlug) {
+    return null;
+  }
   const actor =
     registry.actors.find(
       (entry) =>
@@ -590,12 +604,24 @@ function resolveActorFromRegistry(registry, surface, actorSlug) {
   return actor ? resolveActorAccess(actor) : null;
 }
 
-function defaultActorSlugForSurface(surface) {
+function defaultActorSlugForSurface(surface, options = {}) {
+  if (!isLocalDemoAuthEnabled(options)) {
+    return "";
+  }
+
   if (surface === "admin") {
     return process.env.BE_AI_HEART_DEFAULT_ADMIN_ACTOR ?? "owner-admin";
   }
 
   return process.env.BE_AI_HEART_DEFAULT_PORTAL_ACTOR ?? "demo-customer";
+}
+
+function filterRuntimeActors(actors = [], options = {}) {
+  if (isLocalDemoAuthEnabled(options)) {
+    return actors;
+  }
+
+  return actors.filter((actor) => !DEFAULT_LOCAL_DEMO_ACTOR_SLUGS.has(sanitizeSlug(actor.actor_slug)));
 }
 
 function filterWorkspacesForActor(workspaces, actor, memberships = []) {

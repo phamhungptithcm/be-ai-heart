@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import { compileContextPack } from "../packages/context-compiler/src/index.js";
@@ -175,6 +176,100 @@ test("context compiler uses linked modules when the task is document-heavy", () 
   assert.equal(pack.relevant_files[0].path, "src/auth/session.ts");
   assert.equal(pack.linked_context.modules[0].module, "auth");
   assert.equal(pack.missing_context_warnings.includes("No document-to-module links were available for the matched documents."), false);
+});
+
+test("context compiler exposes compact module relationships from the heart model", () => {
+  const scanResult = {
+    files: [
+      {
+        relativePath: "src/auth/login.ts",
+        imports: ["../audit/trail"],
+        import_details: [
+          {
+            specifier: "../audit/trail",
+            imported_names: ["recordLoginAudit"],
+            default_import: null,
+            namespace_import: null,
+            source_kind: "import",
+          },
+        ],
+        calls: [
+          {
+            from_symbol_id: "sym:function:src/auth/login.ts:loginUser",
+            from_symbol_name: "loginUser",
+            from_kind: "function",
+            to_name: "recordLoginAudit",
+            expression: "recordLoginAudit",
+            line: 4,
+          },
+        ],
+        symbols: [
+          {
+            id: "sym:function:src/auth/login.ts:loginUser",
+            name: "loginUser",
+            kind: "function",
+            signature: "loginUser(username: string)",
+            exported: true,
+          },
+        ],
+      },
+      {
+        relativePath: "src/audit/trail.ts",
+        imports: [],
+        import_details: [],
+        calls: [],
+        symbols: [
+          {
+            id: "sym:function:src/audit/trail.ts:recordLoginAudit",
+            name: "recordLoginAudit",
+            kind: "function",
+            signature: "recordLoginAudit(username: string)",
+            exported: true,
+          },
+        ],
+      },
+    ],
+  };
+  const documentIndex = {
+    documents: [
+      {
+        path: "docs/requirements.md",
+        category: "requirements",
+        title: "Login Audit Requirements",
+        headings: ["Requirements"],
+        summary: "Keep auth as the implementation anchor and reuse the audit trail path.",
+        score: 4,
+      },
+    ],
+    totals: {
+      document_count: 1,
+      category_counts: {
+        requirements: 1,
+      },
+    },
+  };
+  const heartModel = buildHeartModel({
+    scanResult,
+    documentIndex,
+  });
+
+  const pack = compileContextPack({
+    task: "improve login audit flow",
+    graph: {
+      scanResult,
+      nodes: [],
+      edges: [],
+    },
+    documentIndex,
+    heartModel,
+    policyReport: { violations: [] },
+  });
+
+  assert.ok(pack.linked_context.modules.some((module) => module.module === "auth"));
+  assert.equal(pack.linked_context.relationships[0].from_module, "auth");
+  assert.equal(pack.linked_context.relationships[0].to_module, "audit");
+  assert.equal(pack.linked_context.relationships[0].provenance, "EXTRACTED");
+  assert.deepEqual(pack.linked_context.relationships[0].relationship_kinds, ["calls", "imports"]);
 });
 
 test("context compiler surfaces missing context warnings when links and docs are absent", () => {
@@ -377,4 +472,78 @@ test("context compiler applies token budgets while preserving call, citation, an
   assert.ok(boundedPack.call_paths.some((callPath) => callPath.to === "loginUser"));
   assert.ok(boundedPack.tests_to_run.includes("src/auth/login.test.ts"));
   assert.ok(boundedPack.citations.some((citation) => citation.type === "graph"));
+});
+
+test("context compiler prefers owning packages over UI surfaces for core benchmark tasks", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+
+  await Promise.all([
+    fs.mkdir(path.join(repoRoot, "packages", "benchmark", "src"), { recursive: true }),
+    fs.mkdir(path.join(repoRoot, "apps", "admin", "components"), { recursive: true }),
+    fs.mkdir(path.join(repoRoot, "apps", "admin", "src"), { recursive: true }),
+  ]);
+  await Promise.all([
+    fs.writeFile(
+      path.join(repoRoot, "packages", "benchmark", "src", "index.js"),
+      [
+        "export function publishReport(run) {",
+        "  return buildEvidenceManifest(run);",
+        "}",
+        "",
+        "export function buildEvidenceManifest(run) {",
+        "  return { report: run, evidence: true };",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(repoRoot, "apps", "admin", "components", "AdminBenchmarkHistoryClient.jsx"),
+      [
+        'export function AdminBenchmarkHistoryClient() {',
+        '  return "benchmark reporting support for login audit visibility, follow-up runs, and same-run context history";',
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(repoRoot, "apps", "admin", "src", "table-state.js"),
+      [
+        "export function buildBenchmarkRunFollowupContextTableState() {",
+        '  return "login audit benchmark reporting support and follow-up run context";',
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+  ]);
+
+  const scanResult = await scanSourceTree(repoRoot);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+  const pack = compileContextPack({
+    task: "Add benchmark reporting support for login audit visibility and preserve enough context for the same benchmark run.",
+    graph,
+    documentIndex: {
+      documents: [],
+      totals: {
+        document_count: 0,
+        category_counts: {},
+      },
+    },
+    heartModel: {
+      domains: [],
+      links: [],
+      summary: {
+        domain_count: 0,
+        relationship_count: 0,
+      },
+    },
+    policyReport: { violations: [] },
+    maxFiles: 1,
+    maxSymbols: 4,
+  });
+
+  assert.equal(pack.relevant_files[0].path, "packages/benchmark/src/index.js");
+  assert.ok(pack.relevant_symbols.some((symbol) => symbol.file === "packages/benchmark/src/index.js"));
 });

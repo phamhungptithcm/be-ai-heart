@@ -1,0 +1,194 @@
+{
+  "schema_version": 2,
+  "id": "cross-module-change",
+  "title": "Cross Module Benchmark Automation",
+  "category": "architecture-constrained-change",
+  "description": "Measures whether the workflow can automate repeated benchmark runs from the CLI while preserving benchmark package boundaries and sanitized publication behavior.",
+  "repo": "be-ai-heart",
+  "profile_slug": "",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "dataset_id": "cross-module-boundaries",
+  "dataset": {
+    "schema_version": 1,
+    "id": "cross-module-boundaries",
+    "title": "Cross Module Boundary Dataset",
+    "repo_strategy": "current-repo",
+    "summary": "Benchmark slice for work that spans CLI, benchmark, portal sync, and hosted storage boundaries while preserving narrow contracts.",
+    "source_paths": [
+      "packages/benchmark/src",
+      "packages/cli/src",
+      "services/api/src",
+      "apps/portal",
+      "apps/admin"
+    ],
+    "documents": [
+      {
+        "path": "docs/03-technical-architecture.md",
+        "title": "Technical Architecture",
+        "reason": "Cross-package boundaries and benchmark engine placement live here."
+      },
+      {
+        "path": "docs/04-mcp-cli-spec.md",
+        "title": "CLI and MCP Specification",
+        "reason": "Benchmark command behavior must stay script-friendly."
+      },
+      {
+        "path": "docs/11-implementation-blueprint-v2.md",
+        "title": "Implementation Blueprint v2",
+        "reason": "Evidence-rich benchmark artifacts are part of the v2 target."
+      }
+    ],
+    "reuse_targets": [
+      {
+        "path": "services/api/src/storage.js",
+        "title": "Benchmark artifact publication",
+        "reason": "Published reports should reuse existing storage and surface sync logic."
+      },
+      {
+        "path": "packages/benchmark/src/trends.js",
+        "title": "Trend digest builder",
+        "reason": "Suite output should complement existing trend summaries."
+      }
+    ],
+    "policy_targets": [
+      "Do not couple benchmark scoring logic to portal or admin rendering.",
+      "Keep publish artifacts sanitized for hosted surfaces."
+    ],
+    "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/cross-module-boundaries.json"
+  },
+  "task": {
+    "statement": "Automate repeatable scenario and suite benchmark runs from the CLI and publish sanitized report artifacts."
+  },
+  "expected_documents": [
+    {
+      "path": "docs/03-technical-architecture.md"
+    },
+    {
+      "path": "docs/04-mcp-cli-spec.md"
+    },
+    {
+      "path": "docs/11-implementation-blueprint-v2.md"
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "packages/benchmark/src/index.js"
+    },
+    {
+      "path": "services/api/src/storage.js"
+    }
+  ],
+  "architecture_rules": [
+    "Do not couple scoring logic to portal or admin rendering.",
+    "Published reports must remain sanitized."
+  ],
+  "evaluation": {
+    "targets": {
+      "max_tokens": 2300,
+      "max_minutes": 32,
+      "max_memory_refreshes": 2,
+      "max_token_cost_usd": 0.44,
+      "max_duplicates": 1,
+      "max_policy_violations": 0,
+      "max_review_edits": 4
+    }
+  },
+  "baseline": {
+    "tokens": 3600,
+    "token_breakdown": {
+      "prompt_tokens": 980,
+      "discovery_tokens": 1500,
+      "tool_tokens": 0,
+      "completion_tokens": 1120
+    },
+    "minutes": 52,
+    "duplicates": 4,
+    "policy_violations": 3,
+    "review_edits": 10,
+    "memory_refreshes": 7,
+    "token_cost_usd": 0.72,
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 4,
+      "document_hits": 1,
+      "document_targets": 3
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 3,
+      "checks_passed": 1,
+      "checks_total": 3,
+      "duplicate_introductions": 4
+    },
+    "code_quality": {
+      "tests_passed": 2,
+      "tests_total": 5,
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 2,
+        "reuse": 2,
+        "testing": 2,
+        "intent_alignment": 2
+      }
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2
+    }
+  },
+  "assisted": {
+    "tokens": 2050,
+    "token_breakdown": {
+      "prompt_tokens": 420,
+      "discovery_tokens": 360,
+      "tool_tokens": 390,
+      "completion_tokens": 880
+    },
+    "minutes": 31,
+    "duplicates": 1,
+    "policy_violations": 1,
+    "review_edits": 4,
+    "memory_refreshes": 2,
+    "token_cost_usd": 0.41,
+    "context_retention": {
+      "checkpoints_passed": 4,
+      "checkpoints_total": 4,
+      "document_hits": 3,
+      "document_targets": 3
+    },
+    "duplicate_work": {
+      "reuse_hits": 3,
+      "reuse_targets": 3,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "duplicate_introductions": 1
+    },
+    "code_quality": {
+      "tests_passed": 4,
+      "tests_total": 5,
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 4,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 4
+      }
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2
+    },
+    "tool_outputs": [
+      {
+        "tool": "context_pack",
+        "status": "ok"
+      },
+      {
+        "tool": "policy_check",
+        "status": "ok"
+      }
+    ]
+  },
+  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/scenarios/cross-module-change.json"
+}

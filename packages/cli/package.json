@@ -1,10 +1,23 @@
 {
-  "name": "@be-ai-heart/cli",
+  "name": "beheart",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "main": "./src/index.js",
+  "description": "Local-first CLI for be-ai-heart",
+  "main": "dist/index.js",
   "bin": {
-    "heart": "./bin/heart.js"
+    "heart": "dist/heart.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-cli-package.mjs",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

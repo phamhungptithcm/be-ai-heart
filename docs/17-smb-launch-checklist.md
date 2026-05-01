@@ -246,18 +246,27 @@ Required:
 
 ## Current Assessment Snapshot
 
-Based on the current repository state:
+Based on the current repository state and automated validation (`210` passing tests plus `npm run build`):
 
-- `Internal dogfooding`: close
-- `Design partner beta`: not ready yet
+- `Internal dogfooding`: ready
+- `Design partner beta`: close, but still partial
 - `SMB paid beta`: not ready yet
 - `Enterprise pilot`: not ready
 
+What is now clearly real in code:
+
+- persistent SQLite-backed storage for repository, document, benchmark, workspace, auth, audit, and observability artifacts
+- incremental scan caching with selective invalidation for code, document, and policy changes
+- entity linking across modules, symbols, domains, and decision-style document relationships
+- stable CLI, MCP, and hosted-service contracts with regression coverage
+- benchmark capture, compare, evidence, and report flows with explicit observed-vs-estimated provenance
+
 Main blockers right now:
 
-- no persistent storage
-- no incremental indexing
-- no entity linking
+- benchmark breadth and rerun evidence still need to expand across more customer-like repos and scenarios
+- the artifact-first agent context lane from the hybrid token-savings design is still not implemented (`minimal_context`, compressed agent artifacts, shared artifact contract)
+- launch packaging is still incomplete: onboarding proof, support scope, pricing hypothesis, and pilot motion need tighter operational definition
+- hosted portal/admin surfaces are useful internal tools, but still need more field validation before paid beta claims
 - no policy DSL
 - no context quality score
 - benchmark not yet strong enough

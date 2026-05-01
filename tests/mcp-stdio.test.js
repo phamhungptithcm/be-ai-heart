@@ -10,6 +10,7 @@ const cliPath = path.resolve("packages/cli/bin/heart.js");
 
 test("MCP stdio server completes initialize, list, and call flow", async (t) => {
   const fixtureRoot = await createTempRepoCopy(t);
+  await fs.rm(path.join(fixtureRoot, "heart.config.yaml"), { force: true });
   const child = spawn("node", [cliPath, "mcp", "serve", "--root", fixtureRoot], {
     stdio: ["pipe", "pipe", "pipe"],
   });

@@ -141,6 +141,18 @@ test("CLI diagram generate prints a single mermaid diagram", async (t) => {
   assert.match(raw, /loginUser/);
 });
 
+test("CLI diagram generate prints a cross-source mindmap", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const raw = execFileSync("node", [cliPath, "diagram", "generate", "mindmap", "--root", fixtureRoot], {
+    encoding: "utf8",
+  });
+
+  assert.match(raw, /^mindmap/m);
+  assert.match(raw, /Business/);
+  assert.match(raw, /Requirements/);
+  assert.match(raw, /Code Domains/);
+});
+
 test("CLI diagram sync publishes a repository profile to custom portal and admin roots", async (t) => {
   const fixtureRoot = await createTempRepoCopy(t);
   const workspaceRoot = path.dirname(fixtureRoot);
@@ -461,17 +473,22 @@ test("CLI connect install exits non-zero when verification fails after a user-sc
   assert.equal(payload.mcpServers["heart-mcp"].args[0], cliPath);
 });
 
-test("CLI connect doctor returns repo diagnostics", () => {
-  const repoRoot = path.resolve(".");
+test("CLI connect doctor returns repo diagnostics", async (t) => {
+  const { repoRoot, homeRoot } = await createCliConnectRepo(t);
   const raw = execFileSync("node", [cliPath, "connect", "doctor", "--json", "--root", repoRoot], {
     encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: homeRoot,
+      USERPROFILE: homeRoot,
+    },
   });
   const result = JSON.parse(raw);
 
   assert.equal(result.repo_root, repoRoot);
-  assert.equal(result.status, "ready");
+  assert.equal(result.status, "action_required");
   assert.ok(Array.isArray(result.warnings));
-  assert.equal(result.warnings.length, 0);
+  assert.ok(Array.isArray(result.actions));
 });
 
 test("CLI connect help aliases return connect usage", () => {

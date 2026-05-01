@@ -2,6 +2,7 @@
 
 const SESSION_STORAGE_KEY = "be_ai_heart.admin.session";
 const DEFAULT_SESSION_MODE = "header";
+const DEFAULT_LOCAL_DEMO_SESSION = "admin-owner-session";
 
 export function getAdminApiBaseUrl() {
   return normalizeBaseUrl(
@@ -16,9 +17,13 @@ export function getAdminPublicBaseUrl() {
 }
 
 export function getAdminDefaultSessionToken() {
+  if (!isAdminLocalDemoAuthEnabled()) {
+    return "";
+  }
+
   return String(
     process.env.NEXT_PUBLIC_BE_AI_HEART_DEFAULT_ADMIN_SESSION ??
-      "admin-owner-session",
+      DEFAULT_LOCAL_DEMO_SESSION,
   ).trim();
 }
 
@@ -171,23 +176,28 @@ function normalizeAdminSessionState(rawValue) {
         sessionToken:
           parsed.mode === "cookie"
             ? ""
-            : String(
-                parsed.sessionToken ??
-                  parsed.session_token ??
-                  defaultState.sessionToken,
-              ).trim(),
+            : sanitizeAdminSessionToken(
+                String(
+                  parsed.sessionToken ??
+                    parsed.session_token ??
+                    defaultState.sessionToken,
+                ).trim(),
+              ),
         csrfToken: String(parsed.csrfToken ?? parsed.csrf_token ?? "").trim(),
       };
     }
   } catch {
     return {
       mode: DEFAULT_SESSION_MODE,
-      sessionToken: String(rawValue).trim() || defaultState.sessionToken,
+      sessionToken: sanitizeAdminSessionToken(String(rawValue).trim() || defaultState.sessionToken),
       csrfToken: "",
     };
   }
 
-  return defaultState;
+  return {
+    ...defaultState,
+    sessionToken: sanitizeAdminSessionToken(defaultState.sessionToken),
+  };
 }
 
 function persistAdminSessionState(state) {
@@ -208,3 +218,23 @@ function dispatchAdminSessionEvent(detail) {
   );
 }
 
+function isAdminLocalDemoAuthEnabled() {
+  return ["1", "true", "yes", "on", "enabled"].includes(
+    String(process.env.NEXT_PUBLIC_BE_AI_HEART_ENABLE_LOCAL_DEMO_AUTH ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function sanitizeAdminSessionToken(token) {
+  const safeToken = String(token ?? "").trim();
+  if (!safeToken) {
+    return "";
+  }
+
+  if (!isAdminLocalDemoAuthEnabled() && safeToken === DEFAULT_LOCAL_DEMO_SESSION) {
+    return "";
+  }
+
+  return safeToken;
+}

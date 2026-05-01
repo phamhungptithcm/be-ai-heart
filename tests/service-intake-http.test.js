@@ -14,6 +14,7 @@ test("service host accepts public website intake submissions and exposes admin i
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
 
   const intakeResponse = await handleServiceHttpRequest(

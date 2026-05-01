@@ -4,8 +4,34 @@
 
 - Binary: `heart`
 - MCP server: `heart-mcp`
+- Publishable CLI package: `beheart`
 
 The command surface should be obvious and sparse. Do not overload the first release with dozens of verbs.
+
+## Install Contract
+
+The first install path should stay short and memorable.
+
+Preferred global install:
+
+```bash
+npm install -g beheart
+heart
+```
+
+Repo-local install:
+
+```bash
+npm install --save-dev beheart
+npx heart doctor
+```
+
+Packaging rules:
+
+- the published package name is `beheart`
+- the installed binary name is `heart`
+- the CLI tarball must run outside the monorepo without sibling-package source imports
+- `heart connect install --dry-run` from an installed package must generate MCP entries that point to the installed CLI path, not to `packages/cli/bin/heart.js`
 
 ## CLI Design Principles
 
@@ -33,8 +59,8 @@ heart connect doctor
 
 Purpose:
 
-- `init`: create `heart.config.yaml` and `.heart/policies.yaml`, detect the primary language/runtime, and recommend the next local-first commands
-- `doctor`: run preflight diagnostics for config, policy, parser availability, effective document roots, ignore paths, cache state, and MCP tool exposure
+- `init`: create or repair `heart.config.yaml` and `.heart/policies.yaml`, seed config language priority from detected source languages when possible, and recommend the next local-first commands
+- `doctor`: run preflight diagnostics for config, policy, parser availability, effective document roots, ignore paths, cache state, and MCP tool exposure, then emit a top-level readiness status plus next actions
 - `scan`: build or refresh graph
 - `connect detect`: discover supported local agent-host configs and running local model runtimes without mutating anything
 - `connect install`: write an allowlisted local agent-host config entry for `heart mcp serve --root <repo>` and verify the result before claiming success
@@ -50,6 +76,8 @@ heart deps src/auth/login.ts
 heart impact src/billing/service.ts
 heart policy check
 heart docs search "login audit requirements"
+heart diagram generate mindmap
+heart diagram sync
 ```
 
 Purpose:
@@ -60,6 +88,8 @@ Purpose:
 - `impact`: estimate blast radius; a missing target returns a deterministic `status = not_found` JSON payload and a non-zero exit code
 - `policy check`: evaluate architecture rules
 - `docs search`: find relevant project documents for a task or domain across markdown, structured JSON/YAML, `docx`, and `pdf` sources using latest-lineage preference plus local semantic retrieval
+- `diagram generate`: write Mermaid review artifacts for repository structure, including a `mindmap` view that combines business, requirements, technical documents, and code domains from saved heart memory
+- `diagram sync`: publish the current repository profile plus generated diagrams to local and hosted surfaces
 
 ### Context for AI
 
@@ -101,6 +131,7 @@ Connect output notes:
 - `install --dry-run` returns the generated plan
 - `install --backup` creates backups before mutation and returns `backups` metadata in the result when backups are created
 - `verify` returns a status report with handshake and spawn details
+- `doctor` returns `inventory`, `warnings`, `actions`, and `status`, where `status` is `ready` only after a supported client is configured
 - supported v1 install targets are `cursor`, `claude-code`, and `continue`
 
 ### Governance and Benchmark
@@ -153,11 +184,13 @@ These flags are accepted by `heart agent run` and `heart benchmark capture` and 
 
 Human mode:
 
+- compact root help grouped around first-run commands, core inspection, AI workflow, and benchmark entry points
 - terse summary
 - most relevant files
 - warnings
 - next actions
 - avoid raw debug dumps for first-run commands; `init`, `doctor`, `pack`, and `connect` should point to the next recommended command explicitly
+- support `heart <command> --help` for command-local usage instead of forcing users back to the full root help
 
 JSON mode:
 
@@ -165,6 +198,7 @@ JSON mode:
 - stable keys
 - suitable for downstream agent tooling
 - no mixed prose on stdout when `--json` is requested
+- additive fields are acceptable, but existing keys should remain stable and machine-safe
 
 Validation mode:
 
@@ -177,6 +211,7 @@ Validation mode:
 - Unknown flags must fail fast with a non-zero exit code and a clear error message.
 - Typed flags must reject invalid values instead of silently coercing or ignoring them.
 - `--token-budget` must be a positive integer.
+- numeric flags such as benchmark pricing inputs must reject `NaN`/non-numeric values instead of being passed through.
 - Command-specific flags must be rejected when passed to the wrong command surface.
 
 Recommended exit code contract:
@@ -215,6 +250,18 @@ Recommended exit code contract:
 - `tools_list_status`
 - `model_runtime_status`
 - `warnings`
+- `status`
+
+`heart connect doctor --json` returns:
+
+- `repo_root`
+- `inventory.repo_root`
+- `inventory.agents`
+- `inventory.models`
+- `inventory.warnings`
+- `inventory.recommendations`
+- `warnings`
+- `actions`
 - `status`
 
 ## Suggested `heart.config.yaml`

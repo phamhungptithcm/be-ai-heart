@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { loadAccessRegistry } from "./access.js";
 import { withServiceDatabase } from "./database.js";
 import { resolveServiceDatabasePath, resolveServiceStorageRoot } from "./storage.js";
-import { ensureDefaultSessions } from "./session.js";
 
 const TABLES = Object.freeze([
   "customers",
@@ -28,7 +29,7 @@ const TABLES = Object.freeze([
 export async function exportCanonicalSnapshot({ serviceStorageRoot } = {}) {
   const root = resolveServiceStorageRoot({ serviceStorageRoot });
   const databasePath = resolveServiceDatabasePath({ serviceStorageRoot: root });
-  await ensureDefaultSessions(root);
+  await loadAccessRegistry({ serviceStorageRoot: root });
   const tables = withServiceDatabase(root, (database) =>
     Object.fromEntries(
       TABLES.map((tableName) => [
@@ -37,6 +38,7 @@ export async function exportCanonicalSnapshot({ serviceStorageRoot } = {}) {
       ]),
     ),
   );
+  tables.sessions = normalizeCanonicalSessionRows(tables.sessions);
 
   return {
     schema_version: 1,
@@ -105,4 +107,81 @@ export function createPostgresMigrationPlan() {
       "Keep audit_events, request_traces, and observability_exports in the canonical snapshot so hosted incident response can backfill from SQLite if needed.",
     ],
   };
+}
+
+const CANONICAL_DEFAULT_SESSION_FIXTURES = Object.freeze([
+  {
+    session_token: "portal-demo-session",
+    actor_slug: "demo-customer",
+    surface: "portal",
+    workspace_slug: "",
+    customer_slug: "demo-customer",
+    customer_id: "",
+    source: "seeded-demo-session",
+  },
+  {
+    session_token: "admin-owner-session",
+    actor_slug: "owner-admin",
+    surface: "admin",
+    workspace_slug: "",
+    customer_slug: "internal",
+    customer_id: "",
+    source: "seeded-admin-session",
+  },
+]);
+
+function normalizeCanonicalSessionRows(rows = []) {
+  if (Array.isArray(rows) && rows.length > 0) {
+    return rows;
+  }
+
+  const issuedAt = new Date().toISOString();
+  const expiresAt = addHours(issuedAt, 24 * 30);
+  return CANONICAL_DEFAULT_SESSION_FIXTURES.map((entry, index) => {
+    const payload = {
+      schema_version: 1,
+      session_id: `seeded-session-${index + 1}`,
+      session_family_id: `seeded-session-family-${index + 1}`,
+      session_token: "",
+      csrf_token: "",
+      actor_slug: entry.actor_slug,
+      surface: entry.surface,
+      workspace_slug: entry.workspace_slug,
+      customer_slug: entry.customer_slug,
+      customer_id: entry.customer_id,
+      issued_at: issuedAt,
+      expires_at: expiresAt,
+      revoked_at: "",
+      revocation_reason: "",
+      last_seen_at: issuedAt,
+      source: entry.source,
+    };
+
+    return {
+      session_token: hashSessionToken(entry.session_token),
+      session_id: payload.session_id,
+      session_family_id: payload.session_family_id,
+      actor_slug: payload.actor_slug,
+      surface: payload.surface,
+      workspace_slug: payload.workspace_slug || null,
+      customer_slug: payload.customer_slug || null,
+      customer_id: payload.customer_id || null,
+      issued_at: payload.issued_at,
+      expires_at: payload.expires_at,
+      revoked_at: null,
+      revocation_reason: null,
+      last_seen_at: payload.last_seen_at,
+      payload_json: JSON.stringify(payload),
+    };
+  });
+}
+
+function addHours(isoTime, hours) {
+  const date = new Date(isoTime);
+  date.setHours(date.getHours() + Number(hours || 0));
+  return date.toISOString();
+}
+
+function hashSessionToken(sessionToken) {
+  return createHash("sha256").update(String(sessionToken ?? ""), "utf8").digest("hex");
 }

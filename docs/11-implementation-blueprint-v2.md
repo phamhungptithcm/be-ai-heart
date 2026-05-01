@@ -101,10 +101,10 @@ Context leakage, secret exposure, and weak tenant isolation directly undermine t
 The current codebase is best understood as:
 
 - beyond concept-only
-- strong enough for internal demo loops
-- not yet strong enough to claim repeatable project-memory ROI
+- strong enough for internal dogfooding and guided design-partner prep loops
+- not yet strong enough to claim broad, sales-grade repeatable project-memory ROI across customer repos
 
-In maturity terms, this is between late `Stage 0` and early `Stage 1`.
+In maturity terms, this is between late `Stage 1` and early `Stage 2`.
 
 ## Target Architecture for v2
 

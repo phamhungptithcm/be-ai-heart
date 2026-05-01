@@ -1,0 +1,569 @@
+{
+  "schema_version": 2,
+  "report_type": "scenario",
+  "report_id": "be-ai-heart-duplicate-refactor-1777524293794",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "scenario": "duplicate-refactor",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "framework": {
+    "scenario": {
+      "id": "duplicate-refactor",
+      "title": "Duplicate Metric Refactor",
+      "category": "duplicate-work-avoidance",
+      "dataset_id": "reuse-path-consolidation",
+      "description": "Measures whether the workflow extends the existing benchmark engine instead of creating parallel metric and reporting paths.",
+      "task_statement": "Add new benchmark metrics for duplicate-work avoidance and context retention without creating a second report pipeline.",
+      "follow_up_prompts": [],
+      "expected_documents": [
+        {
+          "path": "docs/03-technical-architecture.md",
+          "title": "",
+          "reason": ""
+        },
+        {
+          "path": "docs/11-implementation-blueprint.md",
+          "title": "",
+          "reason": ""
+        }
+      ],
+      "reuse_targets": [
+        {
+          "path": "packages/benchmark/src/index.js",
+          "title": "",
+          "reason": ""
+        },
+        {
+          "path": "tests/benchmark.test.js",
+          "title": "",
+          "reason": ""
+        }
+      ],
+      "architecture_rules": [
+        "Do not split benchmark output into a second package.",
+        "Keep report schema evolution additive."
+      ]
+    },
+    "dataset": {
+      "id": "reuse-path-consolidation",
+      "title": "Reuse Path Consolidation Dataset",
+      "repo_strategy": "current-repo",
+      "summary": "Benchmark slice focused on duplicate-work avoidance when a feature spans graph, context, and benchmark modules that already contain partial capability.",
+      "source_paths": [
+        "packages/graph/src",
+        "packages/context-compiler/src",
+        "packages/benchmark/src",
+        "tests"
+      ],
+      "document_count": 2,
+      "reuse_target_count": 2
+    },
+    "evaluation": {
+      "weights": {
+        "context_efficiency": 0.25,
+        "context_retention": 0.2,
+        "duplicate_avoidance": 0.2,
+        "code_quality": 0.2,
+        "delivery": 0.15
+      },
+      "targets": {
+        "max_tokens": 1700,
+        "max_minutes": 24,
+        "max_memory_refreshes": 2,
+        "max_token_cost_usd": 0.32,
+        "max_duplicates": 0,
+        "max_policy_violations": 0,
+        "max_review_edits": 3
+      },
+      "rubric_dimensions": [
+        {
+          "id": "correctness",
+          "weight": 0.3
+        },
+        {
+          "id": "architecture",
+          "weight": 0.25
+        },
+        {
+          "id": "reuse",
+          "weight": 0.2
+        },
+        {
+          "id": "testing",
+          "weight": 0.15
+        },
+        {
+          "id": "intent_alignment",
+          "weight": 0.1
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "tokens": 2800,
+    "minutes": 38,
+    "duplicates": 5,
+    "policy_violations": 2,
+    "review_edits": 9,
+    "memory_refreshes": 4,
+    "token_cost_usd": 0.56,
+    "token_breakdown": {
+      "prompt_tokens": 780,
+      "discovery_tokens": 1180,
+      "tool_tokens": 0,
+      "completion_tokens": 840,
+      "other_tokens": 0,
+      "total_tokens": 2800
+    },
+    "measurement": {
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 3,
+      "checkpoint_pass_pct": 33.3,
+      "document_hits": 1,
+      "document_targets": 2,
+      "document_hit_pct": 50,
+      "handoff_successes": 0,
+      "handoff_attempts": 0,
+      "score_pct": 44.4
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 4,
+      "reuse_hit_pct": 25,
+      "checks_passed": 1,
+      "checks_total": 4,
+      "checks_pass_pct": 25,
+      "duplicate_introductions": 5,
+      "score_pct": 16.7
+    },
+    "code_quality": {
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 2,
+        "reuse": 1,
+        "testing": 2,
+        "intent_alignment": 2
+      },
+      "rubric_score_pct": 42,
+      "tests_passed": 2,
+      "tests_total": 4,
+      "test_pass_pct": 50,
+      "score_pct": 31.3
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2,
+      "task_success": true,
+      "task_success_pct": 50,
+      "score_pct": 56.6
+    },
+    "scorecard": {
+      "context_efficiency": {
+        "score_pct": 51.5,
+        "targets": {
+          "max_tokens": 1700,
+          "max_minutes": 24,
+          "max_memory_refreshes": 2,
+          "max_token_cost_usd": 0.32
+        }
+      },
+      "context_retention": {
+        "checkpoints_passed": 1,
+        "checkpoints_total": 3,
+        "checkpoint_pass_pct": 33.3,
+        "document_hits": 1,
+        "document_targets": 2,
+        "document_hit_pct": 50,
+        "handoff_successes": 0,
+        "handoff_attempts": 0,
+        "score_pct": 44.4
+      },
+      "duplicate_avoidance": {
+        "reuse_hits": 1,
+        "reuse_targets": 4,
+        "reuse_hit_pct": 25,
+        "checks_passed": 1,
+        "checks_total": 4,
+        "checks_pass_pct": 25,
+        "duplicate_introductions": 5,
+        "score_pct": 16.7
+      },
+      "code_quality": {
+        "rubric_scores": {
+          "correctness": 3,
+          "architecture": 2,
+          "reuse": 1,
+          "testing": 2,
+          "intent_alignment": 2
+        },
+        "rubric_score_pct": 42,
+        "tests_passed": 2,
+        "tests_total": 4,
+        "test_pass_pct": 50,
+        "score_pct": 31.3
+      },
+      "delivery": {
+        "tasks_passed": 1,
+        "tasks_total": 2,
+        "task_success": true,
+        "task_success_pct": 50,
+        "score_pct": 56.6
+      },
+      "overall": {
+        "score_pct": 39.8,
+        "weights": {
+          "context_efficiency": 0.25,
+          "context_retention": 0.2,
+          "duplicate_avoidance": 0.2,
+          "code_quality": 0.2,
+          "delivery": 0.15
+        }
+      }
+    }
+  },
+  "assisted": {
+    "tokens": 1500,
+    "minutes": 23,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.3,
+    "token_breakdown": {
+      "prompt_tokens": 380,
+      "discovery_tokens": 220,
+      "tool_tokens": 260,
+      "completion_tokens": 640,
+      "other_tokens": 0,
+      "total_tokens": 1500
+    },
+    "measurement": {
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "context_retention": {
+      "checkpoints_passed": 3,
+      "checkpoints_total": 3,
+      "checkpoint_pass_pct": 100,
+      "document_hits": 2,
+      "document_targets": 2,
+      "document_hit_pct": 100,
+      "handoff_successes": 0,
+      "handoff_attempts": 0,
+      "score_pct": 100
+    },
+    "duplicate_work": {
+      "reuse_hits": 4,
+      "reuse_targets": 4,
+      "reuse_hit_pct": 100,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "checks_pass_pct": 100,
+      "duplicate_introductions": 1,
+      "score_pct": 66.7
+    },
+    "code_quality": {
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 5,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 4
+      },
+      "rubric_score_pct": 95,
+      "tests_passed": 4,
+      "tests_total": 4,
+      "test_pass_pct": 100,
+      "score_pct": 98.8
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2,
+      "task_success": true,
+      "task_success_pct": 100,
+      "score_pct": 100
+    },
+    "scorecard": {
+      "context_efficiency": {
+        "score_pct": 100,
+        "targets": {
+          "max_tokens": 1700,
+          "max_minutes": 24,
+          "max_memory_refreshes": 2,
+          "max_token_cost_usd": 0.32
+        }
+      },
+      "context_retention": {
+        "checkpoints_passed": 3,
+        "checkpoints_total": 3,
+        "checkpoint_pass_pct": 100,
+        "document_hits": 2,
+        "document_targets": 2,
+        "document_hit_pct": 100,
+        "handoff_successes": 0,
+        "handoff_attempts": 0,
+        "score_pct": 100
+      },
+      "duplicate_avoidance": {
+        "reuse_hits": 4,
+        "reuse_targets": 4,
+        "reuse_hit_pct": 100,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "checks_pass_pct": 100,
+        "duplicate_introductions": 1,
+        "score_pct": 66.7
+      },
+      "code_quality": {
+        "rubric_scores": {
+          "correctness": 5,
+          "architecture": 5,
+          "reuse": 5,
+          "testing": 4,
+          "intent_alignment": 4
+        },
+        "rubric_score_pct": 95,
+        "tests_passed": 4,
+        "tests_total": 4,
+        "test_pass_pct": 100,
+        "score_pct": 98.8
+      },
+      "delivery": {
+        "tasks_passed": 2,
+        "tasks_total": 2,
+        "task_success": true,
+        "task_success_pct": 100,
+        "score_pct": 100
+      },
+      "overall": {
+        "score_pct": 93.1,
+        "weights": {
+          "context_efficiency": 0.25,
+          "context_retention": 0.2,
+          "duplicate_avoidance": 0.2,
+          "code_quality": 0.2,
+          "delivery": 0.15
+        }
+      }
+    }
+  },
+  "metrics": {
+    "token_savings_pct": 46,
+    "time_savings_pct": 39,
+    "duplicate_reduction_pct": 80,
+    "policy_violation_reduction_pct": 100,
+    "review_edit_reduction_pct": 67,
+    "memory_refresh_reduction_pct": 75,
+    "token_cost_savings_pct": 46,
+    "token_cost_savings_usd": 0.26,
+    "time_saved_minutes": 15,
+    "review_edits_saved": 6,
+    "context_efficiency_gain_pct": 48.5,
+    "context_retention_gain_pct": 55.6,
+    "duplicate_avoidance_gain_pct": 50,
+    "code_quality_gain_pct": 67.5,
+    "delivery_gain_pct": 43.4,
+    "overall_score_gain_pct": 53.3,
+    "composite_roi_score": 61.4,
+    "context_pack_quality_score": 0,
+    "context_pack_compactness_score": 0,
+    "context_pack_task_coverage_pct": 0
+  },
+  "summary": "Token usage improved by 46%, context retention improved by 55.6%, and code quality improved by 67.5%.",
+  "manager_summary": "Benchmark shows 46% lower token usage, 39% faster completion, 75% fewer context reloads, and $0.26 lower direct token spend per compared run.",
+  "technical_summary": "Duplicate work dropped by 80% while duplicate-avoidance score improved by 50%, policy violations improved by 100%, review edits improved by 67%, and memory refreshes dropped by 75%.",
+  "provenance": {
+    "summary": {
+      "measurement_mode": "estimated",
+      "total_run_count": 2,
+      "sample_size": 0,
+      "observed_run_count": 0,
+      "observed_coverage_pct": 0,
+      "confidence_label": "low"
+    },
+    "baseline": {
+      "run_kind": "baseline",
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "assisted": {
+      "run_kind": "assisted",
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    }
+  },
+  "automation": {
+    "commands": {
+      "run_scenario": "heart benchmark run duplicate-refactor",
+      "run_suite": "heart benchmark run --all",
+      "compare_runs": "heart benchmark compare baseline.json assisted.json"
+    }
+  },
+  "evidence": {
+    "baseline": {
+      "prompt_count": 0,
+      "tool_output_count": 0,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "assisted": {
+      "prompt_count": 0,
+      "tool_output_count": 1,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "scenario": {
+      "id": "duplicate-refactor",
+      "title": "Duplicate Metric Refactor",
+      "category": "duplicate-work-avoidance",
+      "dataset_id": "reuse-path-consolidation",
+      "description": "Measures whether the workflow extends the existing benchmark engine instead of creating parallel metric and reporting paths."
+    },
+    "dataset": {
+      "id": "reuse-path-consolidation",
+      "title": "Reuse Path Consolidation Dataset",
+      "repo_strategy": "current-repo",
+      "summary": "Benchmark slice focused on duplicate-work avoidance when a feature spans graph, context, and benchmark modules that already contain partial capability."
+    }
+  },
+  "evidence_bundle": {
+    "available": true,
+    "bundle_id": "be-ai-heart-duplicate-refactor-1777524293794",
+    "generated_at": "2026-04-30T04:44:53.777Z",
+    "local_root": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-duplicate-refactor-1777524293794",
+    "local_manifest_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-duplicate-refactor-1777524293794/manifest.json",
+    "files": {
+      "baseline": "baseline.json",
+      "assisted": "assisted.json",
+      "evaluation": "evaluation.json",
+      "scenario": "scenario.json",
+      "dataset": "dataset.json"
+    },
+    "baseline_summary": {
+      "prompt_count": 0,
+      "tool_output_count": 0,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "assisted_summary": {
+      "prompt_count": 0,
+      "tool_output_count": 1,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "provenance_summary": {
+      "measurement_mode": "estimated",
+      "total_run_count": 2,
+      "sample_size": 0,
+      "observed_run_count": 0,
+      "observed_coverage_pct": 0,
+      "confidence_label": "low"
+    }
+  }
+}

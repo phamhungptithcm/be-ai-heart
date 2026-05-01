@@ -1053,6 +1053,57 @@ code {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.admin-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 0;
+}
+
+.admin-table-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 860px);
+}
+
+.admin-field {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-field span {
+  color: #ffd0a7;
+  font-size: 0.68rem;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(202, 129, 92, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--admin-ink);
+  font: inherit;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: rgba(255, 157, 105, 0.48);
+  box-shadow: 0 0 0 4px rgba(255, 157, 105, 0.08);
+}
+
+.admin-table-summary {
+  margin: 0;
+  color: var(--admin-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .admin-data-table {
   width: 100%;
   min-width: 900px;
@@ -1068,6 +1119,29 @@ code {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   border-bottom: 1px solid rgba(202, 129, 92, 0.14);
+}
+
+.admin-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.admin-table-sort span {
+  color: rgba(255, 208, 167, 0.9);
+  font-size: 0.64rem;
+}
+
+.admin-table-sort[data-active="true"] {
+  color: #fff0e5;
 }
 
 .admin-data-table tbody td {
@@ -1105,6 +1179,12 @@ code {
 .admin-table-link a {
   color: #ffd3b5;
   text-decoration: none;
+}
+
+.admin-table-empty {
+  padding: 24px 18px;
+  color: var(--admin-muted);
+  text-align: center;
 }
 
 .admin-table-badge {
@@ -2489,6 +2569,30 @@ body {
   gap: 14px;
 }
 
+.admin-shell-dashboard .admin-section {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 16px 0 20px;
+}
+
+.admin-shell-dashboard .admin-section-head {
+  position: static;
+}
+
+.admin-shell-dashboard .admin-section h2 {
+  max-width: none;
+  font-size: clamp(1.18rem, 1.8vw, 1.56rem);
+  line-height: 1.06;
+}
+
+.admin-shell-dashboard .admin-section-head p {
+  max-width: 72ch;
+}
+
+.admin-shell-dashboard .admin-section-body {
+  gap: 14px;
+}
+
 .admin-page-header,
 .admin-section,
 .admin-command-panel,
@@ -3844,13 +3948,15 @@ body {
 }
 
 .admin-stage-board,
-.admin-risk-list {
+.admin-risk-list,
+.admin-summary-list {
   display: grid;
   gap: 12px;
 }
 
 .admin-stage-row,
-.admin-risk-row {
+.admin-risk-row,
+.admin-summary-list article {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
@@ -3863,6 +3969,31 @@ body {
 .admin-risk-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+}
+
+.admin-summary-list article {
+  align-content: start;
+}
+
+.admin-summary-list span {
+  color: var(--dashboard-soft);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-summary-list strong {
+  color: var(--dashboard-ink);
+  font-family: "Space Grotesk", "Avenir Next Condensed", sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: -0.03em;
+}
+
+.admin-summary-list p {
+  margin: 0;
+  color: var(--dashboard-muted);
+  line-height: 1.65;
 }
 
 .admin-stage-copy,

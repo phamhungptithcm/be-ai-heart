@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   compareBenchmarkRuns,
   loadBenchmarkDataset,
+  prepareBenchmarkReportArtifact,
   publishBenchmarkReport,
   runBenchmarkScenario,
   runBenchmarkSuite,
@@ -132,6 +133,51 @@ test("benchmark comparison summarizes assisted context-pack evidence", () => {
   assert.equal(report.evidence.assisted.context_pack.document_citation_count, 1);
   assert.ok(report.metrics.context_pack_quality_score > 0.4);
   assert.ok(report.metrics.context_pack_task_coverage_pct >= 50);
+});
+
+test("benchmark artifacts expose measurement provenance and stable scenario manifest contracts", () => {
+  const report = compareBenchmarkRuns(
+    {
+      tokens: 1000,
+      minutes: 20,
+      duplicates: 2,
+      policy_violations: 4,
+      review_edits: 5,
+      memory_refreshes: 6,
+      measurement: {
+        mode: "observed",
+        run_id: "baseline-run-1",
+        observed_usage_coverage_pct: 100,
+      },
+    },
+    {
+      tokens: 650,
+      minutes: 15,
+      duplicates: 1,
+      policy_violations: 1,
+      review_edits: 2,
+      memory_refreshes: 2,
+      measurement: {
+        mode: "estimated",
+        run_id: "",
+        observed_usage_coverage_pct: 0,
+      },
+    },
+    {
+      repo: "sample-repo",
+      profile_slug: "sample-repo",
+      scenario: "login-audit-flow",
+    },
+  );
+
+  const artifact = prepareBenchmarkReportArtifact(report);
+
+  assert.equal(artifact.provenance.summary.measurement_mode, "mixed");
+  assert.equal(artifact.provenance.summary.sample_size, 1);
+  assert.equal(artifact.provenance.summary.observed_run_count, 1);
+  assert.equal(typeof artifact.provenance.summary.observed_coverage_pct, "number");
+  assert.equal(artifact.evidence_manifest.scenario_id, "login-audit-flow");
+  assert.equal(typeof artifact.evidence_manifest.scenario, "object");
 });
 
 test("benchmark report writes locally and publishes sanitized web artifacts", async (t) => {

@@ -48,9 +48,16 @@ export async function runWorkspaceDoctor(repoRoot) {
     effectiveEnabledTools,
     documentIndex,
   });
+  const status = warnings.length > 0 ? "attention_required" : "ready";
 
   return {
+    status,
     repo_root: repoRoot,
+    summary: {
+      warning_count: warnings.length,
+      action_count: actions.length,
+      next_action: actions[0] ?? null,
+    },
     config: {
       path: configState.path,
       exists: configState.exists,

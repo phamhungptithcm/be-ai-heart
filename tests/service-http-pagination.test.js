@@ -19,6 +19,7 @@ test("service host paginates admin workspace, repository, benchmark, and intake 
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
   const adminRequest = new Request("http://127.0.0.1:4010/api/admin/session", {
     headers: {
@@ -29,6 +30,7 @@ test("service host paginates admin workspace, repository, benchmark, and intake 
     serviceStorageRoot: config.serviceStorageRoot,
     surface: "admin",
     request: adminRequest,
+    localDemoAuth: config.localDemoAuth,
   });
   const seededWorkspaces = [
     {

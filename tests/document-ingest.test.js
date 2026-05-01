@@ -205,6 +205,37 @@ test("document retrieval uses local semantic vectors for synonym-heavy queries",
   assert.ok(matches[0].score > matches[0].semantic_score);
 });
 
+test("document ingest does not redact product docs that only mention token budgets or token savings", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const docsRoot = path.join(repoRoot, "docs", "benchmark-proof");
+
+  await fs.mkdir(docsRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(docsRoot, "roi-proof.md"),
+    [
+      "# Benchmark Proof",
+      "",
+      "Track token savings, token budget targets, and follow-up memory retention for the customer rollout.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const documentIndex = await scanDocumentTree(repoRoot, {
+    roots: ["docs"],
+  });
+  const document = documentIndex.documents.find((entry) => entry.path === "docs/benchmark-proof/roi-proof.md");
+  const match = findRelevantDocuments(documentIndex, "token savings benchmark proof", 3).find(
+    (entry) => entry.path === "docs/benchmark-proof/roi-proof.md",
+  );
+
+  assert.ok(document);
+  assert.notEqual(document.sensitivity.level, "restricted");
+  assert.ok(match);
+  assert.equal(match.summary_redacted, false);
+  assert.doesNotMatch(match.summary, /Summary redacted/i);
+});
+
 test("document ingest applies OCR when pdf text is weak and ocrmypdf is available", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   const docsRoot = path.join(repoRoot, "docs");

@@ -2,6 +2,11 @@ const LINK_TYPES = Object.freeze({
   documentToModule: "DOCUMENT_TO_MODULE",
   decisionToImplementation: "DECISION_TO_IMPLEMENTATION",
   symbolToDomain: "SYMBOL_TO_DOMAIN",
+  domainToDomain: "DOMAIN_TO_DOMAIN",
+});
+const RELATIONSHIP_PROVENANCE = Object.freeze({
+  extracted: "EXTRACTED",
+  inferred: "INFERRED",
 });
 
 const GENERIC_PATH_SEGMENTS = new Set([
@@ -19,8 +24,9 @@ const GENERIC_PATH_SEGMENTS = new Set([
   "shared",
   "internal",
 ]);
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
-export { LINK_TYPES };
+export { LINK_TYPES, RELATIONSHIP_PROVENANCE };
 
 export function buildHeartModel({
   scanResult = { files: [] },
@@ -54,6 +60,8 @@ export function buildHeartModel({
       );
     }
   }
+
+  links.push(...buildDomainRelationshipLinks(scanResult, domainsById));
 
   for (const document of documentIndex.documents ?? []) {
     const documentId = `document:${document.path}`;
@@ -161,6 +169,74 @@ export function getLinkedModulesForDocuments(heartModel, documentPaths = []) {
   return [...matches.values()].sort((left, right) => right.score - left.score || left.module.localeCompare(right.module));
 }
 
+export function getModuleRelationshipsForDocuments(heartModel, documentPaths = []) {
+  const selectedDocuments = new Set(documentPaths);
+  const domainsById = new Map((heartModel?.domains ?? []).map((domain) => [domain.id, domain]));
+  const focusedDomainIds = new Set(
+    getLinkedModulesForDocuments(heartModel, documentPaths).map((module) => module.domain_id),
+  );
+  const relationships = [];
+
+  for (const link of heartModel?.links ?? []) {
+    if (link.type !== LINK_TYPES.domainToDomain) {
+      continue;
+    }
+
+    const supportsSelectedDocuments =
+      selectedDocuments.size === 0 ||
+      (domainsById.get(link.from)?.document_paths ?? []).some((documentPath) => selectedDocuments.has(documentPath)) ||
+      (domainsById.get(link.to)?.document_paths ?? []).some((documentPath) => selectedDocuments.has(documentPath));
+
+    if (!supportsSelectedDocuments) {
+      continue;
+    }
+
+    const outgoingFromFocused = focusedDomainIds.has(link.from);
+    const incomingToFocused = focusedDomainIds.has(link.to);
+
+    if (!outgoingFromFocused && !incomingToFocused) {
+      continue;
+    }
+
+    const orientedFromId = outgoingFromFocused ? link.from : link.to;
+    const orientedToId = outgoingFromFocused ? link.to : link.from;
+    const fromDomain = domainsById.get(orientedFromId);
+    const toDomain = domainsById.get(orientedToId);
+
+    if (!fromDomain || !toDomain) {
+      continue;
+    }
+
+    relationships.push({
+      from_module: fromDomain.name,
+      from_domain_id: fromDomain.id,
+      to_module: toDomain.name,
+      to_domain_id: toDomain.id,
+      direction: outgoingFromFocused ? "outgoing" : "incoming",
+      score: link.score,
+      provenance: link.metadata.provenance ?? RELATIONSHIP_PROVENANCE.inferred,
+      relationship_kinds: [...(link.metadata.relationship_kinds ?? [])],
+      evidence_count: link.metadata.evidence_count ?? 0,
+      supporting_documents: dedupe(
+        [...fromDomain.document_paths, ...toDomain.document_paths].filter((documentPath) =>
+          selectedDocuments.size === 0 ? true : selectedDocuments.has(documentPath),
+        ),
+      ),
+      target_file_paths: [...toDomain.file_paths],
+      target_symbol_ids: [...toDomain.symbol_ids],
+      target_symbol_names: [...toDomain.symbol_names],
+    });
+  }
+
+  return relationships.sort(
+    (left, right) =>
+      right.score - left.score ||
+      right.evidence_count - left.evidence_count ||
+      left.from_module.localeCompare(right.from_module) ||
+      left.to_module.localeCompare(right.to_module),
+  );
+}
+
 export function getDecisionImplementationsForDocuments(heartModel, documentPaths = []) {
   const selectedDocuments = new Set(documentPaths);
   const matches = [];
@@ -210,6 +286,161 @@ function ensureDomain(domainsById, domainName) {
   };
   domainsById.set(domainId, domain);
   return domain;
+}
+
+function buildDomainRelationshipLinks(scanResult, domainsById) {
+  const files = scanResult.files ?? [];
+  const fileIndex = new Set(files.map((file) => file.relativePath));
+  const symbolTargetsByName = createSymbolTargetsByName(files);
+  const relationships = new Map();
+
+  for (const file of files) {
+    const fromDomainName = inferDomainFromPath(file.relativePath);
+    const fromDomainId = `domain:${fromDomainName}`;
+    const importDetails =
+      file.import_details?.length > 0
+        ? file.import_details
+        : (file.imports ?? []).map((specifier) => ({
+            specifier,
+            imported_names: [],
+            default_import: null,
+            namespace_import: null,
+            source_kind: "legacy-import",
+          }));
+
+    for (const detail of importDetails) {
+      const resolvedPath = resolveInternalImport(file.relativePath, detail.specifier, fileIndex);
+      if (!resolvedPath) {
+        continue;
+      }
+
+      const toDomainName = inferDomainFromPath(resolvedPath);
+      const toDomainId = `domain:${toDomainName}`;
+      if (toDomainId === fromDomainId) {
+        continue;
+      }
+
+      addDomainRelationshipEvidence(relationships, {
+        fromDomainId,
+        toDomainId,
+        relationshipKind: "imports",
+        provenance: RELATIONSHIP_PROVENANCE.extracted,
+      });
+    }
+
+    for (const call of file.calls ?? []) {
+      const targetDomains = symbolTargetsByName.get(call.to_name) ?? [];
+      if (targetDomains.length !== 1) {
+        continue;
+      }
+
+      const toDomainId = targetDomains[0];
+      if (toDomainId === fromDomainId) {
+        continue;
+      }
+
+      addDomainRelationshipEvidence(relationships, {
+        fromDomainId,
+        toDomainId,
+        relationshipKind: "calls",
+        provenance: RELATIONSHIP_PROVENANCE.inferred,
+      });
+    }
+  }
+
+  return [...relationships.values()]
+    .map((relationship) => createDomainRelationshipLink(relationship, domainsById))
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.from.localeCompare(right.from) ||
+        left.to.localeCompare(right.to),
+    );
+}
+
+function createSymbolTargetsByName(files) {
+  const targetsByName = new Map();
+
+  for (const file of files) {
+    const domainId = `domain:${inferDomainFromPath(file.relativePath)}`;
+    for (const symbol of file.symbols ?? []) {
+      const domains = targetsByName.get(symbol.name) ?? new Set();
+      domains.add(domainId);
+      targetsByName.set(symbol.name, domains);
+    }
+  }
+
+  return new Map(
+    [...targetsByName.entries()].map(([name, domainIds]) => [name, [...domainIds].sort()]),
+  );
+}
+
+function addDomainRelationshipEvidence(relationships, { fromDomainId, toDomainId, relationshipKind, provenance }) {
+  const key = `${fromDomainId}:${toDomainId}`;
+  const existing = relationships.get(key) ?? {
+    fromDomainId,
+    toDomainId,
+    relationshipKinds: new Set(),
+    importCount: 0,
+    callCount: 0,
+    evidenceCount: 0,
+    hasExtractedEvidence: false,
+  };
+
+  existing.relationshipKinds.add(relationshipKind);
+  existing.evidenceCount += 1;
+  if (relationshipKind === "imports") {
+    existing.importCount += 1;
+  }
+  if (relationshipKind === "calls") {
+    existing.callCount += 1;
+  }
+  if (provenance === RELATIONSHIP_PROVENANCE.extracted) {
+    existing.hasExtractedEvidence = true;
+  }
+
+  relationships.set(key, existing);
+}
+
+function createDomainRelationshipLink(relationship, domainsById) {
+  const fromDomain = domainsById.get(relationship.fromDomainId);
+  const toDomain = domainsById.get(relationship.toDomainId);
+
+  if (!fromDomain || !toDomain) {
+    return null;
+  }
+
+  const provenance = relationship.hasExtractedEvidence
+    ? RELATIONSHIP_PROVENANCE.extracted
+    : RELATIONSHIP_PROVENANCE.inferred;
+  const relationshipKinds = [...relationship.relationshipKinds].sort();
+  const score = roundScore(Math.min(1, relationship.importCount * 0.35 + relationship.callCount * 0.2));
+  const rationaleParts = [];
+
+  if (relationship.importCount > 0) {
+    rationaleParts.push(`${relationship.importCount} import path${relationship.importCount === 1 ? "" : "s"}`);
+  }
+  if (relationship.callCount > 0) {
+    rationaleParts.push(`${relationship.callCount} call target${relationship.callCount === 1 ? "" : "s"}`);
+  }
+
+  return createLink({
+    type: LINK_TYPES.domainToDomain,
+    from: relationship.fromDomainId,
+    to: relationship.toDomainId,
+    score,
+    rationale: `${fromDomain.name} connects to ${toDomain.name} through ${rationaleParts.join(" and ")}.`,
+    metadata: {
+      from_domain: fromDomain.name,
+      to_domain: toDomain.name,
+      provenance,
+      relationship_kinds: relationshipKinds,
+      evidence_count: relationship.evidenceCount,
+      import_count: relationship.importCount,
+      call_count: relationship.callCount,
+    },
+  });
 }
 
 function scoreDomainsForDocument(document, domains) {
@@ -352,6 +583,54 @@ function inferDomainFromPath(relativePath) {
   }
 
   return directorySegments[directorySegments.length - 1] ?? "root";
+}
+
+function resolveInternalImport(fromPath, specifier, fileIndex) {
+  if (typeof specifier !== "string" || !specifier.startsWith(".")) {
+    return null;
+  }
+
+  const fromSegments = fromPath.split("/").filter(Boolean);
+  fromSegments.pop();
+  const candidateSegments = normalizePathSegments([...fromSegments, ...specifier.split("/")]);
+  const basePath = candidateSegments.join("/");
+
+  if (fileIndex.has(basePath)) {
+    return basePath;
+  }
+
+  for (const extension of SOURCE_EXTENSIONS) {
+    if (fileIndex.has(`${basePath}${extension}`)) {
+      return `${basePath}${extension}`;
+    }
+  }
+
+  for (const extension of SOURCE_EXTENSIONS) {
+    if (fileIndex.has(`${basePath}/index${extension}`)) {
+      return `${basePath}/index${extension}`;
+    }
+  }
+
+  return null;
+}
+
+function normalizePathSegments(segments) {
+  const normalized = [];
+
+  for (const segment of segments) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+
+    if (segment === "..") {
+      normalized.pop();
+      continue;
+    }
+
+    normalized.push(segment);
+  }
+
+  return normalized;
 }
 
 function isDecisionLikeDocument(document) {

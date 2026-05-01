@@ -47,22 +47,24 @@ export const DEFAULT_CONFIG = Object.freeze({
   },
 });
 
-export function createDefaultConfig(projectName = "be-ai-heart") {
+export function createDefaultConfig(projectName = "be-ai-heart", options = {}) {
+  const languagePriority = resolveLanguagePriority(options.languagePriority);
   return {
     ...DEFAULT_CONFIG,
     project: {
       ...DEFAULT_CONFIG.project,
       name: projectName,
+      language_priority: languagePriority,
     },
   };
 }
 
-export function createDefaultConfigYaml(projectName = "be-ai-heart") {
+export function createDefaultConfigYaml(projectName = "be-ai-heart", options = {}) {
+  const languagePriority = resolveLanguagePriority(options.languagePriority);
   return `project:
   name: ${projectName}
   language_priority:
-    - typescript
-    - javascript
+${languagePriority.map((language) => `    - ${language}`).join("\n")}
   entrypoints:
     - packages
     - apps
@@ -175,6 +177,18 @@ function mergeConfig(base, overrides) {
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function resolveLanguagePriority(languagePriority) {
+  if (!Array.isArray(languagePriority) || languagePriority.length === 0) {
+    return [...DEFAULT_CONFIG.project.language_priority];
+  }
+
+  const sanitized = languagePriority
+    .filter((value) => typeof value === "string" && value.trim() !== "")
+    .map((value) => value.trim().toLowerCase());
+
+  return sanitized.length > 0 ? [...new Set(sanitized)] : [...DEFAULT_CONFIG.project.language_priority];
 }
 
 function normalizeConfigOverrides(parsed) {

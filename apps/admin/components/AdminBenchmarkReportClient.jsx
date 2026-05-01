@@ -91,6 +91,8 @@ export function AdminBenchmarkReportClient({ reportId }) {
           <div><span>Cost Save</span><strong>${report.metrics.token_cost_savings_usd}</strong></div>
           <div><span>Memory Save</span><strong>{report.metrics.memory_refresh_reduction_pct}%</strong></div>
           <div><span>ROI</span><strong>{report.metrics.composite_roi_score}</strong></div>
+          <div><span>Measurement</span><strong>{evidenceSummary.measurement_mode}</strong></div>
+          <div><span>Confidence</span><strong>{evidenceSummary.confidence_label}</strong></div>
         </div>
       </section>
       <section className="admin-section">
@@ -115,6 +117,8 @@ export function AdminBenchmarkReportClient({ reportId }) {
           <div><span>Prompt traces</span><strong>{evidenceSummary.prompt_count}</strong></div>
           <div><span>Tool outputs</span><strong>{evidenceSummary.tool_output_count}</strong></div>
           <div><span>Artifacts</span><strong>{evidenceSummary.output_artifact_count}</strong></div>
+          <div><span>Observed runs</span><strong>{evidenceSummary.sample_size}</strong></div>
+          <div><span>Observed coverage</span><strong>{evidenceSummary.observed_coverage_pct}%</strong></div>
         </div>
         <div className="admin-list">
           <article className="admin-card">
@@ -124,6 +128,15 @@ export function AdminBenchmarkReportClient({ reportId }) {
                 <p>{evidenceSummary.bundle_id || "No evidence bundle published."}</p>
               </div>
               <span>{evidenceSummary.bundle_available ? "traceable" : "missing"}</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Measurement provenance</strong>
+                <p>{`${evidenceSummary.measurement_mode} measurement | ${evidenceSummary.sample_size} observed run(s) | ${evidenceSummary.observed_coverage_pct}% observed coverage`}</p>
+              </div>
+              <span>{evidenceSummary.confidence_label}</span>
             </div>
           </article>
           <article className="admin-card">

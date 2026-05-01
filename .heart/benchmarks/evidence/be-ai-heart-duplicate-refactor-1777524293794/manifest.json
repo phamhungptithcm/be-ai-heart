@@ -1,0 +1,96 @@
+{
+  "schema_version": 2,
+  "bundle_id": "be-ai-heart-duplicate-refactor-1777524293794",
+  "report_id": "be-ai-heart-duplicate-refactor-1777524293794",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "scenario": "duplicate-refactor",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "files": {
+    "baseline": "baseline.json",
+    "assisted": "assisted.json",
+    "evaluation": "evaluation.json",
+    "scenario": "scenario.json",
+    "dataset": "dataset.json"
+  },
+  "baseline_summary": {
+    "prompt_count": 0,
+    "tool_output_count": 0,
+    "output_artifact_count": 0,
+    "context_pack": {
+      "available": false,
+      "token_budget": null,
+      "estimated_tokens": 0,
+      "truncated": false,
+      "citation_count": 0,
+      "graph_citation_count": 0,
+      "document_citation_count": 0,
+      "policy_citation_count": 0,
+      "call_path_count": 0,
+      "tests_to_run_count": 0,
+      "relevant_file_count": 0,
+      "relevant_symbol_count": 0,
+      "relevant_document_count": 0,
+      "missing_context_warning_count": 0,
+      "matched_task_token_pct": 0,
+      "coverage_score": 0,
+      "compactness_score": 0,
+      "overall_evidence_score": 0,
+      "top_citations": []
+    }
+  },
+  "assisted_summary": {
+    "prompt_count": 0,
+    "tool_output_count": 1,
+    "output_artifact_count": 0,
+    "context_pack": {
+      "available": false,
+      "token_budget": null,
+      "estimated_tokens": 0,
+      "truncated": false,
+      "citation_count": 0,
+      "graph_citation_count": 0,
+      "document_citation_count": 0,
+      "policy_citation_count": 0,
+      "call_path_count": 0,
+      "tests_to_run_count": 0,
+      "relevant_file_count": 0,
+      "relevant_symbol_count": 0,
+      "relevant_document_count": 0,
+      "missing_context_warning_count": 0,
+      "matched_task_token_pct": 0,
+      "coverage_score": 0,
+      "compactness_score": 0,
+      "overall_evidence_score": 0,
+      "top_citations": []
+    }
+  },
+  "provenance_summary": {
+    "measurement_mode": "estimated",
+    "total_run_count": 2,
+    "sample_size": 0,
+    "observed_run_count": 0,
+    "observed_coverage_pct": 0,
+    "confidence_label": "low"
+  },
+  "scenario_summary": {
+    "id": "duplicate-refactor",
+    "title": "Duplicate Metric Refactor",
+    "category": "duplicate-work-avoidance",
+    "dataset_id": "reuse-path-consolidation",
+    "description": "Measures whether the workflow extends the existing benchmark engine instead of creating parallel metric and reporting paths."
+  },
+  "dataset_summary": {
+    "id": "reuse-path-consolidation",
+    "title": "Reuse Path Consolidation Dataset",
+    "repo_strategy": "current-repo",
+    "summary": "Benchmark slice focused on duplicate-work avoidance when a feature spans graph, context, and benchmark modules that already contain partial capability."
+  },
+  "automation": {
+    "commands": {
+      "run_scenario": "heart benchmark run duplicate-refactor",
+      "run_suite": "heart benchmark run --all",
+      "compare_runs": "heart benchmark compare baseline.json assisted.json"
+    }
+  }
+}

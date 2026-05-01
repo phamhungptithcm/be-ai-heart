@@ -1277,6 +1277,31 @@ code {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.portal-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.portal-table-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 980px);
+}
+
+.portal-table-summary {
+  margin: 0;
+  color: var(--portal-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .portal-data-table {
   width: 100%;
   min-width: 860px;
@@ -1292,6 +1317,29 @@ code {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   border-bottom: 1px solid rgba(123, 184, 164, 0.14);
+}
+
+.portal-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.portal-table-sort span {
+  color: rgba(189, 250, 221, 0.88);
+  font-size: 0.64rem;
+}
+
+.portal-table-sort[data-active="true"] {
+  color: #e5fff4;
 }
 
 .portal-data-table tbody td {
@@ -1330,6 +1378,12 @@ code {
 .portal-table-link a {
   color: #bdfadd;
   text-decoration: none;
+}
+
+.portal-table-empty {
+  padding: 24px 18px;
+  color: var(--portal-muted);
+  text-align: center;
 }
 
 .portal-table-badge {
@@ -4228,6 +4282,30 @@ body {
 .portal-shell-dashboard .portal-input,
 .portal-shell-dashboard .portal-textarea {
   color: var(--dashboard-ink);
+}
+
+.portal-shell-dashboard .portal-section {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 16px 0 20px;
+}
+
+.portal-shell-dashboard .portal-section-head {
+  position: static;
+}
+
+.portal-shell-dashboard .portal-section h2 {
+  max-width: none;
+  font-size: clamp(1.18rem, 1.8vw, 1.56rem);
+  line-height: 1.06;
+}
+
+.portal-shell-dashboard .portal-section-head p {
+  max-width: 72ch;
+}
+
+.portal-shell-dashboard .portal-section-body {
+  gap: 14px;
 }
 
 .portal-shell-dashboard .portal-input,

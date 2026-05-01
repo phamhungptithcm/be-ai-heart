@@ -58,6 +58,7 @@ export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}
   const token_cost_savings_usd = roundNumber(baseline.token_cost_usd - assisted.token_cost_usd, 2);
   const time_saved_minutes = roundNumber(baseline.minutes - assisted.minutes, 1);
   const review_edits_saved = baseline.review_edits - assisted.review_edits;
+  const provenance = buildBenchmarkProvenance({ baseline, assisted });
   const composite_roi_score = roundNumber(
     (
       token_savings_pct +
@@ -123,6 +124,7 @@ export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}
       duplicate_avoidance_gain_pct: extraMetrics.duplicate_avoidance_gain_pct,
       contextPackSummary,
     }),
+    provenance,
     automation: {
       commands: {
         run_scenario: `heart benchmark run ${metadata.scenario ?? scenarioManifest?.id ?? "<scenario-id>"}`,
@@ -274,6 +276,7 @@ export async function writeBenchmarkEvidenceBundle(
     }),
     baseline_summary: summarizeRunEvidence(baselineInput),
     assisted_summary: summarizeRunEvidence(assistedInput),
+    provenance_summary: (report.provenance ?? buildBenchmarkProvenance(report)).summary,
     scenario_summary: summarizeScenarioManifest(scenario),
     dataset_summary: summarizeDatasetManifest(dataset),
     automation: report.automation ?? {},
@@ -303,6 +306,7 @@ export async function writeBenchmarkEvidenceBundle(
     files: manifest.files,
     baseline_summary: manifest.baseline_summary,
     assisted_summary: manifest.assisted_summary,
+    provenance_summary: manifest.provenance_summary,
   };
 }
 
@@ -496,6 +500,7 @@ function createWebBenchmarkReport(report) {
     summary: report.summary,
     manager_summary: report.manager_summary,
     technical_summary: report.technical_summary,
+    provenance: sanitizePublishedProvenance(report.provenance ?? buildBenchmarkProvenance(report)),
     automation: report.automation,
     evidence: sanitizePublishedEvidence(report.evidence),
     evidence_bundle: sanitizeEvidenceBundle(report.evidence_bundle),
@@ -536,6 +541,7 @@ function createEvidenceEvaluationPayload(report, evaluation = {}) {
     metrics: report.metrics,
     baseline: report.baseline,
     assisted: report.assisted,
+    provenance: report.provenance ?? buildBenchmarkProvenance(report),
     framework: report.framework,
     evidence: report.evidence,
     evaluation,
@@ -556,32 +562,122 @@ function sanitizeEvidenceBundle(bundle) {
     files: bundle.files ?? {},
     baseline_summary: bundle.baseline_summary ?? {},
     assisted_summary: bundle.assisted_summary ?? {},
+    provenance_summary: bundle.provenance_summary ?? {},
   };
 }
 
 function buildPublishedEvidenceManifest(report) {
   const bundle = sanitizeEvidenceBundle(report.evidence_bundle);
-  if (!bundle.available) {
-    return {
-      available: false,
-    };
-  }
-
-  return {
+  const provenance = sanitizePublishedProvenance(report.provenance ?? buildBenchmarkProvenance(report));
+  const manifest = {
     schema_version: 1,
-    available: true,
-    bundle_id: bundle.bundle_id,
+    available: bundle.available,
+    bundle_id: bundle.bundle_id ?? "",
     report_id: report.report_id,
     repo: report.repo,
     profile_slug: report.profile_slug,
-    scenario: report.scenario,
+    scenario_id: report.scenario ?? report.framework?.scenario?.id ?? "",
     generated_at: bundle.generated_at ?? report.generated_at,
     bundle_file_count: Object.keys(bundle.files ?? {}).length,
     files: Object.entries(bundle.files ?? {}).map(([role, file]) => ({ role, file })),
     baseline: sanitizePublishedRunEvidence(bundle.baseline_summary),
     assisted: sanitizePublishedRunEvidence(bundle.assisted_summary),
+    provenance_summary: provenance.summary,
     scenario: summarizeScenarioManifest(report.framework?.scenario),
     dataset: summarizeDatasetManifest(report.framework?.dataset),
+  };
+
+  if (!bundle.available) {
+    return manifest;
+  }
+
+  return manifest;
+}
+
+function buildBenchmarkProvenance(report = {}) {
+  const baseline = normalizeProvenanceMeasurement(report.baseline?.measurement, "baseline");
+  const assisted = normalizeProvenanceMeasurement(report.assisted?.measurement, "assisted");
+  const measurements = [baseline, assisted];
+  const observed = measurements.filter((measurement) => measurement.mode === "observed");
+  const observedCoveragePct =
+    observed.length > 0
+      ? roundNumber(
+          observed.reduce((sum, measurement) => sum + measurement.observed_usage_coverage_pct, 0) /
+            observed.length,
+          1,
+        )
+      : 0;
+  const measurementMode = summarizeMeasurementMode(measurements.map((measurement) => measurement.mode));
+  const sampleSize = observed.length;
+
+  return {
+    summary: {
+      measurement_mode: measurementMode,
+      total_run_count: measurements.length,
+      sample_size: sampleSize,
+      observed_run_count: observed.length,
+      observed_coverage_pct: observedCoveragePct,
+      confidence_label: deriveProvenanceConfidenceLabel({
+        measurementMode,
+        sampleSize,
+        observedCoveragePct,
+      }),
+    },
+    baseline,
+    assisted,
+  };
+}
+
+function normalizeProvenanceMeasurement(measurement = {}, runKind = "") {
+  return {
+    run_kind: runKind,
+    mode: String(measurement.mode ?? "estimated"),
+    run_id: String(measurement.run_id ?? ""),
+    observed_usage_coverage_pct: roundNumber(measurement.observed_usage_coverage_pct, 1),
+    traced_call_count: numberOrZero(measurement.traced_call_count),
+    observed_call_count: numberOrZero(measurement.observed_call_count),
+    source: String(measurement.source ?? ""),
+    note: String(measurement.note ?? ""),
+  };
+}
+
+function summarizeMeasurementMode(modes = []) {
+  const uniqueModes = dedupe(modes.filter(Boolean));
+  if (uniqueModes.length === 0) {
+    return "estimated";
+  }
+  if (uniqueModes.length === 1) {
+    return uniqueModes[0];
+  }
+  return "mixed";
+}
+
+function deriveProvenanceConfidenceLabel({
+  measurementMode = "estimated",
+  sampleSize = 0,
+  observedCoveragePct = 0,
+} = {}) {
+  if (measurementMode === "observed" && sampleSize >= 2 && observedCoveragePct >= 80) {
+    return "high";
+  }
+  if (sampleSize >= 1 && observedCoveragePct >= 50) {
+    return "medium";
+  }
+  return "low";
+}
+
+function sanitizePublishedProvenance(provenance = {}) {
+  return {
+    summary: {
+      measurement_mode: String(provenance.summary?.measurement_mode ?? "estimated"),
+      total_run_count: numberOrZero(provenance.summary?.total_run_count),
+      sample_size: numberOrZero(provenance.summary?.sample_size),
+      observed_run_count: numberOrZero(provenance.summary?.observed_run_count),
+      observed_coverage_pct: roundNumber(provenance.summary?.observed_coverage_pct, 1),
+      confidence_label: String(provenance.summary?.confidence_label ?? "low"),
+    },
+    baseline: normalizeProvenanceMeasurement(provenance.baseline, "baseline"),
+    assisted: normalizeProvenanceMeasurement(provenance.assisted, "assisted"),
   };
 }
 
@@ -816,6 +912,10 @@ function sanitizeTopCitations(citations = []) {
     rule_id: citation.rule_id,
     reason: compactText(citation.reason, 72),
   }));
+}
+
+function dedupe(values = []) {
+  return [...new Set(values)];
 }
 
 function tokenize(value) {

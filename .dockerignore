@@ -1,0 +1,16 @@
+node_modules
+.git
+.github
+.next
+.site
+.worktrees
+.heart
+coverage
+dist
+output
+services/api/data
+apps/*/.next
+apps/*/node_modules
+packages/*/node_modules
+services/*/node_modules
+*.log

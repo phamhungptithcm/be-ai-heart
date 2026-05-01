@@ -1,0 +1,271 @@
+{
+  "schema_version": 2,
+  "id": "login-audit-flow",
+  "title": "Login Audit Flow With Follow-Up Handoff",
+  "category": "document-aware-follow-up",
+  "description": "Measures whether the workflow can preserve product and architecture intent across an initial change plus a follow-up refinement without re-explaining the repository.",
+  "repo": "be-ai-heart",
+  "profile_slug": "",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "dataset_id": "auth-audit-memory",
+  "dataset": {
+    "schema_version": 1,
+    "id": "auth-audit-memory",
+    "title": "Auth Audit Memory Dataset",
+    "repo_strategy": "current-repo",
+    "summary": "Document-aware benchmark slice covering CLI, benchmark reporting, and context-pack evidence for repeated follow-up work in the auth and audit domain.",
+    "source_paths": [
+      "packages/benchmark/src",
+      "packages/cli/src",
+      "packages/context-compiler/src",
+      "docs"
+    ],
+    "documents": [
+      {
+        "path": "docs/02-prd.md",
+        "title": "Product Requirements Document",
+        "reason": "Task intent and benchmark goals live here."
+      },
+      {
+        "path": "docs/03-technical-architecture.md",
+        "title": "Technical Architecture",
+        "reason": "Architecture fit and package boundaries are required context."
+      },
+      {
+        "path": "docs/04-mcp-cli-spec.md",
+        "title": "CLI and MCP Specification",
+        "reason": "CLI contract must remain stable."
+      },
+      {
+        "path": "docs/06-benchmark-framework.md",
+        "title": "Benchmark Framework",
+        "reason": "Reporting and ROI outputs must match the benchmark contract."
+      }
+    ],
+    "reuse_targets": [
+      {
+        "path": "packages/benchmark/src/index.js",
+        "title": "Benchmark report writer",
+        "reason": "Existing report/evidence primitives should be extended instead of duplicated."
+      },
+      {
+        "path": "packages/cli/src/index.js",
+        "title": "CLI benchmark command",
+        "reason": "Scenario automation should stay behind the existing benchmark command surface."
+      }
+    ],
+    "policy_targets": [
+      "Keep benchmark package logic inside packages/benchmark.",
+      "Keep CLI orchestration inside packages/cli.",
+      "Prefer JSON artifacts plus concise markdown reports."
+    ],
+    "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/auth-audit-memory.json"
+  },
+  "task": {
+    "statement": "Add benchmark reporting support for login audit visibility and preserve enough context to answer a follow-up request about the same benchmark run.",
+    "follow_up_prompts": [
+      "Now update the report so leadership can see context retention improvements.",
+      "Show where the CLI should store the evidence bundle for this run."
+    ]
+  },
+  "expected_documents": [
+    {
+      "path": "docs/04-mcp-cli-spec.md"
+    },
+    {
+      "path": "docs/06-benchmark-framework.md"
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "packages/benchmark/src/index.js"
+    },
+    {
+      "path": "packages/cli/src/index.js"
+    }
+  ],
+  "architecture_rules": [
+    "Keep the benchmark compare engine in packages/benchmark.",
+    "Keep command orchestration in packages/cli."
+  ],
+  "evaluation": {
+    "targets": {
+      "max_tokens": 1700,
+      "max_minutes": 22,
+      "max_memory_refreshes": 2,
+      "max_token_cost_usd": 0.34,
+      "max_duplicates": 1,
+      "max_policy_violations": 0,
+      "max_review_edits": 3
+    }
+  },
+  "baseline": {
+    "tokens": 2400,
+    "token_breakdown": {
+      "prompt_tokens": 760,
+      "discovery_tokens": 940,
+      "tool_tokens": 0,
+      "completion_tokens": 700
+    },
+    "minutes": 34,
+    "duplicates": 3,
+    "policy_violations": 2,
+    "review_edits": 8,
+    "memory_refreshes": 5,
+    "token_cost_usd": 0.48,
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 4,
+      "document_hits": 1,
+      "document_targets": 3,
+      "handoff_successes": 0,
+      "handoff_attempts": 1
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 3,
+      "checks_passed": 1,
+      "checks_total": 3,
+      "duplicate_introductions": 3
+    },
+    "code_quality": {
+      "tests_passed": 2,
+      "tests_total": 4,
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 2,
+        "reuse": 2,
+        "testing": 2,
+        "intent_alignment": 2
+      }
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2
+    },
+    "prompt": "Add benchmark reporting support for login audit visibility.",
+    "evaluation_outputs": [
+      {
+        "type": "review-note",
+        "body": "Follow-up answer missed stored evidence location and ignored benchmark document context."
+      }
+    ]
+  },
+  "assisted": {
+    "tokens": 1450,
+    "token_breakdown": {
+      "prompt_tokens": 420,
+      "discovery_tokens": 180,
+      "tool_tokens": 250,
+      "completion_tokens": 600
+    },
+    "minutes": 20,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.29,
+    "context_retention": {
+      "checkpoints_passed": 4,
+      "checkpoints_total": 4,
+      "document_hits": 3,
+      "document_targets": 3,
+      "handoff_successes": 1,
+      "handoff_attempts": 1
+    },
+    "duplicate_work": {
+      "reuse_hits": 3,
+      "reuse_targets": 3,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "duplicate_introductions": 1
+    },
+    "code_quality": {
+      "tests_passed": 4,
+      "tests_total": 4,
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 5,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 5
+      }
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2
+    },
+    "prompt": "Use heart context pack to add benchmark reporting support for login audit visibility.",
+    "tool_outputs": [
+      {
+        "tool": "context_pack",
+        "status": "ok"
+      }
+    ],
+    "context_pack": {
+      "task": "add benchmark reporting support for login audit visibility",
+      "token_budget": 1200,
+      "estimated_tokens": 640,
+      "truncated": false,
+      "relevant_files": [
+        {
+          "path": "packages/benchmark/src/index.js"
+        },
+        {
+          "path": "packages/cli/src/index.js"
+        }
+      ],
+      "relevant_symbols": [
+        {
+          "id": "sym:function:packages/benchmark/src/index.js:compareBenchmarkRuns",
+          "name": "compareBenchmarkRuns",
+          "file": "packages/benchmark/src/index.js"
+        }
+      ],
+      "relevant_documents": [
+        {
+          "path": "docs/06-benchmark-framework.md",
+          "title": "Benchmark Framework"
+        }
+      ],
+      "call_paths": [
+        {
+          "from": "handleBenchmark",
+          "to": "runBenchmarkScenario",
+          "from_file": "packages/cli/src/index.js",
+          "to_file": "packages/benchmark/src/index.js"
+        }
+      ],
+      "tests_to_run": [
+        "tests/benchmark.test.js",
+        "tests/cli.test.js"
+      ],
+      "citations": [
+        {
+          "type": "graph",
+          "relation": "CALLS",
+          "from": "handleBenchmark",
+          "to": "runBenchmarkScenario",
+          "reason": "Existing CLI orchestration path."
+        },
+        {
+          "type": "document",
+          "path": "docs/06-benchmark-framework.md",
+          "title": "Benchmark Framework",
+          "reason": "Defines the benchmark report contract."
+        },
+        {
+          "type": "policy",
+          "rule_id": "benchmark-package-boundary",
+          "path": "packages/benchmark/src/index.js",
+          "reason": "Benchmark logic should remain in the benchmark package."
+        }
+      ],
+      "confidence": {
+        "overall": 0.82
+      }
+    }
+  },
+  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/scenarios/login-audit-flow.json"
+}

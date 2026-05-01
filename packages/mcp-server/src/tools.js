@@ -133,7 +133,7 @@ export function handleToolCall({
       return {
         ...overview,
         memory_profile: createMemoryProfile(graph, documentIndex, resolvedPolicyReport),
-        agent_workflow: createProjectOverviewWorkflow(documentIndex),
+        agent_workflow: createProjectOverviewWorkflow(documentIndex, enabledTools),
       };
     }
     case "symbol_lookup":
@@ -154,7 +154,7 @@ export function handleToolCall({
       });
       return {
         ...pack,
-        agent_contract: createContextPackAgentContract(pack),
+        agent_contract: createContextPackAgentContract(pack, enabledTools),
       };
     }
     case "impact_analysis":
@@ -243,39 +243,63 @@ function createMemoryProfile(
   };
 }
 
-function createProjectOverviewWorkflow(documentIndex = { totals: { document_count: 0 } }) {
-  const nextTools = [
-    "context_pack",
-    "dependency_explain",
-    "impact_analysis",
-  ];
+function createProjectOverviewWorkflow(documentIndex = { totals: { document_count: 0 } }, enabledTools) {
+  const allowedTools = normalizeEnabledTools(enabledTools);
+  const nextTools = filterEnabledTools(
+    [
+      "context_pack",
+      "dependency_explain",
+      "impact_analysis",
+      (documentIndex.totals?.document_count ?? 0) > 0 ? "document_search" : null,
+      "policy_check",
+    ],
+    allowedTools,
+  );
+  const guidanceParts = [];
 
-  if ((documentIndex.totals?.document_count ?? 0) > 0) {
-    nextTools.push("document_search");
+  if (toolIsEnabled("context_pack", allowedTools)) {
+    guidanceParts.push("Use context_pack for a concrete task.");
   }
-
-  nextTools.push("policy_check");
+  if (toolIsEnabled("dependency_explain", allowedTools)) {
+    guidanceParts.push("Use dependency_explain for a file or symbol.");
+  }
+  if (toolIsEnabled("impact_analysis", allowedTools)) {
+    guidanceParts.push("Use impact_analysis before risky edits.");
+  }
+  if (toolIsEnabled("policy_check", allowedTools)) {
+    guidanceParts.push("Use policy_check to confirm boundary and governance posture.");
+  }
 
   return {
     start_with: "project_overview",
     next_tools: nextTools,
-    guidance:
-      "Use context_pack for a concrete task, dependency_explain for a file or symbol, and impact_analysis before risky edits.",
+    guidance: guidanceParts.join(" "),
   };
 }
 
-function createContextPackAgentContract(pack) {
+function createContextPackAgentContract(pack, enabledTools) {
+  const evidence = pack.evidence_summary ?? {};
+  const lowCoverage = Number(evidence.matched_task_token_pct ?? 0) < 35;
+  const lowEvidence = Number(evidence.overall_evidence_score ?? 0) < 0.4;
+  const thinTruncatedPack =
+    Boolean(pack.truncated) &&
+    (Number(evidence.matched_task_token_pct ?? 0) < 60 ||
+      Number(evidence.overall_evidence_score ?? 0) < 0.65 ||
+      pack.missing_context_warnings.length > 0);
   const shouldScanRepoWide =
     pack.relevant_files.length === 0 ||
     pack.relevant_symbols.length === 0 ||
     pack.confidence.overall < 0.45 ||
-    pack.missing_context_warnings.length >= 3;
-  const followupTools = dedupe([
+    pack.missing_context_warnings.length >= 3 ||
+    thinTruncatedPack ||
+    lowCoverage ||
+    lowEvidence;
+  const followupTools = filterEnabledTools([
     "dependency_explain",
     pack.relevant_documents.length === 0 ? "document_search" : null,
     pack.related_tests.length > 0 ? "impact_analysis" : null,
     pack.policies.length > 0 ? "policy_check" : null,
-  ].filter(Boolean));
+  ], normalizeEnabledTools(enabledTools));
 
   return {
     should_scan_repo_wide: shouldScanRepoWide,
@@ -295,4 +319,12 @@ function createContextPackAgentContract(pack) {
 
 function dedupe(values) {
   return [...new Set(values)];
+}
+
+function filterEnabledTools(values, enabledTools) {
+  return dedupe(values.filter((value) => toolIsEnabled(value, enabledTools)));
+}
+
+function toolIsEnabled(name, enabledTools) {
+  return Boolean(name) && (enabledTools === null || enabledTools.has(name));
 }

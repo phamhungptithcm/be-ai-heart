@@ -70,6 +70,26 @@ export default function BenchmarkPage() {
           </article>
         </div>
       </WebsiteSection>
+      <WebsiteSection
+        eyebrow="Evidence posture"
+        title="Every benchmark claim should say how it was measured."
+        description="Website-facing ROI should stay conservative until repeated observed runs exist across comparable scenarios."
+      >
+        <div className="website-detail-grid">
+          <div>
+            <h3>Measurement mode</h3>
+            <p>Reports label whether evidence is observed, estimated, or mixed instead of presenting all savings as equally proven.</p>
+          </div>
+          <div>
+            <h3>Observed sample size</h3>
+            <p>Scenario wins are not enough on their own. Repeated observed runs are what move evidence from directional to release-safe.</p>
+          </div>
+          <div>
+            <h3>Confidence label</h3>
+            <p>Customer-facing proof should be confidence-labeled so buyers can tell directional benchmark signal from stronger operational evidence.</p>
+          </div>
+        </div>
+      </WebsiteSection>
     </WebsiteShell>
   );
 }

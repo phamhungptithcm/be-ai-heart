@@ -2,6 +2,7 @@
 
 const SESSION_STORAGE_KEY = "be_ai_heart.portal.session";
 const DEFAULT_SESSION_MODE = "header";
+const DEFAULT_LOCAL_DEMO_SESSION = "portal-demo-session";
 
 export function getPortalApiBaseUrl() {
   return normalizeBaseUrl(
@@ -16,7 +17,11 @@ export function getPortalPublicBaseUrl() {
 }
 
 export function getPortalDefaultSessionToken() {
-  return String(process.env.NEXT_PUBLIC_BE_AI_HEART_DEFAULT_PORTAL_SESSION ?? "portal-demo-session").trim();
+  if (!isPortalLocalDemoAuthEnabled()) {
+    return "";
+  }
+
+  return String(process.env.NEXT_PUBLIC_BE_AI_HEART_DEFAULT_PORTAL_SESSION ?? DEFAULT_LOCAL_DEMO_SESSION).trim();
 }
 
 export function getPortalSessionToken() {
@@ -163,19 +168,24 @@ function normalizePortalSessionState(rawValue) {
         sessionToken:
           parsed.mode === "cookie"
             ? ""
-            : String(parsed.sessionToken ?? parsed.session_token ?? defaultState.sessionToken).trim(),
+            : sanitizePortalSessionToken(
+                String(parsed.sessionToken ?? parsed.session_token ?? defaultState.sessionToken).trim(),
+              ),
         csrfToken: String(parsed.csrfToken ?? parsed.csrf_token ?? "").trim(),
       };
     }
   } catch {
     return {
       mode: DEFAULT_SESSION_MODE,
-      sessionToken: String(rawValue).trim() || defaultState.sessionToken,
+      sessionToken: sanitizePortalSessionToken(String(rawValue).trim() || defaultState.sessionToken),
       csrfToken: "",
     };
   }
 
-  return defaultState;
+  return {
+    ...defaultState,
+    sessionToken: sanitizePortalSessionToken(defaultState.sessionToken),
+  };
 }
 
 function persistPortalSessionState(state) {
@@ -194,4 +204,25 @@ function dispatchPortalSessionEvent(detail) {
       detail,
     }),
   );
+}
+
+function isPortalLocalDemoAuthEnabled() {
+  return ["1", "true", "yes", "on", "enabled"].includes(
+    String(process.env.NEXT_PUBLIC_BE_AI_HEART_ENABLE_LOCAL_DEMO_AUTH ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function sanitizePortalSessionToken(token) {
+  const safeToken = String(token ?? "").trim();
+  if (!safeToken) {
+    return "";
+  }
+
+  if (!isPortalLocalDemoAuthEnabled() && safeToken === DEFAULT_LOCAL_DEMO_SESSION) {
+    return "";
+  }
+
+  return safeToken;
 }

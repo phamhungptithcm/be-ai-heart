@@ -108,7 +108,7 @@ test("verifyConnection performs the stdio MCP handshake", async (t) => {
   assert.equal(result.tools_list_status, "ok");
 });
 
-test("runConnectDoctor forwards repo-root-aware detect options and reports partial status when detection returns warnings", async () => {
+test("runConnectDoctor forwards repo-root-aware detect options and reports action-required status when setup is incomplete", async () => {
   const env = {
     HOME: "/tmp/doctor-home",
     USERPROFILE: "/tmp/doctor-home",
@@ -148,7 +148,10 @@ test("runConnectDoctor forwards repo-root-aware detect options and reports parti
     },
   ]);
   assert.equal(result.repo_root, "/tmp/doctor-repo");
-  assert.equal(result.status, "partial");
+  assert.equal(result.status, "action_required");
+  assert.ok(Array.isArray(result.inventory.agents));
+  assert.ok(Array.isArray(result.inventory.recommendations));
+  assert.ok(result.actions.length >= 1);
   assert.deepEqual(result.warnings, [
     "Cursor config missing heart-mcp entry.",
   ]);
@@ -181,7 +184,31 @@ test("runConnectDoctor defaults repoRoot to cwd when omitted", async () => {
     },
   ]);
   assert.equal(result.repo_root, cwd);
+  assert.equal(result.status, "action_required");
+});
+
+test("runConnectDoctor reports ready when a configured agent is available", async () => {
+  const result = await runConnectDoctor({
+    repoRoot: "/tmp/doctor-repo",
+    detectImpl: async () => ({
+      repo_root: "/tmp/doctor-repo",
+      agents: [
+        {
+          id: "cursor",
+          configured: true,
+          detected: true,
+        },
+      ],
+      models: [],
+      warnings: [],
+      recommendations: ["heart connect verify --client cursor --scope repo --root /tmp/doctor-repo"],
+    }),
+  });
+
   assert.equal(result.status, "ready");
+  assert.deepEqual(result.actions, [
+    "Run heart connect verify --client cursor --scope repo --root /tmp/doctor-repo",
+  ]);
 });
 
 test("verifyConnection escalates to SIGKILL when the child ignores SIGTERM", async (t) => {

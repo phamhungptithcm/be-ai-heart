@@ -3,6 +3,7 @@ import { withServiceDatabase } from "./database.js";
 import { listAccessibleWorkspaces, resolveActor } from "./access.js";
 import { ensureCustomer } from "./customer-registry.js";
 import { loadWorkspaceIdentity } from "./identity.js";
+import { isLocalDemoAuthEnabled } from "./local-demo.js";
 import {
   countSessionsInPostgres,
   isPostgresStorageEnabled,
@@ -38,6 +39,7 @@ const SESSION_LAST_SEEN_REFRESH_MS = 60 * 1000;
 export async function issueWorkspaceSession({
   serviceStorageRoot,
   actorSlug,
+  localDemoAuth,
   surface,
   workspaceSlug,
   customerSlug,
@@ -51,6 +53,7 @@ export async function issueWorkspaceSession({
     serviceStorageRoot,
     surface,
     actorSlug,
+    localDemoAuth,
   });
   if (!actor) {
     throw new Error(`Unknown actor for ${surface}: ${actorSlug ?? "default"}`);
@@ -167,10 +170,13 @@ export async function issueWorkspaceSession({
   return payload;
 }
 
-export async function resolveWorkspaceSession({ serviceStorageRoot, surface, sessionToken } = {}) {
-  await ensureDefaultSessions(serviceStorageRoot);
+export async function resolveWorkspaceSession({ serviceStorageRoot, surface, sessionToken, localDemoAuth } = {}) {
+  await ensureDefaultSessions(serviceStorageRoot, { localDemoAuth });
   const safeToken = normalizeSessionToken(sessionToken ?? "");
   if (!safeToken) {
+    return null;
+  }
+  if (!isLocalDemoAuthEnabled({ localDemoAuth }) && DEFAULT_SESSIONS.some((entry) => entry.session_token === safeToken)) {
     return null;
   }
 
@@ -204,6 +210,9 @@ export async function resolveWorkspaceSession({ serviceStorageRoot, surface, ses
     return null;
   }
   if (payload.revoked_at) {
+    return null;
+  }
+  if (!isLocalDemoAuthEnabled({ localDemoAuth }) && String(payload.source ?? "").startsWith("seeded-")) {
     return null;
   }
 
@@ -458,8 +467,9 @@ export async function resolveRequestAuthContext({
   surface,
   request,
   sessionCookieName,
+  localDemoAuth,
 } = {}) {
-  await ensureDefaultSessions(serviceStorageRoot);
+  await ensureDefaultSessions(serviceStorageRoot, { localDemoAuth });
   const requestUrl = resolveRequestUrl(request);
   const actorSlugFromRequest =
     requestUrl.searchParams.get("actor") || request?.headers?.get?.("x-be-ai-heart-actor");
@@ -473,18 +483,21 @@ export async function resolveRequestAuthContext({
         serviceStorageRoot,
         surface,
         sessionToken,
+        localDemoAuth,
       })
     : null;
   const actor = await resolveActor({
     serviceStorageRoot,
     surface,
     actorSlug: actorSlugFromRequest ?? session?.actor_slug,
+    localDemoAuth,
   });
   const workspaces = actor
     ? await listAccessibleWorkspaces({
         serviceStorageRoot,
         surface,
         actorSlug: actor.actor_slug,
+        localDemoAuth,
       })
     : [];
   const requestedWorkspaceSlug = sanitizeSlug(
@@ -586,7 +599,11 @@ function resolveRequestUrl(request) {
   return new URL("http://127.0.0.1/");
 }
 
-export async function ensureDefaultSessions(serviceStorageRoot) {
+export async function ensureDefaultSessions(serviceStorageRoot, options = {}) {
+  if (!isLocalDemoAuthEnabled(options)) {
+    return;
+  }
+
   const issuedAt = new Date().toISOString();
   const payloads = [];
   for (const entry of DEFAULT_SESSIONS) {

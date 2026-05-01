@@ -99,6 +99,12 @@ export function PortalBenchmarkReportClient({ reportId }) {
       note: `${evidenceSummary.prompt_count} prompt trace(s), ${evidenceSummary.tool_output_count} tool output(s), ${evidenceSummary.output_artifact_count} output artifact(s).`,
       progress: Math.min(100, Number(evidenceSummary.context_evidence_score ?? 0)),
     },
+    {
+      label: "Measurement provenance",
+      value: `${evidenceSummary.measurement_mode} / ${evidenceSummary.confidence_label}`,
+      note: `${evidenceSummary.sample_size} observed run(s) with ${evidenceSummary.observed_coverage_pct}% observed coverage.`,
+      progress: evidenceSummary.observed_coverage_pct,
+    },
   ];
 
   return (
@@ -125,6 +131,8 @@ export function PortalBenchmarkReportClient({ reportId }) {
           <article className="portal-kpi-card"><span>ROI</span><strong>{report.metrics.composite_roi_score}</strong></article>
           <article className="portal-kpi-card"><span>Generated</span><strong>{formatDateTime(report.generated_at)}</strong></article>
           <article className="portal-kpi-card"><span>Scenario</span><strong>{formatScenarioLabel(report.scenario)}</strong></article>
+          <article className="portal-kpi-card"><span>Measurement</span><strong>{evidenceSummary.measurement_mode}</strong></article>
+          <article className="portal-kpi-card"><span>Confidence</span><strong>{evidenceSummary.confidence_label}</strong></article>
         </div>
       </section>
 
@@ -192,6 +200,14 @@ export function PortalBenchmarkReportClient({ reportId }) {
                 </td>
                 <td>{evidenceSummary.bundle_id || "No bundle id published."}</td>
                 <td>{evidenceSummary.bundle_file_count} file(s)</td>
+              </tr>
+              <tr>
+                <td className="portal-table-primary">
+                  <strong>Measurement mode</strong>
+                  <small>provenance</small>
+                </td>
+                <td>{evidenceSummary.measurement_mode}</td>
+                <td>{`${evidenceSummary.sample_size} observed run(s) | ${evidenceSummary.observed_coverage_pct}% observed coverage | ${evidenceSummary.confidence_label} confidence`}</td>
               </tr>
               <tr>
                 <td className="portal-table-primary">

@@ -19,27 +19,65 @@ function runCli(args, options = {}) {
   });
 }
 
-test("CLI init reports detected language/runtime and next commands in json output", async (t) => {
+async function createUninitializedRepo(t) {
   const fixtureRoot = await createTempRepoCopy(t);
+  await fs.rm(path.join(fixtureRoot, "heart.config.yaml"), { force: true });
+  return fixtureRoot;
+}
+
+test("CLI init creates config and policy scaffolding with detected environment metadata", async (t) => {
+  const fixtureRoot = await createUninitializedRepo(t);
   const result = runCli(["init", "--json", "--root", fixtureRoot]);
 
   assert.equal(result.status, 0);
   const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, "created");
   assert.equal(payload.created, true);
+  assert.deepEqual(payload.created_files, {
+    config: true,
+    policy: true,
+  });
   assert.equal(payload.repo_root, fixtureRoot);
   assert.equal(payload.detected.primary_language, "typescript");
   assert.equal(payload.detected.runtime, "node");
+  assert.equal(payload.config_path, path.join(fixtureRoot, "heart.config.yaml"));
+  assert.equal(payload.policy_path, path.join(fixtureRoot, ".heart", "policies.yaml"));
   assert.ok(payload.next_commands.some((command) => command.includes("heart doctor")));
 });
 
-test("CLI doctor returns deterministic preflight diagnostics", async (t) => {
+test("CLI init repairs missing policy scaffolding without overwriting existing config", async (t) => {
   const fixtureRoot = await createTempRepoCopy(t);
+  await fs.writeFile(
+    path.join(fixtureRoot, "heart.config.yaml"),
+    `project:
+  name: sample-repo
+`,
+    "utf8",
+  );
+  const result = runCli(["init", "--json", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, "updated");
+  assert.equal(payload.created, true);
+  assert.deepEqual(payload.created_files, {
+    config: false,
+    policy: true,
+  });
+  await assert.doesNotReject(fs.access(payload.config_path));
+  await assert.doesNotReject(fs.access(payload.policy_path));
+});
+
+test("CLI doctor returns deterministic preflight diagnostics", async (t) => {
+  const fixtureRoot = await createUninitializedRepo(t);
 
   assert.equal(runCli(["init", "--root", fixtureRoot]).status, 0);
   const result = runCli(["doctor", "--json", "--root", fixtureRoot]);
 
   assert.equal(result.status, 0);
   const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, "ready");
+  assert.equal(payload.summary.warning_count, 0);
   assert.equal(payload.repo_root, fixtureRoot);
   assert.equal(payload.config.status, "loaded");
   assert.equal(payload.policy.status, "loaded");
@@ -76,8 +114,7 @@ test("CLI connect detect and doctor expose stable contracts", async (t) => {
   const doctorPayload = JSON.parse(doctorResult.stdout);
   assert.equal(doctorPayload.repo_root, fixtureRoot);
   assert.ok(Array.isArray(doctorPayload.inventory.agents));
-  assert.equal(doctorPayload.heart_binary.available, true);
-  assert.ok(["ready", "partial"].includes(doctorPayload.status));
+  assert.equal(doctorPayload.status, "action_required");
   assert.ok(doctorPayload.actions.length >= 1);
 });
 
@@ -139,6 +176,26 @@ test("CLI validates typed flag values for token budget", async (t) => {
   }
 });
 
+test("CLI validates numeric flag values instead of silently accepting NaN", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const result = runCli([
+    "agent",
+    "run",
+    "--root",
+    fixtureRoot,
+    "--input-cost-per-1m",
+    "nope",
+    "--upstream-base-url",
+    "http://127.0.0.1:8787/v1",
+    "--",
+    "echo",
+    "hi",
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--input-cost-per-1m must be a valid number/);
+});
+
 test("CLI returns empty matches for find symbol when nothing is found", async (t) => {
   const fixtureRoot = await createTempRepoCopy(t);
   const result = runCli(["find", "symbol", "--json", "--root", fixtureRoot, "DefinitelyMissingSymbol"]);
@@ -163,14 +220,66 @@ test("CLI signals not-found targets for deps and impact without mixing prose int
   }
 });
 
-test("CLI default help highlights first-run commands and connect surface", () => {
+test("CLI mcp tools respects mcp.enabled_tools filtering in json output", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  await fs.writeFile(
+    path.join(fixtureRoot, "heart.config.yaml"),
+    `mcp:
+  enabled_tools:
+    - project_overview
+    - context_pack
+`,
+    "utf8",
+  );
+
+  const result = runCli(["mcp", "tools", "--json", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.deepEqual(payload.enabled_tools, ["project_overview", "context_pack"]);
+  assert.ok(payload.disabled_tools.includes("dependency_explain"));
+  assert.deepEqual(payload.tools.map((tool) => tool.name), ["project_overview", "context_pack"]);
+});
+
+test("CLI connect detect human output is concise and action-oriented", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-connect-human-"));
+
+  t.after(async () => {
+    await fs.rm(fakeHome, { recursive: true, force: true });
+  });
+
+  const result = runCli(["connect", "detect", "--root", fixtureRoot], {
+    env: {
+      HOME: fakeHome,
+      USERPROFILE: fakeHome,
+    },
+  });
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Connect/);
+  assert.match(result.stdout, /Next:/);
+  assert.doesNotMatch(result.stdout, /repo_root:/);
+});
+
+test("CLI default help is compact and grouped around first-run flow", () => {
   const result = runCli([]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /Getting Started/);
+  assert.match(result.stdout, /Start here/i);
+  assert.match(result.stdout, /Core commands/i);
   assert.match(result.stdout, /heart init/);
   assert.match(result.stdout, /heart doctor/);
+  assert.match(result.stdout, /heart pack/);
   assert.match(result.stdout, /heart connect detect/);
-  assert.match(result.stdout, /heart connect install/);
-  assert.match(result.stdout, /heart mcp serve/);
+  assert.match(result.stdout, /heart mcp/);
+  assert.doesNotMatch(result.stdout, /Additional Commands/);
+});
+
+test("CLI supports per-command help without treating --help as an invalid flag", () => {
+  const result = runCli(["pack", "--help"]);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Usage:/);
+  assert.match(result.stdout, /heart pack/);
 });

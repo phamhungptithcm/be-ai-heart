@@ -39,6 +39,7 @@ test("diagram generator builds mermaid outputs for symbol, high-level, component
       DIAGRAM_TYPES.component,
       DIAGRAM_TYPES.class,
       DIAGRAM_TYPES.sequence,
+      DIAGRAM_TYPES.mindmap,
     ],
   );
 
@@ -47,6 +48,7 @@ test("diagram generator builds mermaid outputs for symbol, high-level, component
   const componentDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.component);
   const classDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.class);
   const sequenceDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.sequence);
+  const mindmapDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.mindmap);
 
   assert.match(symbolGraph.content, /flowchart LR/);
   assert.match(symbolGraph.content, /function: loginUser/);
@@ -61,6 +63,13 @@ test("diagram generator builds mermaid outputs for symbol, high-level, component
   assert.match(classDiagram.content, /SessionRecord/);
   assert.match(sequenceDiagram.content, /sequenceDiagram/);
   assert.match(sequenceDiagram.content, /Heuristic static sequence inferred/);
+  assert.match(mindmapDiagram.content, /^mindmap/m);
+  assert.match(mindmapDiagram.content, /Business/);
+  assert.match(mindmapDiagram.content, /Requirements/);
+  assert.match(mindmapDiagram.content, /Technical/);
+  assert.match(mindmapDiagram.content, /Code Domains/);
+  assert.match(mindmapDiagram.content, /auth/);
+  assert.equal(mindmapDiagram.scope.focus, "cross-source-memory");
   assert.equal(sequenceDiagram.confidence, "medium");
   assert.equal(highLevel.scope.focus, "domain-overview");
 });
@@ -116,6 +125,54 @@ test("diagram generator prefers route-trace sequences when parsed HTTP routes ar
   assert.match(sequenceDiagram.content, /GET calls loginUser/);
   assert.match(sequenceDiagram.summary, /route trace/);
   assert.equal(sequenceDiagram.scope.route_count >= 1, true);
+});
+
+test("diagram generator labels heuristic diagrams as beta and keeps participant labels unique", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+
+  await Promise.all([
+    fs.mkdir(path.join(repoRoot, "packages", "benchmark", "src"), { recursive: true }),
+    fs.mkdir(path.join(repoRoot, "apps", "admin", "src"), { recursive: true }),
+  ]);
+  await Promise.all([
+    fs.writeFile(
+      path.join(repoRoot, "packages", "benchmark", "src", "index.js"),
+      [
+        'export function benchmarkIndexFlow() {',
+        '  return "benchmark";',
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+    fs.writeFile(
+      path.join(repoRoot, "apps", "admin", "src", "index.js"),
+      [
+        'import { benchmarkIndexFlow } from "../../../packages/benchmark/src/index";',
+        "",
+        "export function adminIndexFlow() {",
+        "  return benchmarkIndexFlow();",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    ),
+  ]);
+
+  const workspaceState = await buildWorkspaceState(repoRoot, { forceRescan: true });
+  const bundle = generateDiagramBundle({
+    workspaceState,
+    task: "trace admin benchmark index flow",
+  });
+  const sequenceDiagram = bundle.diagrams.find((diagram) => diagram.type === DIAGRAM_TYPES.sequence);
+  const participantLabels = sequenceDiagram.content
+    .split("\n")
+    .filter((line) => line.trim().startsWith("participant "))
+    .map((line) => line.split(" as ")[1]);
+
+  assert.equal(sequenceDiagram.trust.label, "beta");
+  assert.equal(sequenceDiagram.validation.status, "passed");
+  assert.equal(new Set(participantLabels).size, participantLabels.length);
 });
 
 test("repository profile sync publishes diagrams and makes them readable by portal and admin shells", async (t) => {
@@ -203,9 +260,10 @@ test("repository profile sync publishes diagrams and makes them readable by port
 
   assert.equal(portalProfile.profile_slug, "sample-profile");
   assert.equal(adminProfile.profile_slug, "sample-profile");
-  assert.equal(portalProfile.diagrams.length, 5);
+  assert.equal(portalProfile.diagrams.length, 6);
   assert.ok(portalProfile.diagrams.some((diagram) => diagram.content.includes("flowchart LR")));
   assert.ok(portalProfile.diagrams.some((diagram) => diagram.type === DIAGRAM_TYPES.component));
+  assert.ok(portalProfile.diagrams.some((diagram) => diagram.type === DIAGRAM_TYPES.mindmap));
   assert.ok(portalProfile.diagrams.every((diagram) => typeof diagram.confidence === "string"));
   assert.ok(portalProfile.diagrams.every((diagram) => typeof diagram.scope?.focus === "string"));
   assert.ok(adminProfile.diagrams.some((diagram) => diagram.content.includes("sequenceDiagram")));

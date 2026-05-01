@@ -1,0 +1,118 @@
+{
+  "schema_version": 2,
+  "bundle_id": "be-ai-heart-login-audit-flow-1777524293795",
+  "report_id": "be-ai-heart-login-audit-flow-1777524293795",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "scenario": "login-audit-flow",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "files": {
+    "baseline": "baseline.json",
+    "assisted": "assisted.json",
+    "evaluation": "evaluation.json",
+    "scenario": "scenario.json",
+    "dataset": "dataset.json"
+  },
+  "baseline_summary": {
+    "prompt_count": 1,
+    "tool_output_count": 0,
+    "output_artifact_count": 0,
+    "context_pack": {
+      "available": false,
+      "token_budget": null,
+      "estimated_tokens": 0,
+      "truncated": false,
+      "citation_count": 0,
+      "graph_citation_count": 0,
+      "document_citation_count": 0,
+      "policy_citation_count": 0,
+      "call_path_count": 0,
+      "tests_to_run_count": 0,
+      "relevant_file_count": 0,
+      "relevant_symbol_count": 0,
+      "relevant_document_count": 0,
+      "missing_context_warning_count": 0,
+      "matched_task_token_pct": 0,
+      "coverage_score": 0,
+      "compactness_score": 0,
+      "overall_evidence_score": 0,
+      "top_citations": []
+    }
+  },
+  "assisted_summary": {
+    "prompt_count": 1,
+    "tool_output_count": 1,
+    "output_artifact_count": 0,
+    "context_pack": {
+      "available": true,
+      "token_budget": 1200,
+      "estimated_tokens": 640,
+      "truncated": false,
+      "citation_count": 3,
+      "graph_citation_count": 1,
+      "document_citation_count": 1,
+      "policy_citation_count": 1,
+      "call_path_count": 1,
+      "tests_to_run_count": 2,
+      "relevant_file_count": 2,
+      "relevant_symbol_count": 1,
+      "relevant_document_count": 1,
+      "missing_context_warning_count": 0,
+      "matched_task_token_pct": 13,
+      "coverage_score": 0.41,
+      "compactness_score": 1,
+      "overall_evidence_score": 0.63,
+      "top_citations": [
+        {
+          "type": "graph",
+          "relation": "CALLS",
+          "title": "",
+          "from": "handleBenchmark",
+          "to": "runBenchmarkScenario",
+          "reason": "Existing CLI orchestration path."
+        },
+        {
+          "type": "document",
+          "path": "docs/06-benchmark-framework.md",
+          "title": "Benchmark Framework",
+          "reason": "Defines the benchmark report contract."
+        },
+        {
+          "type": "policy",
+          "path": "packages/benchmark/src/index.js",
+          "title": "",
+          "rule_id": "benchmark-package-boundary",
+          "reason": "Benchmark logic should remain in the benchmark package."
+        }
+      ]
+    }
+  },
+  "provenance_summary": {
+    "measurement_mode": "estimated",
+    "total_run_count": 2,
+    "sample_size": 0,
+    "observed_run_count": 0,
+    "observed_coverage_pct": 0,
+    "confidence_label": "low"
+  },
+  "scenario_summary": {
+    "id": "login-audit-flow",
+    "title": "Login Audit Flow With Follow-Up Handoff",
+    "category": "document-aware-follow-up",
+    "dataset_id": "auth-audit-memory",
+    "description": "Measures whether the workflow can preserve product and architecture intent across an initial change plus a follow-up refinement without re-explaining the repository."
+  },
+  "dataset_summary": {
+    "id": "auth-audit-memory",
+    "title": "Auth Audit Memory Dataset",
+    "repo_strategy": "current-repo",
+    "summary": "Document-aware benchmark slice covering CLI, benchmark reporting, and context-pack evidence for repeated follow-up work in the auth and audit domain."
+  },
+  "automation": {
+    "commands": {
+      "run_scenario": "heart benchmark run login-audit-flow",
+      "run_suite": "heart benchmark run --all",
+      "compare_runs": "heart benchmark compare baseline.json assisted.json"
+    }
+  }
+}

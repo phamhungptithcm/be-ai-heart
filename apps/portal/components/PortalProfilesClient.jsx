@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 
 import { fetchPortalJson } from "../src/api-client.js";
 import { buildPortalRepositoryInventorySummary } from "../src/dashboard-visuals.js";
+import {
+  buildPortalRepositoryTableRows,
+  queryPortalRepositoryRows,
+} from "../src/table-state.js";
 import { PortalStateBlock } from "./PortalStateBlock.jsx";
 
 function useProfiles() {
@@ -50,6 +54,14 @@ function useProfiles() {
 
 export function PortalProfilesClient() {
   const { status, profiles, error } = useProfiles();
+  const [tableState, setTableState] = useState({
+    query: "",
+    readiness: "all",
+    sync: "all",
+    benchmark: "all",
+    sortKey: "readiness",
+    sortDirection: "desc",
+  });
 
   if (status === "loading") {
     return (
@@ -87,44 +99,8 @@ export function PortalProfilesClient() {
   }
 
   const summary = buildPortalRepositoryInventorySummary(profiles);
-  const rows = profiles
-    .map((profile) => {
-      const documentCount = Number(profile.documents?.document_count ?? 0);
-      const warningCount = Number(profile.overview?.policy_warnings ?? 0);
-      const benchmarkCount = Number(profile.benchmark_report_count ?? 0);
-      const memoryReady = documentCount > 0;
-      const status = String(profile.cache?.status ?? "unknown");
-      const readinessScore = Math.max(
-        0,
-        Math.min(
-          100,
-          Math.round(
-            (memoryReady ? 42 : 16) +
-              Math.min(20, benchmarkCount * 18) +
-              Math.min(24, Number(profile.heart?.relationship_count ?? 0) / 35) -
-              Math.min(22, warningCount * 11) -
-              (status === "stale" || status === "rebuild" ? 18 : 0),
-          ),
-        ),
-      );
-
-      return {
-        ...profile,
-        documentCount,
-        warningCount,
-        benchmarkCount,
-        memoryReady,
-        status,
-        readinessScore,
-        readinessLabel:
-          readinessScore >= 78
-            ? "Ready"
-            : readinessScore >= 55
-              ? "Watch"
-              : "Needs work",
-      };
-    })
-    .sort((left, right) => right.readinessScore - left.readinessScore);
+  const allRows = buildPortalRepositoryTableRows(profiles);
+  const rows = queryPortalRepositoryRows(allRows, tableState);
 
   const actions = [
     {
@@ -278,54 +254,164 @@ export function PortalProfilesClient() {
             </p>
           </div>
         </div>
+        <div className="portal-table-toolbar">
+          <div className="portal-table-controls">
+            <label className="portal-field">
+              <span>Search repositories</span>
+              <input
+                className="portal-input"
+                type="search"
+                value={tableState.query}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, query: event.target.value }))
+                }
+                placeholder="Repo, slug, or summary"
+              />
+            </label>
+            <label className="portal-field">
+              <span>Readiness</span>
+              <select
+                className="portal-input"
+                value={tableState.readiness}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, readiness: event.target.value }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="ready">Ready</option>
+                <option value="watch">Watch</option>
+                <option value="needs-work">Needs work</option>
+              </select>
+            </label>
+            <label className="portal-field">
+              <span>Sync truth</span>
+              <select
+                className="portal-input"
+                value={tableState.sync}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, sync: event.target.value }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="fresh">Fresh</option>
+                <option value="needs-resync">Needs resync</option>
+              </select>
+            </label>
+            <label className="portal-field">
+              <span>Benchmark proof</span>
+              <select
+                className="portal-input"
+                value={tableState.benchmark}
+                onChange={(event) =>
+                  setTableState((current) => ({ ...current, benchmark: event.target.value }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="backed">Backed</option>
+                <option value="missing">Missing</option>
+              </select>
+            </label>
+          </div>
+          <p className="portal-table-summary">
+            Showing {rows.length} of {allRows.length} repositories.
+          </p>
+        </div>
         <div className="portal-data-table-shell">
           <table className="portal-data-table">
             <thead>
               <tr>
-                <th>Repository</th>
-                <th>Readiness</th>
-                <th>Sync truth</th>
-                <th>Documents</th>
-                <th>Heart links</th>
-                <th>Benchmarks</th>
-                <th>Warnings</th>
-                <th>Last sync</th>
+                <th aria-sort={getSortAria(tableState, "repo")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "repo"} onClick={() => setTableState((current) => nextSortState(current, "repo"))}>
+                    Repository
+                    <span>{getSortLabel(tableState, "repo")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "readiness")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "readiness"} onClick={() => setTableState((current) => nextSortState(current, "readiness"))}>
+                    Readiness
+                    <span>{getSortLabel(tableState, "readiness")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "sync")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "sync"} onClick={() => setTableState((current) => nextSortState(current, "sync"))}>
+                    Sync truth
+                    <span>{getSortLabel(tableState, "sync")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "documents")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "documents"} onClick={() => setTableState((current) => nextSortState(current, "documents"))}>
+                    Documents
+                    <span>{getSortLabel(tableState, "documents")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "links")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "links"} onClick={() => setTableState((current) => nextSortState(current, "links"))}>
+                    Heart links
+                    <span>{getSortLabel(tableState, "links")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "benchmarks")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "benchmarks"} onClick={() => setTableState((current) => nextSortState(current, "benchmarks"))}>
+                    Benchmarks
+                    <span>{getSortLabel(tableState, "benchmarks")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "warnings")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "warnings"} onClick={() => setTableState((current) => nextSortState(current, "warnings"))}>
+                    Warnings
+                    <span>{getSortLabel(tableState, "warnings")}</span>
+                  </button>
+                </th>
+                <th aria-sort={getSortAria(tableState, "last-sync")}>
+                  <button type="button" className="portal-table-sort" data-active={tableState.sortKey === "last-sync"} onClick={() => setTableState((current) => nextSortState(current, "last-sync"))}>
+                    Last sync
+                    <span>{getSortLabel(tableState, "last-sync")}</span>
+                  </button>
+                </th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((profile) => (
-                <tr key={profile.profile_slug}>
-                  <td className="portal-table-primary">
-                    <strong>{profile.repo}</strong>
-                    <small>{profile.overview.summary}</small>
-                  </td>
-                  <td>
-                    <div className="portal-table-stat">
-                      <strong>{profile.readinessScore}%</strong>
-                      <div className="portal-mini-track" aria-hidden="true">
-                        <i className="portal-mini-fill" style={{ width: `${profile.readinessScore}%` }} />
-                      </div>
-                      <span className="portal-table-badge" data-tone={profile.readinessLabel === "Ready" ? "positive" : "neutral"}>
-                        {profile.readinessLabel}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="portal-table-badge" data-tone={profile.status === "updated" || profile.status === "hit" ? "positive" : "neutral"}>
-                      {profile.status}
-                    </span>
-                  </td>
-                  <td>{profile.documentCount}</td>
-                  <td>{profile.heart?.relationship_count ?? 0}</td>
-                  <td>{profile.benchmarkCount}</td>
-                  <td>{profile.warningCount}</td>
-                  <td>{formatTimestamp(profile.generated_at)}</td>
-                  <td className="portal-table-link">
-                    <Link href={`/repositories/${profile.profile_slug}`}>Open</Link>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="portal-table-empty">
+                    No repositories match the current search and filter state.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((profile) => (
+                  <tr key={profile.profile_slug}>
+                    <td className="portal-table-primary">
+                      <strong>{profile.repo}</strong>
+                      <small>{profile.overview?.summary}</small>
+                    </td>
+                    <td>
+                      <div className="portal-table-stat">
+                        <strong>{profile.readinessScore}%</strong>
+                        <div className="portal-mini-track" aria-hidden="true">
+                          <i className="portal-mini-fill" style={{ width: `${profile.readinessScore}%` }} />
+                        </div>
+                        <span className="portal-table-badge" data-tone={profile.readinessLabel === "Ready" ? "positive" : "neutral"}>
+                          {profile.readinessLabel}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="portal-table-badge" data-tone={profile.syncStatus === "updated" || profile.syncStatus === "hit" ? "positive" : "neutral"}>
+                        {profile.syncStatus}
+                      </span>
+                    </td>
+                    <td>{profile.documentCount}</td>
+                    <td>{profile.heart?.relationship_count ?? 0}</td>
+                    <td>{profile.benchmarkCount}</td>
+                    <td>{profile.warningCount}</td>
+                    <td>{formatTimestamp(profile.generated_at)}</td>
+                    <td className="portal-table-link">
+                      <Link href={`/repositories/${profile.profile_slug}`}>Open</Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -337,6 +423,37 @@ export function PortalProfilesClient() {
 function formatTimestamp(value) {
   const safeValue = String(value ?? "").trim();
   return safeValue ? safeValue.slice(0, 16).replace("T", " ") : "Not yet";
+}
+
+function nextSortState(current, sortKey) {
+  if (current.sortKey === sortKey) {
+    return {
+      ...current,
+      sortDirection: current.sortDirection === "desc" ? "asc" : "desc",
+    };
+  }
+
+  return {
+    ...current,
+    sortKey,
+    sortDirection: sortKey === "repo" ? "asc" : "desc",
+  };
+}
+
+function getSortAria(state, sortKey) {
+  if (state.sortKey !== sortKey) {
+    return "none";
+  }
+
+  return state.sortDirection === "asc" ? "ascending" : "descending";
+}
+
+function getSortLabel(state, sortKey) {
+  if (state.sortKey !== sortKey) {
+    return "sort";
+  }
+
+  return state.sortDirection;
 }
 
 export function PortalBenchmarkSummaryClient() {

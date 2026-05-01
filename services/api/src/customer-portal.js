@@ -71,11 +71,13 @@ export async function loadPortalAccountView({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   const billing = buildBillingSnapshot(dataset);
   const members = actorHasPortalPermission(dataset.viewer, PORTAL_PERMISSIONS.membersRead)
@@ -97,11 +99,13 @@ export async function loadPortalOverviewSummary({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   const kpis = buildOverviewKpis(dataset);
   const isFirstLogin =
@@ -146,12 +150,14 @@ export async function loadPortalUsageSummary({
   authContext,
   apiBaseUrl,
   windowDays = 30,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
     windowDays,
+    localDemoAuth,
   });
   const kpis = buildOverviewKpis(dataset);
   const usage = buildUsagePayload(dataset, kpis, windowDays);
@@ -169,11 +175,13 @@ export async function loadPortalMembersView({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   const members = buildMemberRows(dataset);
   const entitlements = resolvePlanEntitlements(dataset.workspaceIdentities);
@@ -211,11 +219,13 @@ export async function loadPortalPoliciesView({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   return {
     schema_version: 1,
@@ -232,11 +242,13 @@ export async function loadPortalSecurityView({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   const events = buildSecurityEvents(dataset);
   const sessions = buildPortalSessionRows(dataset);
@@ -277,11 +289,13 @@ export async function loadPortalBillingSnapshot({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   return buildBillingSnapshot(dataset);
 }
@@ -290,11 +304,13 @@ export async function loadPortalSettingsView({
   serviceStorageRoot,
   authContext,
   apiBaseUrl,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadPortalDataset({
     serviceStorageRoot,
     authContext,
     apiBaseUrl,
+    localDemoAuth,
   });
   const entitlements = resolvePlanEntitlements(dataset.workspaceIdentities);
 
@@ -359,6 +375,7 @@ async function loadPortalDataset({
   authContext,
   apiBaseUrl,
   windowDays = 30,
+  localDemoAuth,
 } = {}) {
   const viewer = resolveActorAccess({
     ...(authContext?.actor ?? {}),
@@ -367,7 +384,7 @@ async function loadPortalDataset({
   const windowStart = toIsoDaysAgo(windowDays);
   const [registry, customer, workspaceIdentities, workspacesPage, profilesPage, documents, benchmarksPage, sessions, rawAuditEvents, rawRequestTraces] =
     await Promise.all([
-      loadAccessRegistry({ serviceStorageRoot }),
+      loadAccessRegistry({ serviceStorageRoot, localDemoAuth }),
       loadCustomer({
         serviceStorageRoot,
         customerSlug: authContext?.customer_slug ?? authContext?.actor?.customer_slug,
@@ -380,6 +397,7 @@ async function loadPortalDataset({
         serviceStorageRoot,
         surface: "portal",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),
@@ -387,6 +405,7 @@ async function loadPortalDataset({
         serviceStorageRoot,
         surface: "portal",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),
@@ -394,11 +413,13 @@ async function loadPortalDataset({
         serviceStorageRoot,
         surface: "portal",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
       }),
       loadAccessibleBenchmarkIndexPage({
         serviceStorageRoot,
         surface: "portal",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),

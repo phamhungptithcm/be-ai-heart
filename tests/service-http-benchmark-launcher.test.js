@@ -136,6 +136,7 @@ test("portal benchmark launcher exposes workspace capability and publishes obser
     serviceStorageRoot,
     portalRoot,
     adminRoot,
+    localDemoAuth: true,
   });
   const commandScriptPath = path.join(repoRoot, "scripts", "benchmark-launch-agent.mjs");
   await fs.mkdir(path.dirname(commandScriptPath), { recursive: true });

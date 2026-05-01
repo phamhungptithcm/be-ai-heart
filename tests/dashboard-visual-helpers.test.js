@@ -7,6 +7,8 @@ import {
   buildPortalWorkspaceMix,
   buildPortalRepositoryInventorySummary,
   buildPortalUsageSourceMix,
+  buildPortalUsageCoverageSummary,
+  buildPortalBenchmarkArchiveSummary,
 } from "../apps/portal/src/dashboard-visuals.js";
 import {
   buildAdminDemandMix,
@@ -14,6 +16,9 @@ import {
   buildAdminWorkspaceMix,
   buildAdminCustomerHealthMix,
   summarizeAdminRevenueSnapshot,
+  buildAdminCustomerExpansionSummary,
+  buildAdminSupportQueueSummary,
+  buildAdminBenchmarkArchiveSummary,
 } from "../apps/admin/src/dashboard-visuals.js";
 
 test("portal dashboard visual helpers derive savings and workspace mix", () => {
@@ -53,6 +58,15 @@ test("portal dashboard visual helpers derive savings and workspace mix", () => {
 
 test("benchmark detail helpers summarize evidence bundle and assisted context quality", () => {
   const report = {
+    provenance: {
+      summary: {
+        measurement_mode: "mixed",
+        sample_size: 1,
+        observed_run_count: 1,
+        observed_coverage_pct: 100,
+        confidence_label: "medium",
+      },
+    },
     evidence_bundle: {
       available: true,
       bundle_id: "sample-report",
@@ -91,6 +105,11 @@ test("benchmark detail helpers summarize evidence bundle and assisted context qu
     output_artifact_count: 1,
     context_task_coverage_pct: 75,
     context_evidence_score: 0.8,
+    measurement_mode: "mixed",
+    sample_size: 1,
+    observed_run_count: 1,
+    observed_coverage_pct: 100,
+    confidence_label: "medium",
   });
 
   assert.deepEqual(buildAdminBenchmarkEvidenceSummary(report), {
@@ -104,6 +123,11 @@ test("benchmark detail helpers summarize evidence bundle and assisted context qu
     context_compactness_score: 0.8,
     context_evidence_score: 0.8,
     citation_mix: "1 graph / 2 docs / 1 policy",
+    measurement_mode: "mixed",
+    sample_size: 1,
+    observed_run_count: 1,
+    observed_coverage_pct: 100,
+    confidence_label: "medium",
   });
 });
 
@@ -269,4 +293,184 @@ test("admin helpers derive customer health mix and revenue snapshot", () => {
       expansion_ready_pct: 50,
     },
   );
+});
+
+test("portal helpers derive usage coverage and benchmark archive summaries", () => {
+  const usage = {
+    summary: {
+      requests: 160,
+      benchmark_coverage_pct: 58,
+      active_users_7d: 7,
+      active_users_30d: 12,
+      estimated_token_cost_usd: 23.45,
+    },
+    breakdowns: {
+      workspaces: [
+        { workspace_slug: "core", repo: "be-ai-heart", requests: 96, estimated_token_cost_usd: 13.1 },
+        { workspace_slug: "docs", repo: "be-ai-heart-docs", requests: 64, estimated_token_cost_usd: 10.35 },
+      ],
+      repositories: [
+        { repo: "be-ai-heart", requests: 96, estimated_token_cost_usd: 13.1 },
+        { repo: "be-ai-heart-docs", requests: 64, estimated_token_cost_usd: 10.35 },
+      ],
+      users: [
+        { display_name: "Ada", requests: 80 },
+        { display_name: "Lin", requests: 44 },
+      ],
+      models: [
+        { provider: "openai", model: "gpt-5.4", requests: 90, estimated_token_cost_usd: 14.1 },
+        { provider: "openai", model: "gpt-5.4-mini", requests: 70, estimated_token_cost_usd: 9.35 },
+      ],
+      clients: [
+        { client: "Cursor", run_count: 9 },
+        { client: "Codex", run_count: 5 },
+      ],
+    },
+  };
+
+  assert.deepEqual(buildPortalUsageCoverageSummary(usage), {
+    workspace_count: 2,
+    repository_count: 2,
+    user_count: 2,
+    model_count: 2,
+    client_count: 2,
+    active_users_7d: 7,
+    active_users_30d: 12,
+    benchmark_coverage_pct: 58,
+    top_repository: { label: "be-ai-heart", requests: 96, estimated_token_cost_usd: 13.1 },
+    top_model: { label: "openai/gpt-5.4", requests: 90, estimated_token_cost_usd: 14.1 },
+    top_client: { label: "Cursor", run_count: 9 },
+  });
+
+  const reports = [
+    {
+      repo: "be-ai-heart",
+      scenario: "architecture-constrained-change",
+      metrics: { token_savings_pct: 40, composite_roi_score: 62 },
+    },
+    {
+      repo: "be-ai-heart",
+      scenario: "architecture-constrained-change",
+      metrics: { token_savings_pct: 34, composite_roi_score: 58 },
+    },
+    {
+      repo: "be-ai-heart-docs",
+      scenario: "document-aware-follow-up",
+      metrics: { token_savings_pct: 22, composite_roi_score: 49 },
+    },
+  ];
+
+  assert.deepEqual(buildPortalBenchmarkArchiveSummary(reports), {
+    report_count: 3,
+    repository_count: 2,
+    scenario_count: 2,
+    avg_token_savings_pct: 32,
+    avg_roi_score: 56.3,
+    top_repository: {
+      label: "be-ai-heart",
+      report_count: 2,
+      avg_token_savings_pct: 37,
+      avg_roi_score: 60,
+    },
+    top_scenario: {
+      label: "architecture constrained change",
+      report_count: 2,
+      avg_token_savings_pct: 37,
+      avg_roi_score: 60,
+    },
+  });
+});
+
+test("admin helpers derive expansion and support queue summaries", () => {
+  const customers = [
+    {
+      status: "active",
+      risk_level: "low",
+      seats_used: 16,
+      seats_total: 18,
+      benchmark_backed_repositories: 2,
+      queued_submissions: 1,
+      stale_repositories: 0,
+      renewal_date: "2026-04-25",
+    },
+    {
+      status: "trial",
+      risk_level: "high",
+      seats_used: 2,
+      seats_total: 10,
+      benchmark_backed_repositories: 0,
+      queued_submissions: 3,
+      stale_repositories: 2,
+      renewal_date: "2026-06-12",
+    },
+  ];
+
+  assert.deepEqual(buildAdminCustomerExpansionSummary(customers), {
+    total: 2,
+    benchmark_backed_count: 1,
+    renewal_soon_count: 1,
+    seat_pressure_count: 1,
+    stale_repository_count: 2,
+    queued_submission_count: 4,
+    benchmark_backed_pct: 50,
+  });
+
+  const profiles = [
+    {
+      cache: { status: "stale" },
+      benchmark_report_count: 0,
+      overview: { policy_warnings: 2 },
+      heart: { relationship_count: 42 },
+      documents: { document_count: 0 },
+    },
+    {
+      cache: { status: "updated" },
+      benchmark_report_count: 1,
+      overview: { policy_warnings: 0 },
+      heart: { relationship_count: 110 },
+      documents: { document_count: 4 },
+    },
+  ];
+  const requests = [
+    { intake_kind: "demo" },
+    { intake_kind: "trial" },
+    { intake_kind: "trial" },
+  ];
+
+  assert.deepEqual(buildAdminSupportQueueSummary({ profiles, requests }), {
+    profile_count: 2,
+    stale_profile_count: 1,
+    benchmark_gap_count: 1,
+    policy_warning_count: 2,
+    low_memory_count: 1,
+    demo_request_count: 1,
+    trial_request_count: 2,
+    critical_queue_count: 1,
+  });
+
+  const reports = [
+    { repo: "be-ai-heart", scenario: "duplicate-work-avoidance", metrics: { token_savings_pct: 42, composite_roi_score: 66 } },
+    { repo: "be-ai-heart", scenario: "document-aware-follow-up", metrics: { token_savings_pct: 36, composite_roi_score: 58 } },
+    { repo: "workspace-api", scenario: "duplicate-work-avoidance", metrics: { token_savings_pct: 25, composite_roi_score: 44 } },
+  ];
+
+  assert.deepEqual(buildAdminBenchmarkArchiveSummary(reports), {
+    report_count: 3,
+    repository_count: 2,
+    scenario_count: 2,
+    avg_token_savings_pct: 34.3,
+    avg_roi_score: 56,
+    top_repository: {
+      label: "be-ai-heart",
+      report_count: 2,
+      avg_token_savings_pct: 39,
+      avg_roi_score: 62,
+    },
+    top_scenario: {
+      label: "duplicate work avoidance",
+      report_count: 2,
+      avg_token_savings_pct: 33.5,
+      avg_roi_score: 55,
+    },
+  });
 });

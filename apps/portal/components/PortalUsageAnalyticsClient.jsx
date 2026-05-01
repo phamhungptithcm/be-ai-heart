@@ -1,6 +1,7 @@
 "use client";
 
 import { buildPortalUsageSourceMix } from "../src/dashboard-visuals.js";
+import { buildPortalUsageCoverageSummary } from "../src/dashboard-visuals.js";
 import { usePortalResource } from "../src/use-portal-resource.js";
 import { PortalStateBlock } from "./PortalStateBlock.jsx";
 
@@ -39,6 +40,7 @@ export function PortalUsageAnalyticsClient() {
   const modelRows = Array.isArray(breakdowns.models) ? breakdowns.models : [];
   const clientRows = Array.isArray(breakdowns.clients) ? breakdowns.clients : [];
   const sourceMix = buildPortalUsageSourceMix(usage);
+  const coverageSummary = buildPortalUsageCoverageSummary(usage);
   const actionRows = [
     {
       label: "Benchmark coverage",
@@ -98,7 +100,7 @@ export function PortalUsageAnalyticsClient() {
           <div>
             <span>Usage summary</span>
             <h3>Live telemetry and benchmark-derived value in one customer view</h3>
-            <p>Operational usage should show what the team is actually doing. Benchmark-derived values should show whether that usage is becoming cheaper and cleaner.</p>
+            <p>Use this page to separate real workload from benchmark-backed proof, then decide where the tenant needs more coverage before scaling AI deeper.</p>
           </div>
         </div>
         <div className="portal-kpi-grid">
@@ -124,29 +126,35 @@ export function PortalUsageAnalyticsClient() {
         <section className="portal-enterprise-panel">
           <div className="portal-enterprise-panel-head">
             <div>
-              <span>Signal mix</span>
-              <h3>How much of usage is live telemetry versus benchmark-backed proof</h3>
-              <p>Customers should be able to separate what is happening now from what has already been validated as cheaper and safer.</p>
+              <span>Coverage digest</span>
+              <h3>Where usage is concentrated right now</h3>
+              <p>The top repository, model, and client should be obvious without drilling into every table.</p>
             </div>
           </div>
           <div className="portal-summary-list">
             <article>
-              <span>Hosted telemetry</span>
-              <strong>{sourceMix.telemetry_share_pct}% of observed demand is live operational traffic</strong>
-              <p>{summary.source_notes?.live_operational ?? "Hosted traffic data is aggregated from request traces and observed usage."}</p>
-            </article>
-            <article>
-              <span>Benchmark-derived</span>
-              <strong>{sourceMix.benchmark_share_pct}% of visible demand is backed by published benchmark evidence</strong>
-              <p>{summary.source_notes?.benchmark_derived ?? "Publish benchmark artifacts to improve proof coverage."}</p>
-            </article>
-            <article>
-              <span>Topline efficiency</span>
+              <span>Workspace footprint</span>
               <strong>
-                {summary.avg_token_savings_pct ?? 0}% average token savings with ${Number(summary.estimated_cost_savings_usd ?? 0).toFixed(2)} estimated savings
+                {coverageSummary.workspace_count} workspace(s) · {coverageSummary.repository_count} repository surface(s)
               </strong>
               <p>
-                Live cost tracks operational telemetry. Savings remain benchmark-derived until more repositories publish proof.
+                {coverageSummary.user_count} members, {coverageSummary.model_count} models, and {coverageSummary.client_count} client lanes are currently visible.
+              </p>
+            </article>
+            <article>
+              <span>Top spend lane</span>
+              <strong>
+                {coverageSummary.top_repository?.label ?? "No repository data"} · ${formatCell(coverageSummary.top_repository?.estimated_token_cost_usd ?? 0)}
+              </strong>
+              <p>
+                {coverageSummary.top_model?.label ?? "No model data"} is carrying the largest model-side cost at ${formatCell(coverageSummary.top_model?.estimated_token_cost_usd ?? 0)}.
+              </p>
+            </article>
+            <article>
+              <span>Primary client</span>
+              <strong>{coverageSummary.top_client?.label ?? "No client data"} is driving the most runs</strong>
+              <p>
+                Benchmark coverage is {coverageSummary.benchmark_coverage_pct}% and active usage is {coverageSummary.active_users_7d}/{coverageSummary.active_users_30d} users in 7d/30d.
               </p>
             </article>
           </div>
@@ -157,7 +165,7 @@ export function PortalUsageAnalyticsClient() {
             <div>
               <span>Action center</span>
               <h3>What the customer should improve next</h3>
-              <p>Usage should not just show spend. It should show where the tenant needs better coverage, reuse, and adoption before scaling AI further.</p>
+              <p>Actionable pressure matters more than raw traffic. Fix these gaps before asking the team to trust broader AI rollout.</p>
             </div>
           </div>
           <div className="portal-readiness-list">
@@ -185,7 +193,7 @@ export function PortalUsageAnalyticsClient() {
           <div>
             <span>Trend</span>
             <h3>Activity and savings over time</h3>
-            <p>Use the daily series to see whether real usage is increasing while benchmark-backed savings stay defensible.</p>
+            <p>Check whether real usage is rising while benchmark-backed savings and memory discipline stay intact.</p>
           </div>
         </div>
         <div className="portal-data-table-shell">
@@ -235,7 +243,7 @@ export function PortalUsageAnalyticsClient() {
         />
         <BreakdownTable
           eyebrow="By repository"
-          title="Repository usage mix"
+          title="Repository usage and spend hotspots"
           rows={usage.breakdowns?.repositories ?? []}
           columns={[
             ["repo", "Repository"],
@@ -289,7 +297,7 @@ export function PortalUsageAnalyticsClient() {
           <div>
             <span>Client footprint</span>
             <h3>Which clients and IDEs are driving BeHeart usage</h3>
-            <p>Platform leads need to know whether adoption is concentrated in one workflow or distributed across the actual engineering toolchain.</p>
+            <p>Platform leads need to know whether usage is concentrated in one workflow or distributed across the actual engineering toolchain.</p>
           </div>
         </div>
         <div className="portal-data-table-shell">

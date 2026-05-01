@@ -2,13 +2,17 @@ node_modules/
 dist/
 coverage/
 .next/
+.site/
 .worktrees/
 .DS_Store
+.env.bootstrap.local
 .heart/cache/
 .heart/diagrams/
 .heart/published/
 apps/portal/public/profiles/
 apps/admin/public/profiles/
+apps/portal/profiles/
+apps/admin/profiles/
 apps/portal/public/benchmarks/
 apps/admin/public/benchmarks/
 apps/portal/public/documents/

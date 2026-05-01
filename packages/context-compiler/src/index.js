@@ -2,6 +2,7 @@ import { findRelevantDocuments } from "../../document-ingest/src/index.js";
 import {
   getDecisionImplementationsForDocuments,
   getLinkedModulesForDocuments,
+  getModuleRelationshipsForDocuments,
 } from "../../entity-linker/src/index.js";
 import { EDGE_TYPES } from "../../shared-schema/src/index.js";
 
@@ -26,6 +27,75 @@ const DOCUMENT_CATEGORY_WEIGHTS = Object.freeze({
   general: 0.6,
 });
 
+const UI_INTENT_TOKENS = new Set([
+  "admin",
+  "button",
+  "component",
+  "components",
+  "dashboard",
+  "frontend",
+  "layout",
+  "page",
+  "pages",
+  "portal",
+  "screen",
+  "screens",
+  "style",
+  "styles",
+  "table",
+  "tables",
+  "ui",
+  "ux",
+  "visual",
+  "website",
+]);
+
+const CORE_INTENT_TOKENS = new Set([
+  "api",
+  "auth",
+  "backend",
+  "benchmark",
+  "cli",
+  "compiler",
+  "context",
+  "document",
+  "documents",
+  "graph",
+  "ingest",
+  "mcp",
+  "parser",
+  "policy",
+  "runtime",
+  "service",
+  "session",
+  "sync",
+]);
+
+const OWNERSHIP_DOMAIN_TOKENS = new Set([
+  "admin",
+  "api",
+  "auth",
+  "benchmark",
+  "cli",
+  "compiler",
+  "context",
+  "document",
+  "documents",
+  "graph",
+  "ingest",
+  "mcp",
+  "parser",
+  "policy",
+  "portal",
+  "runtime",
+  "service",
+  "session",
+  "sync",
+  "website",
+]);
+
+const SURFACE_OWNER_TOKENS = new Set(["admin", "portal", "website"]);
+
 export function compileContextPack({
   task,
   graph,
@@ -46,10 +116,15 @@ export function compileContextPack({
     edges: graph?.edges ?? [],
   };
   const taskTokens = tokenize(task);
+  const taskProfile = createTaskIntentProfile(taskTokens);
   const policyFocused = taskMentionsPolicy(taskTokens);
   const relevantDocuments = rankRelevantDocuments(documentIndex, task, taskTokens);
   const documentInfluenceByPath = createDocumentInfluenceMap(relevantDocuments, documentIndex, taskTokens);
   const linkedModules = getLinkedModulesForDocuments(
+    heartModel,
+    relevantDocuments.map((document) => document.path),
+  );
+  const moduleRelationships = getModuleRelationshipsForDocuments(
     heartModel,
     relevantDocuments.map((document) => document.path),
   );
@@ -58,9 +133,15 @@ export function compileContextPack({
     relevantDocuments.map((document) => document.path),
   );
   const moduleBoosts = createModuleBoostMap(linkedModules, documentInfluenceByPath, { policyFocused });
+  const relationshipBoosts = createModuleRelationshipBoostMap(moduleRelationships, documentInfluenceByPath, {
+    policyFocused,
+    boundaryFocused: taskProfile.boundaryFocused,
+  });
+  const relationshipAwareModuleBoosts = mergeBoostMaps(moduleBoosts, relationshipBoosts);
   const decisionBoosts = createDecisionBoostMaps(decisionTargets, documentInfluenceByPath, { policyFocused });
   const policyBoosts = createPolicyBoostMaps(safeGraph.scanResult, policyReport, taskTokens);
   const testingRequested = taskMentionsTesting(taskTokens);
+  const intentBoosts = createIntentBoostMaps(safeGraph.scanResult, taskProfile);
   const recentActivityBoosts = createRecentActivityBoostMaps(safeGraph.scanResult, taskTokens);
   const normalizedTokenBudget = normalizeTokenBudget(tokenBudget);
   const rankingSeedFileLimit = Math.max(maxFiles, 3);
@@ -73,7 +154,8 @@ export function compileContextPack({
           file,
           taskTokens,
           testingRequested,
-          moduleBoosts,
+          intentBoosts,
+          moduleBoosts: relationshipAwareModuleBoosts,
           decisionBoosts,
           policyBoosts,
           recentActivityBoosts,
@@ -91,7 +173,8 @@ export function compileContextPack({
           file,
           taskTokens,
           testingRequested,
-          moduleBoosts,
+          intentBoosts,
+          moduleBoosts: relationshipAwareModuleBoosts,
           decisionBoosts,
           policyBoosts,
           recentActivityBoosts,
@@ -111,7 +194,8 @@ export function compileContextPack({
           file,
           taskTokens,
           testingRequested,
-          moduleBoosts,
+          intentBoosts,
+          moduleBoosts: relationshipAwareModuleBoosts,
           decisionBoosts,
           policyBoosts,
           recentActivityBoosts,
@@ -132,7 +216,8 @@ export function compileContextPack({
             file,
             taskTokens,
             testingRequested,
-            moduleBoosts,
+            intentBoosts,
+            moduleBoosts: relationshipAwareModuleBoosts,
             decisionBoosts,
             policyBoosts,
             recentActivityBoosts,
@@ -173,6 +258,7 @@ export function compileContextPack({
   });
   const linkedContext = buildLinkedContext({
     linkedModules,
+    moduleRelationships,
     decisionTargets,
     tokenBudget: normalizedTokenBudget,
   });
@@ -252,6 +338,7 @@ function createBaseFileScore({
   file,
   taskTokens,
   testingRequested,
+  intentBoosts,
   moduleBoosts,
   decisionBoosts,
   policyBoosts,
@@ -260,6 +347,7 @@ function createBaseFileScore({
   return (
     scoreFile(file, taskTokens) +
     applyTestPenalty(file.relativePath, testingRequested) +
+    (intentBoosts.files.get(file.relativePath) ?? 0) +
     (moduleBoosts.files.get(file.relativePath) ?? 0) +
     (decisionBoosts.files.get(file.relativePath) ?? 0) +
     (policyBoosts.files.get(file.relativePath) ?? 0) +
@@ -272,6 +360,7 @@ function createBaseSymbolScore({
   file,
   taskTokens,
   testingRequested,
+  intentBoosts,
   moduleBoosts,
   decisionBoosts,
   policyBoosts,
@@ -280,6 +369,7 @@ function createBaseSymbolScore({
   return (
     scoreSymbol(symbol, taskTokens) +
     applyTestPenalty(file.relativePath, testingRequested) +
+    (intentBoosts.symbols.get(symbol.id) ?? 0) +
     (moduleBoosts.symbols.get(symbol.id) ?? 0) +
     (decisionBoosts.symbols.get(symbol.id) ?? 0) +
     (policyBoosts.symbols.get(symbol.id) ?? 0) +
@@ -344,6 +434,50 @@ function createModuleBoostMap(linkedModules, documentInfluenceByPath = new Map()
         filePath,
         Math.max(files.get(filePath) ?? 0, roundSignal((module.score * 4 + supportingBoost) * linkScale)),
       );
+    }
+  }
+
+  return { files, symbols };
+}
+
+function createModuleRelationshipBoostMap(moduleRelationships, documentInfluenceByPath = new Map(), options = {}) {
+  const files = new Map();
+  const symbols = new Map();
+  const linkScale = options.policyFocused ? 0.35 : options.boundaryFocused ? 1.1 : 0.7;
+
+  for (const relationship of moduleRelationships) {
+    const supportingBoost = Math.max(
+      0,
+      ...(relationship.supporting_documents ?? []).map(
+        (documentPath) => documentInfluenceByPath.get(documentPath) ?? 0,
+      ),
+    );
+    const provenanceBoost = relationship.provenance === "EXTRACTED" ? 3 : 2;
+    const baseBoost = roundSignal((relationship.score * provenanceBoost + supportingBoost) * linkScale);
+
+    for (const filePath of relationship.target_file_paths ?? []) {
+      files.set(filePath, Math.max(files.get(filePath) ?? 0, baseBoost));
+    }
+
+    const symbolBoost = roundSignal(baseBoost * 0.7);
+    for (const symbolId of relationship.target_symbol_ids ?? []) {
+      symbols.set(symbolId, Math.max(symbols.get(symbolId) ?? 0, symbolBoost));
+    }
+  }
+
+  return { files, symbols };
+}
+
+function mergeBoostMaps(...boostMaps) {
+  const files = new Map();
+  const symbols = new Map();
+
+  for (const boostMap of boostMaps) {
+    for (const [filePath, score] of boostMap.files ?? []) {
+      files.set(filePath, Math.max(files.get(filePath) ?? 0, score));
+    }
+    for (const [symbolId, score] of boostMap.symbols ?? []) {
+      symbols.set(symbolId, Math.max(symbols.get(symbolId) ?? 0, score));
     }
   }
 
@@ -464,6 +598,123 @@ function createRecentActivityBoostMaps(scanResult, taskTokens = []) {
   }
 
   return { files, symbols };
+}
+
+function createTaskIntentProfile(taskTokens = []) {
+  const uniqueTokens = dedupe(taskTokens);
+  const ownerKeywords = uniqueTokens.filter((token) => OWNERSHIP_DOMAIN_TOKENS.has(token));
+  const surfaceKeywords = new Set(ownerKeywords.filter((token) => SURFACE_OWNER_TOKENS.has(token)));
+  const uiFocused = uniqueTokens.some((token) => UI_INTENT_TOKENS.has(token));
+  const coreFocused = uniqueTokens.some((token) => CORE_INTENT_TOKENS.has(token));
+  const boundaryFocused = uniqueTokens.some((token) =>
+    ["architecture", "boundary", "boundaries", "governance", "ownership", "reuse"].includes(token),
+  );
+
+  return {
+    uiFocused,
+    coreFocused,
+    boundaryFocused,
+    preferCoreOwnership: coreFocused && !uiFocused,
+    ownerKeywords,
+    surfaceKeywords,
+  };
+}
+
+function createIntentBoostMaps(scanResult, taskProfile) {
+  const files = new Map();
+  const symbols = new Map();
+
+  for (const file of scanResult.files ?? []) {
+    const fileBoost = scoreFileIntentAlignment(file.relativePath, taskProfile);
+    if (fileBoost !== 0) {
+      files.set(file.relativePath, fileBoost);
+    }
+
+    const symbolBoost = roundSignal(fileBoost * 0.7);
+    if (symbolBoost === 0) {
+      continue;
+    }
+
+    for (const symbol of file.symbols ?? []) {
+      symbols.set(symbol.id, symbolBoost);
+    }
+  }
+
+  return { files, symbols };
+}
+
+function scoreFileIntentAlignment(filePath, taskProfile = {}) {
+  const layer = classifyPathLayer(filePath);
+  const ownerSegment = extractOwnerSegment(filePath, layer);
+  const pathTokens = tokenize(filePath.replaceAll("/", " "));
+  const ownerMatchCount = taskProfile.ownerKeywords.filter(
+    (token) => token === ownerSegment || pathTokens.includes(token),
+  ).length;
+  const surfaceMatched = taskProfile.surfaceKeywords.has(ownerSegment);
+  let boost = 0;
+
+  if (taskProfile.preferCoreOwnership) {
+    if (layer === "package") {
+      boost += 7;
+    } else if (layer === "service") {
+      boost += 5;
+    } else if (layer === "app") {
+      boost -= surfaceMatched ? 1 : 5;
+    }
+  } else if (taskProfile.uiFocused) {
+    if (layer === "app") {
+      boost += 7;
+    } else if (layer === "package") {
+      boost -= 2;
+    }
+  }
+
+  if (ownerMatchCount > 0) {
+    if (layer === "package") {
+      boost += 10 + ownerMatchCount * 2;
+    } else if (layer === "service") {
+      boost += 8 + ownerMatchCount * 2;
+    } else if (layer === "app") {
+      boost += (surfaceMatched || taskProfile.uiFocused ? 7 : 2) + ownerMatchCount;
+    } else {
+      boost += 3 + ownerMatchCount;
+    }
+  }
+
+  if (taskProfile.boundaryFocused) {
+    if (layer === "package" || layer === "service") {
+      boost += ownerMatchCount > 0 ? 4 : 2;
+    } else if (layer === "app" && !surfaceMatched) {
+      boost -= 1;
+    }
+  }
+
+  return roundSignal(boost);
+}
+
+function classifyPathLayer(filePath = "") {
+  const normalized = String(filePath).replace(/\\/g, "/");
+  if (normalized.startsWith("packages/")) {
+    return "package";
+  }
+  if (normalized.startsWith("services/")) {
+    return "service";
+  }
+  if (normalized.startsWith("apps/")) {
+    return "app";
+  }
+  if (normalized.startsWith("tests/") || isTestPath(normalized)) {
+    return "test";
+  }
+  return "other";
+}
+
+function extractOwnerSegment(filePath = "", layer = "other") {
+  const segments = String(filePath).replace(/\\/g, "/").split("/");
+  if (["package", "service", "app"].includes(layer)) {
+    return segments[1] ?? "";
+  }
+  return segments[0] ?? "";
 }
 
 function rankRelevantDocuments(documentIndex, task, taskTokens, limit = 4) {
@@ -779,6 +1030,7 @@ function applyTokenBudget(pack, tokenBudget) {
     createArrayTrimmer(candidate, "risks", 0),
     createArrayTrimmer(candidate, "policies", 0),
     createNestedArrayTrimmer(candidate, ["linked_context", "implementation_targets"], 0),
+    createNestedArrayTrimmer(candidate, ["linked_context", "relationships"], 0),
     createNestedArrayTrimmer(candidate, ["linked_context", "modules"], candidate.linked_context.modules.length > 0 ? 1 : 0),
     createArrayTrimmer(candidate, "reuse_candidates", candidate.reuse_candidates.length > 0 ? 1 : 0),
     createArrayTrimmer(candidate, "missing_context_warnings", 0),
@@ -1020,6 +1272,14 @@ function cloneContextPack(pack) {
     related_tests: [...pack.related_tests],
     linked_context: {
       modules: [...pack.linked_context.modules],
+      relationships: pack.linked_context.relationships.map((relationship) => ({
+        ...relationship,
+        relationship_kinds: [...(relationship.relationship_kinds ?? [])],
+        supporting_documents: [...(relationship.supporting_documents ?? [])],
+        target_file_paths: [...(relationship.target_file_paths ?? [])],
+        target_symbol_ids: [...(relationship.target_symbol_ids ?? [])],
+        target_symbol_names: [...(relationship.target_symbol_names ?? [])],
+      })),
       implementation_targets: [...pack.linked_context.implementation_targets],
     },
     reuse_candidates: [...pack.reuse_candidates],
@@ -1441,10 +1701,11 @@ function compactContextPack(pack) {
   };
 }
 
-function buildLinkedContext({ linkedModules, decisionTargets, tokenBudget }) {
+function buildLinkedContext({ linkedModules, moduleRelationships, decisionTargets, tokenBudget }) {
   if (!tokenBudget) {
     return {
       modules: linkedModules.slice(0, 4),
+      relationships: moduleRelationships.slice(0, 4),
       implementation_targets: decisionTargets.slice(0, 6),
     };
   }
@@ -1455,6 +1716,13 @@ function buildLinkedContext({ linkedModules, decisionTargets, tokenBudget }) {
       score: module.score,
       file_paths: (module.file_paths ?? []).slice(0, 2),
       supporting_documents: (module.supporting_documents ?? []).slice(0, 2),
+    })),
+    relationships: moduleRelationships.slice(0, 3).map((relationship) => ({
+      from_module: relationship.from_module,
+      to_module: relationship.to_module,
+      provenance: relationship.provenance,
+      relationship_kinds: (relationship.relationship_kinds ?? []).slice(0, 2),
+      score: relationship.score,
     })),
     implementation_targets: decisionTargets.slice(0, 3).map((target) => ({
       target_type: target.target_type,
@@ -1489,7 +1757,7 @@ function collectMatchedTaskTokens({
   linkedModules,
 }) {
   const haystack = [
-    relevantFiles.map((file) => `${file.path} ${file.symbols.join(" ")}`).join(" "),
+    relevantFiles.map((file) => `${file.path} ${(file.symbols ?? []).join(" ")}`).join(" "),
     relevantSymbols.map((symbol) => `${symbol.name} ${symbol.signature ?? ""}`).join(" "),
     relevantDocuments.map((document) => `${document.path} ${document.title} ${document.summary}`).join(" "),
     linkedModules.map((module) => `${module.module} ${(module.file_paths ?? []).join(" ")}`).join(" "),
@@ -1498,6 +1766,10 @@ function collectMatchedTaskTokens({
     .toLowerCase();
 
   return new Set(taskTokens.filter((token) => haystack.includes(token)));
+}
+
+function dedupe(values = []) {
+  return [...new Set(values)];
 }
 
 function clampScore(value) {

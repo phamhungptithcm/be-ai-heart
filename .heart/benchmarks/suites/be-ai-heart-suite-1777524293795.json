@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "report_type": "suite",
+  "suite_id": "be-ai-heart-suite-1777524293795",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "scenario_count": 3,
+  "dataset_count": 3,
+  "aggregate_metrics": {
+    "report_count": 3,
+    "avg_token_savings_pct": 43,
+    "avg_time_savings_pct": 40,
+    "avg_token_cost_savings_usd": 0.3,
+    "avg_context_retention_gain_pct": 67.3,
+    "avg_duplicate_avoidance_gain_pct": 62.1,
+    "avg_code_quality_gain_pct": 56.5,
+    "avg_overall_score_gain_pct": 55.9
+  },
+  "summary": "Benchmark suite ran 3 scenarios with 43% average token savings and 56.5% average code-quality improvement.",
+  "manager_summary": "Across 3 scenarios, benchmark evidence shows 43% average token savings, $0.30 direct token savings per scenario, and 67.3% better context retention.",
+  "technical_summary": "Average duplicate avoidance improved by 62.1% and average overall scenario score improved by 55.9%.",
+  "automation": {
+    "commands": {
+      "run_suite": "heart benchmark run --all",
+      "run_scenario_prefix": "heart benchmark run <scenario-id>",
+      "compare_runs": "heart benchmark compare baseline.json assisted.json"
+    }
+  },
+  "scenarios": [
+    {
+      "report_id": "be-ai-heart-cross-module-change-1777524293793",
+      "scenario": "cross-module-change",
+      "title": "Cross Module Benchmark Automation",
+      "category": "architecture-constrained-change",
+      "dataset_id": "cross-module-boundaries",
+      "metrics": {
+        "token_savings_pct": 43,
+        "time_savings_pct": 40,
+        "duplicate_reduction_pct": 75,
+        "policy_violation_reduction_pct": 67,
+        "review_edit_reduction_pct": 60,
+        "memory_refresh_reduction_pct": 71,
+        "token_cost_savings_pct": 43,
+        "token_cost_savings_usd": 0.31,
+        "time_saved_minutes": 21,
+        "review_edits_saved": 6,
+        "context_efficiency_gain_pct": 50.5,
+        "context_retention_gain_pct": 71,
+        "duplicate_avoidance_gain_pct": 69.5,
+        "code_quality_gain_pct": 36,
+        "delivery_gain_pct": 44.2,
+        "overall_score_gain_pct": 54.6,
+        "composite_roi_score": 56.6,
+        "context_pack_quality_score": 0,
+        "context_pack_compactness_score": 0,
+        "context_pack_task_coverage_pct": 0
+      }
+    },
+    {
+      "report_id": "be-ai-heart-duplicate-refactor-1777524293794",
+      "scenario": "duplicate-refactor",
+      "title": "Duplicate Metric Refactor",
+      "category": "duplicate-work-avoidance",
+      "dataset_id": "reuse-path-consolidation",
+      "metrics": {
+        "token_savings_pct": 46,
+        "time_savings_pct": 39,
+        "duplicate_reduction_pct": 80,
+        "policy_violation_reduction_pct": 100,
+        "review_edit_reduction_pct": 67,
+        "memory_refresh_reduction_pct": 75,
+        "token_cost_savings_pct": 46,
+        "token_cost_savings_usd": 0.26,
+        "time_saved_minutes": 15,
+        "review_edits_saved": 6,
+        "context_efficiency_gain_pct": 48.5,
+        "context_retention_gain_pct": 55.6,
+        "duplicate_avoidance_gain_pct": 50,
+        "code_quality_gain_pct": 67.5,
+        "delivery_gain_pct": 43.4,
+        "overall_score_gain_pct": 53.3,
+        "composite_roi_score": 61.4,
+        "context_pack_quality_score": 0,
+        "context_pack_compactness_score": 0,
+        "context_pack_task_coverage_pct": 0
+      }
+    },
+    {
+      "report_id": "be-ai-heart-login-audit-flow-1777524293795",
+      "scenario": "login-audit-flow",
+      "title": "Login Audit Flow With Follow-Up Handoff",
+      "category": "document-aware-follow-up",
+      "dataset_id": "auth-audit-memory",
+      "metrics": {
+        "token_savings_pct": 40,
+        "time_savings_pct": 41,
+        "duplicate_reduction_pct": 67,
+        "policy_violation_reduction_pct": 100,
+        "review_edit_reduction_pct": 63,
+        "memory_refresh_reduction_pct": 80,
+        "token_cost_savings_pct": 40,
+        "token_cost_savings_usd": 0.19,
+        "time_saved_minutes": 14,
+        "review_edits_saved": 5,
+        "context_efficiency_gain_pct": 47.6,
+        "context_retention_gain_pct": 75.4,
+        "duplicate_avoidance_gain_pct": 66.7,
+        "code_quality_gain_pct": 65.9,
+        "delivery_gain_pct": 42.6,
+        "overall_score_gain_pct": 59.9,
+        "composite_roi_score": 61.8,
+        "context_pack_quality_score": 0.63,
+        "context_pack_compactness_score": 1,
+        "context_pack_task_coverage_pct": 13
+      }
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "schema_version": 2,
+  "run_kind": "assisted",
+  "report_id": "be-ai-heart-duplicate-refactor-1777524293794",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "scenario": "duplicate-refactor",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "metrics": {
+    "tokens": 1500,
+    "minutes": 23,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.3,
+    "token_breakdown": {
+      "prompt_tokens": 380,
+      "discovery_tokens": 220,
+      "tool_tokens": 260,
+      "completion_tokens": 640,
+      "other_tokens": 0,
+      "total_tokens": 1500
+    },
+    "measurement": {
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "context_retention": {
+      "checkpoints_passed": 3,
+      "checkpoints_total": 3,
+      "checkpoint_pass_pct": 100,
+      "document_hits": 2,
+      "document_targets": 2,
+      "document_hit_pct": 100,
+      "handoff_successes": 0,
+      "handoff_attempts": 0,
+      "score_pct": 100
+    },
+    "duplicate_work": {
+      "reuse_hits": 4,
+      "reuse_targets": 4,
+      "reuse_hit_pct": 100,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "checks_pass_pct": 100,
+      "duplicate_introductions": 1,
+      "score_pct": 100
+    },
+    "code_quality": {
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 5,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 4
+      },
+      "rubric_score_pct": 95,
+      "tests_passed": 4,
+      "tests_total": 4,
+      "test_pass_pct": 100,
+      "score_pct": 97.5
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2,
+      "task_success": true,
+      "task_success_pct": 100,
+      "score_pct": 100
+    },
+    "scorecard": {
+      "context_efficiency": {
+        "score_pct": 0,
+        "targets": {}
+      },
+      "context_retention": {
+        "checkpoints_passed": 3,
+        "checkpoints_total": 3,
+        "checkpoint_pass_pct": 100,
+        "document_hits": 2,
+        "document_targets": 2,
+        "document_hit_pct": 100,
+        "handoff_successes": 0,
+        "handoff_attempts": 0,
+        "score_pct": 100
+      },
+      "duplicate_avoidance": {
+        "reuse_hits": 4,
+        "reuse_targets": 4,
+        "reuse_hit_pct": 100,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "checks_pass_pct": 100,
+        "duplicate_introductions": 1,
+        "score_pct": 100
+      },
+      "code_quality": {
+        "rubric_scores": {
+          "correctness": 5,
+          "architecture": 5,
+          "reuse": 5,
+          "testing": 4,
+          "intent_alignment": 4
+        },
+        "rubric_score_pct": 95,
+        "tests_passed": 4,
+        "tests_total": 4,
+        "test_pass_pct": 100,
+        "score_pct": 97.5
+      },
+      "delivery": {
+        "tasks_passed": 2,
+        "tasks_total": 2,
+        "task_success": true,
+        "task_success_pct": 100,
+        "score_pct": 100
+      },
+      "overall": {
+        "score_pct": 74.5,
+        "weights": {
+          "context_efficiency": 0.25,
+          "context_retention": 0.2,
+          "duplicate_avoidance": 0.2,
+          "code_quality": 0.2,
+          "delivery": 0.15
+        }
+      }
+    }
+  },
+  "measurement": {
+    "mode": "estimated"
+  },
+  "prompt": "",
+  "prompts": [],
+  "tool_outputs": [
+    {
+      "tool": "context_pack",
+      "status": "ok"
+    }
+  ],
+  "output_artifacts": [],
+  "evaluation_outputs": [],
+  "context_pack": null
+}

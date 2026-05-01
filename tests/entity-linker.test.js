@@ -41,3 +41,81 @@ test("entity linker builds module, decision, and domain relationships", async ()
     ),
   );
 });
+
+test("entity linker builds sparse domain relationships with provenance", () => {
+  const heartModel = buildHeartModel({
+    scanResult: {
+      files: [
+        {
+          relativePath: "src/auth/login.ts",
+          imports: ["../audit/trail"],
+          import_details: [
+            {
+              specifier: "../audit/trail",
+              imported_names: ["recordLoginAudit"],
+              default_import: null,
+              namespace_import: null,
+              source_kind: "import",
+            },
+          ],
+          calls: [
+            {
+              from_symbol_id: "sym:function:src/auth/login.ts:loginUser",
+              from_symbol_name: "loginUser",
+              from_kind: "function",
+              to_name: "recordLoginAudit",
+              expression: "recordLoginAudit",
+              line: 4,
+            },
+          ],
+          symbols: [
+            {
+              id: "sym:function:src/auth/login.ts:loginUser",
+              kind: "function",
+              name: "loginUser",
+              exported: true,
+              signature: "loginUser(username: string)",
+            },
+          ],
+        },
+        {
+          relativePath: "src/audit/trail.ts",
+          imports: [],
+          import_details: [],
+          calls: [],
+          symbols: [
+            {
+              id: "sym:function:src/audit/trail.ts:recordLoginAudit",
+              kind: "function",
+              name: "recordLoginAudit",
+              exported: true,
+              signature: "recordLoginAudit(username: string)",
+            },
+          ],
+        },
+      ],
+    },
+    documentIndex: {
+      documents: [
+        {
+          path: "docs/requirements.md",
+          category: "requirements",
+          title: "Login Audit Requirements",
+          headings: ["Requirements"],
+          summary: "Keep auth as the implementation anchor and reuse the audit trail path.",
+        },
+      ],
+    },
+  });
+
+  const relationship = heartModel.links.find((link) => link.type === LINK_TYPES.domainToDomain);
+
+  assert.ok(relationship);
+  assert.equal(relationship.from, "domain:auth");
+  assert.equal(relationship.to, "domain:audit");
+  assert.equal(relationship.metadata.provenance, "EXTRACTED");
+  assert.deepEqual(relationship.metadata.relationship_kinds, ["calls", "imports"]);
+  assert.equal(relationship.metadata.evidence_count, 2);
+  assert.equal(relationship.metadata.import_count, 1);
+  assert.equal(relationship.metadata.call_count, 1);
+});

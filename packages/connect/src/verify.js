@@ -107,16 +107,17 @@ export async function runConnectDoctor(options = {}) {
     detectAgentsImpl: options.detectAgentsImpl,
     detectModelsImpl: options.detectModelsImpl,
   });
-  const warnings = Array.isArray(detection?.warnings)
-    ? [...detection.warnings]
-    : [];
+  const inventory = normalizeConnectInventory(detection, repoRoot);
+  const warnings = [...inventory.warnings];
+  const actions = buildConnectDoctorActions(inventory);
+  const hasConfiguredAgent = inventory.agents.some((agent) => agent?.configured);
 
   return {
-    repo_root: detection?.repo_root ?? repoRoot,
-    agents: Array.isArray(detection?.agents) ? detection.agents : [],
-    models: Array.isArray(detection?.models) ? detection.models : [],
+    repo_root: inventory.repo_root,
+    inventory,
     warnings,
-    status: warnings.length === 0 ? "ready" : "partial",
+    actions,
+    status: warnings.length === 0 && hasConfiguredAgent ? "ready" : "action_required",
   };
 }
 
@@ -209,4 +210,38 @@ function withTimeout(promise, message) {
       }, HANDSHAKE_TIMEOUT_MS);
     }),
   ]);
+}
+
+function normalizeConnectInventory(detection, repoRoot) {
+  const agents = Array.isArray(detection?.agents) ? detection.agents : [];
+  const models = Array.isArray(detection?.models) ? detection.models : [];
+  const warnings = Array.isArray(detection?.warnings) ? detection.warnings : [];
+  const recommendations =
+    Array.isArray(detection?.recommendations) && detection.recommendations.length > 0
+      ? detection.recommendations
+      : buildConnectRecommendations({ repoRoot, agents });
+
+  return {
+    repo_root: detection?.repo_root ?? repoRoot,
+    agents,
+    models,
+    warnings,
+    recommendations,
+  };
+}
+
+function buildConnectRecommendations({ repoRoot, agents }) {
+  const configuredAgent = agents.find((agent) => agent?.configured);
+  if (configuredAgent?.id) {
+    return [`heart connect verify --client ${configuredAgent.id} --scope repo --root ${repoRoot}`];
+  }
+
+  const candidateAgent = agents.find((agent) => agent?.id && (agent.detected || Array.isArray(agent.install_modes)));
+  const clientId = candidateAgent?.id ?? "cursor";
+  return [`heart connect install --client ${clientId} --scope repo --root ${repoRoot}`];
+}
+
+function buildConnectDoctorActions(inventory) {
+  const recommendations = Array.isArray(inventory?.recommendations) ? inventory.recommendations : [];
+  return recommendations.map((command) => `Run ${command}`);
 }

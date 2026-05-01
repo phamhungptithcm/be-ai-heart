@@ -22,28 +22,46 @@ export default function AdminBenchmarksPage() {
         <AdminBenchmarkHistoryClient />
       </AdminSection>
       <AdminSection eyebrow="Reading the proof" title="Internal review standard for benchmark evidence" subtitle="What the team should enforce">
-        <div className="admin-rail-list">
-          <article>
-            <span>Manager</span>
-            <div>
-              <h3>Can summarize value quickly</h3>
-              <p>The report should make token savings, cost delta, and delivery quality legible to a buyer in one read.</p>
-            </div>
-          </article>
-          <article>
-            <span>Engineer</span>
-            <div>
-              <h3>Can inspect technical detail</h3>
-              <p>The report should expose task type, raw artifacts, and measurement logic so the team trusts the claims.</p>
-            </div>
-          </article>
-          <article>
-            <span>Owner</span>
-            <div>
-              <h3>Can use it in pipeline decisions</h3>
-              <p>The benchmark needs to justify trial continuation, expansion, or a pause in rollout if value is not yet proven.</p>
-            </div>
-          </article>
+        <div className="admin-data-table-shell">
+          <table className="admin-data-table">
+            <thead>
+              <tr>
+                <th>Reader</th>
+                <th>Primary question</th>
+                <th>What the report must show</th>
+                <th>Why it matters</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="admin-table-primary">
+                  <strong>Manager or buyer</strong>
+                  <small>Budget and rollout owner</small>
+                </td>
+                <td>Is AI becoming cheaper and more predictable?</td>
+                <td>Token savings, time delta, and cleanup reduction in one readable summary.</td>
+                <td>The report must justify continued spend without a technical walkthrough.</td>
+              </tr>
+              <tr>
+                <td className="admin-table-primary">
+                  <strong>Engineer or lead</strong>
+                  <small>Implementation and review owner</small>
+                </td>
+                <td>Do I trust the measurement and the task setup?</td>
+                <td>Scenario, model, raw artifacts, and evidence bundle coverage.</td>
+                <td>Without technical credibility, the archive turns into sales collateral instead of proof.</td>
+              </tr>
+              <tr>
+                <td className="admin-table-primary">
+                  <strong>Owner</strong>
+                  <small>Commercial and support operator</small>
+                </td>
+                <td>Should this customer expand, repeat, or pause?</td>
+                <td>Coverage across repositories and a clear link to supportability.</td>
+                <td>Expansion decisions should only follow reproducible, supportable value.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </AdminSection>
     </AdminShell>

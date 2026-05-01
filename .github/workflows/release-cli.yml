@@ -1,0 +1,63 @@
+name: Release CLI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-cli
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node for npm publish
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate repo
+        run: npm run check
+
+      - name: Validate CLI package readiness
+        run: |
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          const pkg = JSON.parse(fs.readFileSync("packages/cli/package.json", "utf8"));
+
+          if (pkg.private) {
+            throw new Error("packages/cli is still private=true");
+          }
+
+          if (!pkg.name) {
+            throw new Error("packages/cli name is missing");
+          }
+
+          if (!pkg.bin?.heart) {
+            throw new Error("packages/cli bin.heart is missing");
+          }
+          EOF
+
+      - name: Preview npm package contents
+        working-directory: packages/cli
+        run: npm pack --dry-run
+
+      - name: Publish package
+        working-directory: packages/cli
+        run: npm publish

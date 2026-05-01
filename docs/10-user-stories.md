@@ -2,6 +2,17 @@
 
 ## Epic 1: Repository Understanding
 
+### Story 1.0
+
+As an engineer, I want to install the CLI with one npm package so that `heart` is easy to adopt in local and agent workflows.
+
+Acceptance criteria:
+
+- the publishable package name is `beheart`
+- installing the package exposes the `heart` binary outside the monorepo
+- the packaged CLI works from a tarball install without depending on sibling workspace source files
+- `heart connect install --dry-run` from an installed package points MCP configs at the installed CLI path
+
 ### Story 1.1
 
 As an engineer, I want to initialize `be-ai-heart` in a repo so that the system can understand the project structure.
@@ -10,6 +21,7 @@ Acceptance criteria:
 
 - `heart init` creates `heart.config.yaml`
 - `heart init` creates `.heart/policies.yaml`
+- `heart init` repairs missing scaffold files without overwriting an existing config unless `--force` is used
 - default ignore patterns are suggested
 - language detection result is shown
 - detected runtime is shown
@@ -25,6 +37,7 @@ Acceptance criteria:
 - `heart doctor` reports policy path and load status
 - `heart doctor` reports effective document roots and ignore paths
 - `heart doctor` reports parser availability, cache state, and effective MCP tools
+- `heart doctor` returns a top-level readiness status and deterministic summary counts in JSON mode
 - `heart doctor` returns warnings and next actions in human mode
 
 ### Story 1.1c
@@ -39,6 +52,7 @@ Acceptance criteria:
 - `heart connect install` writes only allowlisted config paths and verifies the result
 - `heart connect verify` completes a real MCP stdio handshake for a configured client
 - `heart connect doctor` returns support-oriented preflight checks plus next actions
+- `heart connect doctor` stays non-ready until a supported client is actually configured for the repo
 - connect commands support deterministic JSON output for scripting and agent use
 
 ### Story 1.2

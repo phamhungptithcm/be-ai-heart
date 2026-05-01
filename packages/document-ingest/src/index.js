@@ -26,6 +26,10 @@ const SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9._-]{12,}\b/gi,
   /\b(api[_ -]?key|secret|token|password|credential)\s*[:=]\s*["']?[^"'\s]+["']?/gi,
 ];
+const RESTRICTED_DOCUMENT_LABEL_PATTERN =
+  /\b(secret|secrets|credential|credentials|password|private[_ -]?key|client[_ -]?secret|access[_ -]?key)\b/i;
+const RESTRICTED_DOCUMENT_CONTENT_PATTERN =
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----|authorization\s*:\s*bearer|client[_ -]?secret\s*[:=]|refresh[_ -]?token\s*[:=]/i;
 const VERSION_SUFFIX_PATTERN = /(?:^|[-_ ])v(?:ersion)?[-_ ]?(\d+(?:\.\d+)*)$/i;
 const DATE_SUFFIX_PATTERN = /(?:^|[-_ ])((?:19|20)\d{2}[-_ ]\d{2}[-_ ]\d{2})$/i;
 const SEMANTIC_VECTOR_DIMENSIONS = 48;
@@ -863,20 +867,20 @@ function deriveVersionRank(versionLabel) {
 }
 
 function detectSensitivity(relativePath, content, structured = null) {
-  const haystack = `${relativePath}\n${structured?.summary ?? ""}\n${content}`.toLowerCase();
+  const classificationHaystack = `${relativePath}\n${structured?.title ?? ""}\n${structured?.summary ?? ""}`;
+  const haystack = `${classificationHaystack}\n${content}`.toLowerCase();
   const hasSecretPattern = SECRET_PATTERNS.some((pattern) => {
     pattern.lastIndex = 0;
     return pattern.test(content);
   });
+  const hasRestrictedLabel = RESTRICTED_DOCUMENT_LABEL_PATTERN.test(classificationHaystack);
+  const hasRestrictedContentMarker = RESTRICTED_DOCUMENT_CONTENT_PATTERN.test(content);
   const reasons = [];
   let level = "internal";
 
-  if (
-    /api[_ -]?key|secret|token|password|private key|credential|authorization/i.test(haystack) ||
-    hasSecretPattern
-  ) {
+  if (hasSecretPattern || hasRestrictedLabel || hasRestrictedContentMarker) {
     level = "restricted";
-    reasons.push("secret-like terms or token patterns detected");
+    reasons.push("secret-like labels or credential patterns detected");
   } else if (
     relativePath.includes(".heart/imported-documents/") ||
     /customer|client|pricing|contract|invoice|requirements|acceptance criteria/i.test(haystack)

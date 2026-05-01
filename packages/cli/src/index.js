@@ -82,6 +82,11 @@ export async function runCli(argv, io = defaultIo()) {
 
   const { command, subcommand, flags, positional } = parsedArgs;
 
+  if (flags.help && command !== "help") {
+    io.stdout.write(`${resolveHelpText(command, subcommand)}\n`);
+    return 0;
+  }
+
   switch (command) {
     case "init":
       return handleInit(flags, io);
@@ -136,34 +141,44 @@ async function handleInit(flags, io) {
   const environment = await detectProjectEnvironment(repoRoot, {
     ignore: configState.config.project.ignore,
   });
+  const configPath = path.join(repoRoot, "heart.config.yaml");
+  const policyPath = path.join(repoRoot, ".heart", "policies.yaml");
+  const createdFiles = {
+    config: false,
+    policy: false,
+  };
 
-  if (configState.exists && !flags.force) {
-    const payload = {
-      created: false,
-      repo_root: repoRoot,
-      config_path: configState.path,
-      policy_path: path.join(repoRoot, ".heart", "policies.yaml"),
-      detected: environment,
-      next_commands: [`heart doctor --root ${repoRoot}`],
-      message: `Config already exists at ${configState.path}. Use --force to overwrite.`,
-    };
-    writeOutput(flags.json ? payload : formatInitOutput(payload), flags.json, io);
-    return 0;
+  if (flags.force || !configState.exists) {
+    await fs.writeFile(
+      configPath,
+      createDefaultConfigYaml(path.basename(repoRoot), {
+        languagePriority: environment.languages,
+      }),
+      "utf8",
+    );
+    createdFiles.config = true;
   }
 
-  await fs.writeFile(
-    path.join(repoRoot, "heart.config.yaml"),
-    createDefaultConfigYaml(path.basename(repoRoot)),
-    "utf8",
-  );
-  await fs.mkdir(path.join(repoRoot, ".heart"), { recursive: true });
-  await fs.writeFile(path.join(repoRoot, ".heart", "policies.yaml"), createDefaultPoliciesYaml(), "utf8");
+  if (flags.force || !(await fileExists(policyPath))) {
+    await fs.mkdir(path.join(repoRoot, ".heart"), { recursive: true });
+    await fs.writeFile(policyPath, createDefaultPoliciesYaml(), "utf8");
+    createdFiles.policy = true;
+  }
+
+  const created = createdFiles.config || createdFiles.policy;
+  const status = created
+    ? createdFiles.config && createdFiles.policy && !configState.exists
+      ? "created"
+      : "updated"
+    : "unchanged";
 
   const payload = {
-    created: true,
+    status,
+    created,
+    created_files: createdFiles,
     repo_root: repoRoot,
-    config_path: path.join(repoRoot, "heart.config.yaml"),
-    policy_path: path.join(repoRoot, ".heart", "policies.yaml"),
+    config_path: configPath,
+    policy_path: policyPath,
     detected: environment,
     next_commands: [
       `heart doctor --root ${repoRoot}`,
@@ -171,6 +186,10 @@ async function handleInit(flags, io) {
       `heart overview --root ${repoRoot}`,
     ],
   };
+
+  if (!created) {
+    payload.message = `Scaffold already present. Use --force to rewrite ${configPath} and ${policyPath}.`;
+  }
 
   writeOutput(flags.json ? payload : formatInitOutput(payload), flags.json, io);
   return 0;
@@ -380,7 +399,7 @@ async function handleDiagram(subcommand, flags, positional, io) {
   }
 
   io.stderr.write(
-    "Usage: heart diagram generate [all|symbol-graph|high-level|component|class|sequence] [--json] [--task TEXT] [--target NAME] [--root PATH]\n",
+    "Usage: heart diagram generate [all|symbol-graph|high-level|component|class|sequence|mindmap] [--json] [--task TEXT] [--target NAME] [--root PATH]\n",
   );
   io.stderr.write(
     "       heart diagram sync [--json] [--slug NAME] [--portal-root PATH] [--admin-root PATH] [--task TEXT] [--target NAME] [--root PATH]\n",
@@ -846,7 +865,7 @@ async function handleConnectDetect(flags, io) {
     payload.agents = [];
   }
 
-  writeOutput(payload, flags.json, io);
+  writeOutput(flags.json ? payload : formatConnectDetectOutput(payload), flags.json, io);
   return 0;
 }
 
@@ -855,7 +874,7 @@ async function handleConnectInstall(flags, io) {
     io.stderr.write(
       "Usage: heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]\n",
     );
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
@@ -863,7 +882,7 @@ async function handleConnectInstall(flags, io) {
   const scopeError = validateConnectScope(scope);
   if (scopeError) {
     io.stderr.write(`${scopeError}\n`);
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   let plan;
@@ -876,11 +895,11 @@ async function handleConnectInstall(flags, io) {
     });
   } catch (error) {
     io.stderr.write(`${formatConnectClientError(error, flags.client)}\n`);
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   if (flags.dryRun) {
-    writeOutput({ plan }, flags.json, io);
+    writeOutput(flags.json ? { plan } : formatConnectInstallPlanOutput(plan), flags.json, io);
     return 0;
   }
 
@@ -907,7 +926,7 @@ async function handleConnectInstall(flags, io) {
       payload.backups = backups;
     }
 
-    writeOutput(payload, flags.json, io);
+    writeOutput(flags.json ? payload : formatConnectInstallOutput(payload), flags.json, io);
     return connectVerificationExitCode(payload);
   } catch (error) {
     io.stderr.write(`Connect install failed: ${formatConnectInstallError(error)}\n`);
@@ -920,7 +939,7 @@ async function handleConnectVerify(flags, io) {
     io.stderr.write(
       "Usage: heart connect verify --client CLIENT [--json] [--root PATH]\n",
     );
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
@@ -929,7 +948,7 @@ async function handleConnectVerify(flags, io) {
   const scopeError = validateConnectScope(scope);
   if (scopeError) {
     io.stderr.write(`${scopeError}\n`);
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   let plan;
@@ -942,7 +961,7 @@ async function handleConnectVerify(flags, io) {
     });
   } catch (error) {
     io.stderr.write(`${formatConnectClientError(error, client)}\n`);
-    return 1;
+    return EXIT_USAGE_ERROR;
   }
 
   const result = await verifyConnection({
@@ -952,28 +971,14 @@ async function handleConnectVerify(flags, io) {
   });
 
   const payload = normalizeConnectVerificationForCli(result);
-  writeOutput(payload, flags.json, io);
+  writeOutput(flags.json ? payload : formatConnectVerifyOutput(payload), flags.json, io);
   return connectVerificationExitCode(payload);
 }
 
 async function handleConnectDoctor(flags, io) {
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
-  const detection = await detectConnections({ repoRoot });
-  const inventory = normalizeConnectDetectionForCli(detection, repoRoot);
-  const result = {
-    repo_root: repoRoot,
-    heart_binary: {
-      command: "heart",
-      resolved_path: process.argv[1] ?? null,
-      available: Boolean(process.argv[1]),
-    },
-    inventory,
-    warnings: inventory.warnings,
-    actions: buildConnectDoctorActions(inventory),
-    status: inventory.warnings.length > 0 ? "partial" : "ready",
-  };
-
-  writeOutput(result, flags.json, io);
+  const result = await runConnectDoctor({ repoRoot });
+  writeOutput(flags.json ? result : formatConnectDoctorOutput(result), flags.json, io);
   return 0;
 }
 
@@ -1208,22 +1213,17 @@ function parseArgs(argv) {
           };
         }
 
-        if (definition.type === "positiveInteger") {
-          const parsedValue = Number(rawValue);
-          if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-            return {
-              error: `${token} must be a positive integer.`,
-              command,
-              subcommand,
-              flags,
-              positional,
-            };
-          }
-
-          flags[definition.key] = parsedValue;
-        } else {
-          flags[definition.key] = definition.type === "number" ? Number(rawValue) : rawValue;
+        const parsedValue = parseFlagValue(token, rawValue, definition);
+        if (parsedValue.error) {
+          return {
+            error: parsedValue.error,
+            command,
+            subcommand,
+            flags,
+            positional,
+          };
         }
+        flags[definition.key] = parsedValue.value;
       }
       continue;
     }
@@ -1300,50 +1300,37 @@ function formatObject(value) {
 function helpText() {
   return `heart
 
-Getting Started:
-  heart init [--json] [--force] [--root PATH]
-  heart doctor [--json] [--root PATH]
-  heart scan [--json] [--rebuild] [--root PATH]
-  heart overview [--json] [--root PATH]
+Start here
+  heart init        Create or repair local Heart scaffold
+  heart doctor      Check config, parser, cache, and MCP readiness
+  heart scan        Build or refresh the local graph
+  heart overview    Summarize domains, docs, and policy hotspots
 
-Core Inspection:
-  heart find symbol [--json] [--root PATH] <query>
-  heart deps [--json] [--root PATH] <file-or-symbol>
-  heart impact [--json] [--root PATH] <file-or-symbol>
-  heart policy check [--json] [--root PATH]
-  heart pack [--json] [--token-budget N] [--root PATH] <task description>
+Core commands
+  heart find symbol <query>
+  heart deps <file-or-symbol>
+  heart impact <file-or-symbol>
+  heart policy check
+  heart pack "<task description>"
 
-Agent Workflow:
-  heart connect detect [--json] [--agents] [--models] [--root PATH]
-  heart connect install --client NAME [--scope user|repo] [--model NAME] [--dry-run] [--backup] [--json] [--root PATH]
-  heart connect verify --client NAME [--scope user|repo] [--json] [--root PATH]
-  heart connect doctor [--json] [--root PATH]
-  heart mcp tools [--json] [--root PATH]
-  heart mcp serve [--root PATH]
+AI workflow
+  heart connect detect | install | verify | doctor
+  heart mcp tools | serve
 
-Benchmark:
-  heart benchmark run [--all] [--json] [--root PATH] [--slug NAME] [--scenario TEXT] [--provider NAME] [--model NAME] [--baseline-run RUN_ID] [--assisted-run RUN_ID] [--portal-root PATH] [--admin-root PATH] <scenario-name-or-path>
-  heart benchmark compare [--json] [--root PATH] [--slug NAME] [--scenario TEXT] [--provider NAME] [--model NAME] [--portal-root PATH] [--admin-root PATH] <baseline.json> <assisted.json>
+Benchmark
+  heart benchmark run <scenario>
+  heart benchmark compare <baseline.json> <assisted.json>
 
-Additional Commands:
-  heart diagram generate [all|symbol-graph|high-level|component|class|sequence] [--json] [--task TEXT] [--target NAME] [--root PATH]
-  heart diagram sync [--json] [--slug NAME] [--portal-root PATH] [--admin-root PATH] [--task TEXT] [--target NAME] [--root PATH]
-  heart benchmark capture <baseline|assisted> <scenario-name-or-path> [--json] [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME] [--provider NAME] [--model NAME] [--agent-client NAME] [--input-cost-per-1m USD] [--cached-input-cost-per-1m USD] [--output-cost-per-1m USD] --upstream-base-url URL -- <command ...>
-  heart agent run [--json] [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME] [--scenario TEXT] [--dataset TEXT] [--mode baseline|assisted] [--provider NAME] [--model NAME] [--agent-client NAME] [--input-cost-per-1m USD] [--cached-input-cost-per-1m USD] [--output-cost-per-1m USD] --upstream-base-url URL -- <command ...>
-  heart docs search [--json] [--root PATH] <query>
-  heart docs import [--json] [--root PATH] [--slug NAME] [--category NAME] [--title TEXT] [--summary TEXT] [--portal-root PATH] [--admin-root PATH] <source-file>
-  heart docs sync-web [--json] [--root PATH] [--slug NAME] [--portal-root PATH] [--admin-root PATH]
-  heart auth provider-session --url BASE_URL [--provider NAME] [--surface portal|admin] [--workspace NAME] [--customer NAME] [--id-token TOKEN] [--out PATH]
-  heart sync profile --url BASE_URL --session TOKEN [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME]
-  heart sync docs --url BASE_URL --session TOKEN [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME]
-  heart sync benchmark --url BASE_URL --session TOKEN [--root PATH] [--slug NAME] [--workspace NAME] [--customer NAME] [--scenario TEXT] [--provider NAME] [--model NAME] <scenario-name-or-path>
-  heart service export [--json] [--root PATH] [--out PATH]
+More
+  docs, diagram, agent, service, sync, auth
 
 Examples:
-  heart init --root .
-  heart doctor --root .
+  heart init
+  heart doctor
   heart pack --token-budget 1200 "add login audit logging"
-  heart connect detect --root .
+  heart connect detect
+
+Use "heart <command> --help" for command usage.
 `;
 }
 
@@ -1353,8 +1340,13 @@ function connectHelpText() {
 Usage:
   heart connect detect [--json] [--root PATH] [--agents] [--models]
   heart connect install --client CLIENT [--json] [--root PATH] [--scope user|repo] [--model RUNTIME] [--dry-run] [--backup]
-  heart connect verify --client CLIENT [--json] [--root PATH]
+  heart connect verify --client CLIENT [--json] [--root PATH] [--scope user|repo]
   heart connect doctor [--json] [--root PATH]
+
+Examples:
+  heart connect detect
+  heart connect install --client cursor --scope repo
+  heart connect verify --client cursor --scope repo
 `;
 }
 
@@ -1405,10 +1397,6 @@ function isSpawnableMcpEntry(entry) {
   return entry && typeof entry.command === "string" && Array.isArray(entry.args);
 }
 
-function toFlagKey(flagName) {
-  return flagName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-
 function validateConnectScope(scope) {
   if (scope !== "repo" && scope !== "user") {
     return `Invalid --scope value: ${scope}. Expected repo or user.`;
@@ -1453,25 +1441,6 @@ function normalizeConnectVerificationForCli(result) {
     tools_list_status: normalizeStep(result?.tools_list_status),
     model_runtime_status: normalizeStep(result?.model_runtime_status),
   };
-}
-
-function buildConnectDoctorActions(inventory) {
-  if ((inventory?.agents?.length ?? 0) === 0) {
-    return [`Run ${inventory.recommendations?.[0] ?? "heart connect install --client cursor --scope repo"}`];
-  }
-
-  if (!inventory.agents.some((agent) => agent.configured)) {
-    const firstAgent = inventory.agents[0];
-    return [
-      `Install BeHeart MCP for ${firstAgent.display_name ?? firstAgent.id} before running verification.`,
-      `Run heart connect install --client ${firstAgent.id} --scope repo --root ${inventory.repo_root}`,
-    ];
-  }
-
-  const configured = inventory.agents.find((agent) => agent.configured) ?? inventory.agents[0];
-  return [
-    `Run heart connect verify --client ${configured.id} --scope repo --root ${inventory.repo_root}`,
-  ];
 }
 
 function formatConnectClientError(error, client) {
@@ -1854,6 +1823,32 @@ function finiteNumberOrNull(value) {
   return Number.isFinite(Number(value)) ? Number(value) : null;
 }
 
+function parseFlagValue(token, rawValue, definition) {
+  if (definition.type === "positiveInteger") {
+    const parsedValue = Number(rawValue);
+    if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+      return {
+        error: `${token} must be a positive integer.`,
+      };
+    }
+
+    return { value: parsedValue };
+  }
+
+  if (definition.type === "number") {
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue)) {
+      return {
+        error: `${token} must be a valid number.`,
+      };
+    }
+
+    return { value: parsedValue };
+  }
+
+  return { value: rawValue };
+}
+
 function compactObject(value = {}) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null && entry !== ""));
 }
@@ -1923,7 +1918,7 @@ function validateAllowedFlags(command, subcommand, flags) {
     return null;
   }
 
-  const invalidFlag = Object.keys(flags).find((flag) => flag !== "command" && !allowedFlags.has(flag));
+  const invalidFlag = Object.keys(flags).find((flag) => flag !== "command" && flag !== "help" && !allowedFlags.has(flag));
   if (!invalidFlag) {
     return null;
   }
@@ -2045,6 +2040,87 @@ function defaultSubcommandFor(command) {
   return null;
 }
 
+function resolveHelpText(command, subcommand) {
+  if (!command || command === "help") {
+    return helpText();
+  }
+
+  const nestedKey = subcommand ? `${command}:${subcommand}` : null;
+  const helpByCommand = {
+    init: `heart init
+
+Usage:
+  heart init [--json] [--force] [--root PATH]
+
+Creates or repairs heart.config.yaml and .heart/policies.yaml, reports detected language/runtime, and suggests next commands.`,
+    doctor: `heart doctor
+
+Usage:
+  heart doctor [--json] [--root PATH]
+
+Runs preflight checks for config, policy, parser availability, cache state, and MCP tool exposure.`,
+    scan: `heart scan
+
+Usage:
+  heart scan [--json] [--rebuild] [--root PATH]
+
+Builds or refreshes the local graph cache.`,
+    overview: `heart overview
+
+Usage:
+  heart overview [--json] [--root PATH]
+
+Summarizes the indexed repository domains and architecture hotspots.`,
+    deps: `heart deps
+
+Usage:
+  heart deps [--json] [--root PATH] <file-or-symbol>
+
+Explains dependencies for a file or symbol. Missing targets return status=not_found and exit code 3.`,
+    impact: `heart impact
+
+Usage:
+  heart impact [--json] [--root PATH] <file-or-symbol>
+
+Estimates likely dependent files, symbols, and tests. Missing targets return status=not_found and exit code 3.`,
+    pack: `heart pack
+
+Usage:
+  heart pack [--json] [--token-budget N] [--root PATH] <task description>
+
+Builds a focused context pack for a concrete coding task.`,
+    connect: connectHelpText(),
+    mcp: `heart mcp
+
+Usage:
+  heart mcp tools [--json] [--root PATH]
+  heart mcp serve [--root PATH]
+
+Lists the effective MCP tool surface or serves Heart over stdio MCP.`,
+    benchmark: `heart benchmark
+
+Usage:
+  heart benchmark run [--all] [--json] [--root PATH] <scenario-name-or-path>
+  heart benchmark compare [--json] [--root PATH] <baseline.json> <assisted.json>
+
+Runs or compares benchmark scenarios.`,
+    "find:symbol": `heart find symbol
+
+Usage:
+  heart find symbol [--json] [--root PATH] <query>
+
+Finds symbol matches without failing when nothing is found.`,
+    "policy:check": `heart policy check
+
+Usage:
+  heart policy check [--json] [--root PATH]
+
+Evaluates repository policy rules against the current source graph.`,
+  };
+
+  return helpByCommand[nestedKey] ?? helpByCommand[command] ?? helpText();
+}
+
 function formatCommandPath(command, subcommand) {
   return subcommand ? `heart ${command} ${subcommand}` : `heart ${command}`;
 }
@@ -2054,49 +2130,65 @@ function toKebabCase(value) {
 }
 
 function formatInitOutput(payload) {
+  const title =
+    payload.status === "created"
+      ? "Init: created local scaffold"
+      : payload.status === "updated"
+        ? "Init: repaired local scaffold"
+        : "Init: scaffold already present";
   const lines = [
-    payload.created === false ? `Heart already initialized in ${payload.repo_root}` : `Initialized heart in ${payload.repo_root}`,
+    title,
+    `Repo: ${payload.repo_root}`,
     `Config: ${payload.config_path}`,
-    `Policies: ${payload.policy_path}`,
+    `Policy: ${payload.policy_path}`,
     `Detected: ${formatDetectedEnvironment(payload.detected)}`,
     "Next:",
     ...payload.next_commands.map((command) => `  ${command}`),
   ];
 
-  if (payload.created === false && payload.message) {
-    lines.splice(1, 0, payload.message);
+  if (payload.message) {
+    lines.splice(2, 0, payload.message);
   }
 
   return lines.join("\n");
 }
 
 function formatDoctorOutput(payload) {
+  const warnings = payload.warnings.length > 0 ? payload.warnings.map((warning) => `  - ${warning}`) : ["  - none"];
+  const parserStatus = payload.parser.available ? "ready" : "limited";
+  const mcpStatus = `${payload.mcp.effective_enabled_tools.length} enabled`;
+
   return [
-    `Doctor summary for ${payload.repo_root}`,
+    `Doctor: ${payload.status === "ready" ? "ready" : "attention required"}`,
+    `Repo: ${payload.repo_root}`,
     `Config: ${payload.config.status} (${payload.config.path})`,
-    `Policies: ${payload.policy.status} (${payload.policy.path})`,
+    `Policy: ${payload.policy.status} (${payload.policy.path})`,
     `Detected: ${formatDetectedEnvironment(payload.detected)}`,
-    `Document roots: ${payload.document_roots.join(", ") || "none"}`,
-    `Ignore paths: ${payload.ignore_paths.join(", ") || "none"}`,
+    `Parser: ${parserStatus} (${payload.parser.engine}, ${payload.parser.source_file_count} source files)`,
+    `Docs: ${payload.parser.document_count} indexed from ${formatInlineList(payload.document_roots, 3)}`,
+    `Ignore: ${formatInlineList(payload.ignore_paths, 4)}`,
     `Cache: ${payload.cache.status} (${payload.cache.path})`,
-    `MCP tools: ${payload.mcp.effective_enabled_tools.join(", ") || "none enabled"}`,
-    `Warnings: ${payload.warnings.length > 0 ? payload.warnings.join(" | ") : "none"}`,
+    `MCP: ${mcpStatus}`,
+    "Warnings:",
+    ...warnings,
     "Next:",
     ...payload.actions.map((action) => `  ${action}`),
   ].join("\n");
 }
 
 function formatPackOutput(payload, repoRoot) {
-  const topFiles = payload.relevant_files.slice(0, 3).map((file) => file.path).join(", ") || "none";
-  const topSymbols = payload.relevant_symbols.slice(0, 4).map((symbol) => symbol.name).join(", ") || "none";
-  const topDocs = payload.relevant_documents.slice(0, 2).map((document) => document.path).join(", ") || "none";
+  const topFiles = payload.relevant_files.slice(0, 3).map((file) => file.path);
+  const topSymbols = payload.relevant_symbols.slice(0, 4).map((symbol) => symbol.name);
+  const topDocs = payload.relevant_documents.slice(0, 2).map((document) => document.path);
+  const warnings = payload.risks.length > 0 ? payload.risks.join(" | ") : "none";
 
   return [
+    `Pack: ready for "${payload.task}"`,
     `Summary: ${payload.summary}`,
-    `Top files: ${topFiles}`,
-    `Top symbols: ${topSymbols}`,
-    `Top docs: ${topDocs}`,
-    `Warnings: ${payload.risks.join(" | ")}`,
+    `Files: ${formatInlineList(topFiles, 3)}`,
+    `Symbols: ${formatInlineList(topSymbols, 4)}`,
+    `Docs: ${formatInlineList(topDocs, 2)}`,
+    `Warnings: ${warnings}`,
     "Next:",
     `  heart deps --root ${repoRoot} ${payload.relevant_files[0]?.path ?? "path/to/file"}`,
     `  heart policy check --root ${repoRoot}`,
@@ -2116,53 +2208,72 @@ function formatNotFoundAwareOutput(command, payload, repoRoot) {
 
 function formatMcpToolsOutput(payload) {
   return [
-    `MCP tools for ${payload.repo_root}`,
-    `Enabled: ${payload.enabled_tools.join(", ") || "none"}`,
-    `Disabled: ${payload.disabled_tools.join(", ") || "none"}`,
+    `MCP tools`,
+    `Repo: ${payload.repo_root}`,
+    `Enabled: ${formatInlineList(payload.enabled_tools, 6)}`,
+    `Disabled: ${formatInlineList(payload.disabled_tools, 6)}`,
   ].join("\n");
 }
 
 function formatConnectDetectOutput(payload) {
   return [
-    `Connect detect for ${payload.repo_root}`,
+    `Connect: detection`,
+    `Repo: ${payload.repo_root}`,
     `Agents: ${payload.agents.length > 0 ? payload.agents.map((agent) => agent.display_name).join(", ") : "none detected"}`,
     `Models: ${payload.models.length > 0 ? payload.models.map((model) => model.display_name).join(", ") : "none detected"}`,
-    `Next: heart connect doctor --root ${payload.repo_root}`,
+    `Warnings: ${payload.warnings.length > 0 ? payload.warnings.join(" | ") : "none"}`,
+    "Next:",
+    ...(payload.recommendations.length > 0
+      ? payload.recommendations.map((command) => `  ${command}`)
+      : [`  heart connect doctor --root ${payload.repo_root}`]),
   ].join("\n");
 }
 
 function formatConnectInstallPlanOutput(plan) {
   return [
-    `Connect install plan for ${plan.client}`,
+    `Connect install plan`,
+    `Client: ${plan.client}`,
     `Scope: ${plan.scope}`,
-    `Config: ${plan.config_path}`,
-    `Command: ${plan.mcp_entry.command} ${plan.mcp_entry.args.join(" ")}`,
+    `Repo: ${plan.repo_root}`,
+    `Writes: ${formatInlineList(plan.files_to_modify, 3)}`,
+    `Command: ${describeMcpEntry(plan.mcp_entry)}`,
+    "Next:",
+    `  heart connect install --client ${plan.client} --scope ${plan.scope} --root ${plan.repo_root}`,
   ].join("\n");
 }
 
 function formatConnectInstallOutput(payload) {
+  const warnings = payload.warnings?.length > 0 ? payload.warnings.join(" | ") : "none";
   return [
-    `Connect install status: ${payload.status}`,
-    `Config: ${payload.plan.config_path}`,
-    `Verification: ${payload.verification.status}`,
+    `Connect install: ${payload.status}`,
+    `Client: ${payload.client}`,
+    `Writes: ${formatInlineList(payload.plan.files_to_modify, 3)}`,
+    `Warnings: ${warnings}`,
+    "Next:",
+    `  heart connect verify --client ${payload.client} --scope ${payload.scope} --root ${payload.repo_root}`,
   ].join("\n");
 }
 
 function formatConnectVerifyOutput(payload) {
+  const warnings = payload.warnings?.length > 0 ? payload.warnings.join(" | ") : "none";
   return [
-    `Connect verify for ${payload.client}`,
+    `Connect verify: ${payload.status}`,
+    `Client: ${payload.client}`,
     `Config: ${payload.config_status}`,
     `Initialize: ${payload.initialize_status}`,
     `Tools: ${payload.tools_list_status}`,
-    `Status: ${payload.status}`,
+    `Warnings: ${warnings}`,
   ].join("\n");
 }
 
 function formatConnectDoctorOutput(payload) {
+  const inventory = payload.inventory ?? { agents: [], models: [], recommendations: [] };
   return [
-    `Connect doctor for ${payload.repo_root}`,
-    `Heart binary: ${payload.heart_binary.available ? "available" : "missing"} (${payload.heart_binary.resolved_path ?? "unresolved"})`,
-    `Agents detected: ${payload.inventory.agents.length}`,
+    `Connect doctor: ${payload.status === "ready" ? "ready" : "action required"}`,
+    `Repo: ${payload.repo_root}`,
+    `Agents: ${inventory.agents.length > 0 ? inventory.agents.map((agent) => agent.display_name ?? agent.id).join(", ") : "none detected"}`,
+    `Models: ${inventory.models.length > 0 ? inventory.models.map((model) => model.display_name ?? model.id).join(", ") : "none detected"}`,
+    `Warnings: ${payload.warnings.length > 0 ? payload.warnings.join(" | ") : "none"}`,
     "Next:",
     ...payload.actions.map((action) => `  ${action}`),
   ].join("\n");
@@ -2172,4 +2283,27 @@ function formatDetectedEnvironment(detected) {
   const language = detected?.primary_language ?? "unknown";
   const runtime = detected?.runtime ?? "unknown";
   return `${language} on ${runtime}`;
+}
+
+function formatInlineList(values, limit = 4) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return "none";
+  }
+
+  const visible = values.slice(0, limit);
+  const remainder = values.length - visible.length;
+  return remainder > 0 ? `${visible.join(", ")} (+${remainder} more)` : visible.join(", ");
+}
+
+function describeMcpEntry(entry) {
+  if (entry?.command && Array.isArray(entry.args)) {
+    return `${entry.command} ${entry.args.join(" ")}`;
+  }
+
+  const firstServer = entry?.mcpServers?.[0];
+  if (firstServer?.command && Array.isArray(firstServer.args)) {
+    return `${firstServer.command} ${firstServer.args.join(" ")}`;
+  }
+
+  return "unavailable";
 }

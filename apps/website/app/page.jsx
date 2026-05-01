@@ -33,19 +33,19 @@ export default function HomePage() {
     >
       <section className="website-proof-strip" aria-label="Value proof">
         <div>
-          <span>Token waste down</span>
-          <strong>30%+</strong>
-          <p>Less reprompting and thinner context packs.</p>
+          <span>Token savings</span>
+          <strong>Scenario-based</strong>
+          <p>Published savings are benchmark-specific until enough observed multi-run evidence exists.</p>
         </div>
         <div>
-          <span>Review cleanup down</span>
-          <strong>20%+</strong>
-          <p>Cleaner patches because reuse and architecture rules are surfaced first.</p>
+          <span>Cleanup reduction</span>
+          <strong>Confidence-labeled</strong>
+          <p>Every benchmark should show whether the result is observed, estimated, or mixed evidence.</p>
         </div>
         <div>
-          <span>Duplicate work down</span>
-          <strong>40%+</strong>
-          <p>Heart finds existing modules, docs, and decisions before AI writes new code.</p>
+          <span>Rollout proof</span>
+          <strong>Under review</strong>
+          <p>ROI claims stay directional until repeated observed runs make the proof defensible.</p>
         </div>
       </section>
 
@@ -68,7 +68,7 @@ export default function HomePage() {
           <article>
             <span>Proof, not promises</span>
             <h3>Benchmark reports justify the spend</h3>
-            <p>Customers can see token savings, time-to-patch improvements, and cleanup reduction in the portal.</p>
+            <p>Customers can see token savings, time-to-patch improvements, cleanup reduction, and the provenance label behind each claim.</p>
           </article>
         </div>
       </WebsiteSection>

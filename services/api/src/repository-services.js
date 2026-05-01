@@ -90,6 +90,12 @@ function buildCodeGraphService({ codeGraph } = {}) {
 }
 
 function buildDiagramService({ diagrams } = {}) {
+  const betaDiagramCount = diagrams.filter((diagram) => diagram.trust?.label === "beta").length;
+  const warningCount = diagrams.reduce(
+    (sum, diagram) => sum + Number(diagram.validation?.warning_count ?? 0),
+    0,
+  );
+
   return {
     key: "diagrams",
     title: "Diagrams",
@@ -98,7 +104,9 @@ function buildDiagramService({ diagrams } = {}) {
     state: diagrams.length > 0 ? "ready" : "missing",
     note:
       diagrams.length > 0
-        ? "These visuals stay image-like in the portal so customers can scan intent quickly without reading raw artifacts."
+        ? betaDiagramCount > 0
+          ? "Some diagrams are heuristic and now stay labeled beta until they are validated against implementation."
+          : "These visuals stay image-like in the portal so customers can scan intent quickly without reading raw artifacts."
         : "No synced diagrams are attached to this repository profile yet.",
     metrics: [
       metric("Visuals", diagrams.length),
@@ -106,8 +114,8 @@ function buildDiagramService({ diagrams } = {}) {
         "Top type",
         diagrams[0]?.type?.replace(/[-_]+/g, " ") ?? "not available",
       ),
-      metric("Confidence", diagrams[0]?.confidence ?? "n/a"),
-      metric("Source", METRIC_SOURCE_TYPES.repoArtifact.replace(/_/g, " ")),
+      metric("Trust", diagrams[0]?.trust?.label ?? "n/a"),
+      metric("Validation", warningCount > 0 ? `${warningCount} warning(s)` : "passed"),
     ],
     items: diagrams,
   };
@@ -188,8 +196,8 @@ function buildBenchmarkRoiService({ benchmarkReports, benchmarkSummary } = {}) {
     metrics: [
       metric("Reports", benchmarkSummary.report_count),
       metric("Token save", `${benchmarkSummary.avg_token_savings_pct}%`),
-      metric("Cleanup", `${benchmarkSummary.avg_review_cleanup_reduction_pct}%`),
-      metric("Cost delta", `$${benchmarkSummary.avg_cost_savings_usd}`),
+      metric("Measurement", benchmarkSummary.latest_measurement_mode || "estimated"),
+      metric("Confidence", benchmarkSummary.latest_confidence_label || "low"),
     ],
     summary: benchmarkSummary,
     reports: benchmarkReports.slice(0, 6),
@@ -269,6 +277,14 @@ function summarizeBenchmarkHistory(reports = []) {
       .map((report) => String(report.generated_at ?? ""))
       .sort()
       .at(-1) ?? "",
+    latest_measurement_mode:
+      [...reports]
+        .sort((left, right) => String(right.generated_at ?? "").localeCompare(String(left.generated_at ?? "")))
+        .find(Boolean)?.provenance?.summary?.measurement_mode ?? "",
+    latest_confidence_label:
+      [...reports]
+        .sort((left, right) => String(right.generated_at ?? "").localeCompare(String(left.generated_at ?? "")))
+        .find(Boolean)?.provenance?.summary?.confidence_label ?? "",
   };
 }
 

@@ -9,10 +9,14 @@
     "services/*"
   ],
   "scripts": {
-    "build": "node ./scripts/build.mjs",
+    "build": "node ./scripts/build.mjs && node ./scripts/build-cli-package.mjs",
+    "build:cli-package": "node ./scripts/build-cli-package.mjs",
     "test": "node --test --test-concurrency=1",
     "check": "npm run build && npm run test",
+    "e2e": "npm run smoke:auth",
     "smoke:auth": "node ./scripts/hosted-auth-smoke.mjs",
+    "ops:bootstrap:dry-run": "DRY_RUN=1 ./scripts/bootstrap-github-gcp.sh",
+    "ops:bootstrap": "./scripts/bootstrap-github-gcp.sh",
     "overview": "node ./packages/cli/bin/heart.js overview --json",
     "mcp:tools": "node ./packages/cli/bin/heart.js mcp tools --json",
     "mcp:serve": "node ./packages/cli/bin/heart.js mcp serve",
@@ -30,6 +34,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "esbuild": "^0.25.11",
     "typescript": "^6.0.3"
   }
 }

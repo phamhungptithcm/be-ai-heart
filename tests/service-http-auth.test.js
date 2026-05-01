@@ -33,6 +33,7 @@ test("service auth provider registry does not expose oauth client secrets", asyn
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
 
   const response = await handleServiceHttpRequest(
@@ -58,6 +59,7 @@ test("service auth session exchange rejects custom provider config over HTTP", a
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
 
   const response = await handleServiceHttpRequest(
@@ -90,6 +92,7 @@ test("service host rejects oversized intake payloads with 413", async (t) => {
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
     requestLimits: {
       publicIntake: 256,
     },
@@ -131,6 +134,7 @@ test("service host rate limits repeated public intake submissions from the same 
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
     rateLimits: {
       "public-intake": {
         windowMs: 60 * 1000,
@@ -193,6 +197,7 @@ test("service host keeps rate limits durable across fresh HTTP config instances"
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
     rateLimits: {
       "public-intake": {
         windowMs: 60 * 1000,
@@ -254,6 +259,7 @@ test("service host isolates durable rate limits by configured namespace", async 
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
     rateLimits: {
       namespace: "tenant-a",
       "public-intake": {
@@ -322,6 +328,7 @@ test("cookie-backed write routes require an allowed origin and matching CSRF tok
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
 
   const sessionResponse = await handleServiceHttpRequest(
@@ -401,6 +408,7 @@ test("admin session registry redacts session material and requires CSRF for cook
     portalRoot: path.join(workspaceRoot, "apps", "portal"),
     adminRoot: path.join(workspaceRoot, "apps", "admin"),
     apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
   });
   const sessionFamilyId = "family-redaction-check";
   const portalSession = await issueWorkspaceSession({
@@ -409,6 +417,7 @@ test("admin session registry redacts session material and requires CSRF for cook
     surface: "portal",
     customerSlug: "demo-customer",
     sessionFamilyId,
+    localDemoAuth: true,
   });
 
   const listResponse = await handleServiceHttpRequest(

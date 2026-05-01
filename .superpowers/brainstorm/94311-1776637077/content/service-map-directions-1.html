@@ -1,0 +1,290 @@
+<style>
+  .trust-grid {
+    display: grid;
+    gap: 18px;
+  }
+  .trust-card {
+    border: 1px solid #d6dce8;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+    overflow: hidden;
+  }
+  .trust-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e4e8f0;
+    background: #f3f6fb;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5f6b82;
+  }
+  .trust-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #e7eefc;
+    color: #1746a2;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .trust-body {
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+  }
+  .trust-pill {
+    display: grid;
+    grid-template-columns: 1.2fr 1.7fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid #e2e7f1;
+    border-radius: 16px;
+    background: #ffffff;
+  }
+  .trust-pill strong {
+    font-size: 16px;
+    color: #122033;
+  }
+  .trust-pill span {
+    font-size: 14px;
+    color: #5d6981;
+    line-height: 1.4;
+  }
+  .trust-chip {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #eef3ff;
+    color: #2147aa;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .ledger {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+  }
+  .ledger-row,
+  .layer-row {
+    display: grid;
+    gap: 10px;
+    border-radius: 16px;
+    border: 1px solid #dfe5ef;
+    background: #ffffff;
+    padding: 12px 14px;
+  }
+  .ledger-row {
+    grid-template-columns: 1.1fr 1.4fr .8fr;
+    align-items: center;
+  }
+  .ledger-head {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b778e;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: 1.1fr 1.4fr .8fr;
+  }
+  .layer-stack {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+  }
+  .layer-band {
+    border: 1px solid #dbe3f2;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f1f5fb 100%);
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+  }
+  .layer-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64718b;
+  }
+  .layer-row {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+  .muted-note {
+    color: #5f6b82;
+    line-height: 1.5;
+  }
+  .mini-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #60708c;
+    margin-bottom: 6px;
+  }
+</style>
+
+<h2>Choose the service-map direction</h2>
+<p class="subtitle">Goal: make BeHeart look more enterprise-grade and trustable at first glance, while still showing the six services clearly.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="trust-card">
+        <div class="trust-head">
+          <span>Recommended</span>
+          <span class="trust-badge">Trust-first catalog</span>
+        </div>
+        <div class="trust-body">
+          <div class="trust-pill">
+            <strong>Code Graph</strong>
+            <span>Typed structure and impact paths</span>
+            <em class="trust-chip">Core memory</em>
+          </div>
+          <div class="trust-pill">
+            <strong>Policy Rails</strong>
+            <span>Boundaries, exclusions, reuse control</span>
+            <em class="trust-chip">Governed</em>
+          </div>
+          <div class="trust-pill">
+            <strong>Benchmark ROI</strong>
+            <span>Token and cleanup proof for buyers</span>
+            <em class="trust-chip">Auditable</em>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Trust-First Catalog</h3>
+      <p>Presents each service like a controlled product module: name, function, and trust signal. Best balance between clear offering and enterprise credibility.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Feels buyer-ready and premium</li>
+            <li>Sub item becomes easier to scan</li>
+            <li>Good for both homepage and services page</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Tradeoff</h4>
+          <ul>
+            <li>Needs tighter copy so each line earns its space</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="trust-card">
+        <div class="trust-head">
+          <span>Audit style</span>
+          <span class="trust-badge">Operational ledger</span>
+        </div>
+        <div class="ledger">
+          <div class="ledger-head">
+            <div>Service</div>
+            <div>What it controls</div>
+            <div>Status</div>
+          </div>
+          <div class="ledger-row">
+            <strong>Document Memory</strong>
+            <span class="muted-note">Requirements, ADRs, design decisions</span>
+            <em class="trust-chip">Traceable</em>
+          </div>
+          <div class="ledger-row">
+            <strong>CLI + MCP Runtime</strong>
+            <span class="muted-note">Local-first delivery into agent workflows</span>
+            <em class="trust-chip">Deterministic</em>
+          </div>
+          <div class="ledger-row">
+            <strong>Portal + Admin</strong>
+            <span class="muted-note">Tenant-safe workspace and control plane</span>
+            <em class="trust-chip">Separated</em>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Service Ledger</h3>
+      <p>Turns the section into an audit-like operating table. Strongest “governed platform” signal, but less visually impressive than a productized catalog.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Feels strict and enterprise-safe</li>
+            <li>Very readable for technical buyers</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Tradeoff</h4>
+          <ul>
+            <li>Can feel too dry for first impression</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="trust-card">
+        <div class="trust-head">
+          <span>Platform story</span>
+          <span class="trust-badge">Layered system</span>
+        </div>
+        <div class="layer-stack">
+          <div class="layer-band">
+            <div class="layer-label">Layer 01 / Memory</div>
+            <div class="layer-row">
+              <strong>Code Graph + Document Memory + Policy Rails</strong>
+              <em class="trust-chip">Ground truth</em>
+            </div>
+          </div>
+          <div class="layer-band">
+            <div class="layer-label">Layer 02 / Delivery</div>
+            <div class="layer-row">
+              <strong>CLI + MCP Runtime + Portal + Admin</strong>
+              <em class="trust-chip">Controlled access</em>
+            </div>
+          </div>
+          <div class="layer-band">
+            <div class="layer-label">Layer 03 / Proof</div>
+            <div class="layer-row">
+              <strong>Benchmark ROI</strong>
+              <em class="trust-chip">Measured value</em>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Layered Platform Map</h3>
+      <p>Shows the services as a system with explicit operating layers. Best at platform storytelling, but individual services become slightly less distinct.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Explains architecture fast</li>
+            <li>Feels strategic and enterprise-grade</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Tradeoff</h4>
+          <ul>
+            <li>Service-level discoverability drops a bit</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mini-title">My recommendation</div>
+  <p class="muted-note">Pick <strong>A</strong> if you want users to immediately feel “this is a serious enterprise product with distinct services.” Pick <strong>C</strong> only if you care more about platform narrative than service-by-service clarity.</p>
+</div>

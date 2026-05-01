@@ -156,7 +156,8 @@ export function PortalRepositoryServicesWorkspace({
                   <div>
                     <strong>{diagram.title}</strong>
                     <p>{diagram.summary}</p>
-                    <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
+                    <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Trust: ${diagram.trust?.label ?? "n/a"} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
+                    <p>{diagram.validation?.warning_count ? `${diagram.validation.warning_count} validation warning(s)` : "Validation passed."}</p>
                   </div>
                   <span>{diagram.type}</span>
                 </div>
@@ -270,6 +271,11 @@ export function PortalRepositoryServicesWorkspace({
                   <strong>{repositoryServices.benchmark_roi.summary.avg_memory_refresh_reduction_pct}% average memory refresh reduction</strong>
                   <p>Lower memory refresh means less repeated context loading and fewer wasted tokens.</p>
                 </article>
+                <article>
+                  <span>Measurement posture</span>
+                  <strong>{`${repositoryServices.benchmark_roi.summary.latest_measurement_mode || "estimated"} / ${repositoryServices.benchmark_roi.summary.latest_confidence_label || "low"}`}</strong>
+                  <p>Benchmark proof stays labeled by measurement mode and confidence instead of being treated as uniformly proven.</p>
+                </article>
               </div>
               <div className="portal-data-table-shell">
                 <table className="portal-data-table">
@@ -278,8 +284,8 @@ export function PortalRepositoryServicesWorkspace({
                       <th>Report</th>
                       <th>Scenario</th>
                       <th>Token save</th>
-                      <th>Cleanup</th>
-                      <th>Memory</th>
+                      <th>Measurement</th>
+                      <th>Confidence</th>
                       <th>Link</th>
                     </tr>
                   </thead>
@@ -292,8 +298,8 @@ export function PortalRepositoryServicesWorkspace({
                         </td>
                         <td>{report.scenario}</td>
                         <td>{report.metrics?.token_savings_pct ?? 0}%</td>
-                        <td>{report.metrics?.review_edit_reduction_pct ?? 0}%</td>
-                        <td>{report.metrics?.memory_refresh_reduction_pct ?? 0}%</td>
+                        <td>{report.provenance?.summary?.measurement_mode ?? "estimated"}</td>
+                        <td>{report.provenance?.summary?.confidence_label ?? "low"}</td>
                         <td className="portal-table-link">
                           <Link href={`/benchmarks/${report.report_id}`}>Open</Link>
                         </td>

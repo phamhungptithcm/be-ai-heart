@@ -17,10 +17,12 @@ import { listAuditEvents, listRequestTraces } from "./storage.js";
 export async function loadAdminOverviewView({
   serviceStorageRoot,
   authContext,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadAdminDataset({
     serviceStorageRoot,
     authContext,
+    localDemoAuth,
   });
   const customerInventory = buildCustomerInventory(dataset);
   const failedSyncs = countFailedSyncs(dataset.auditEvents);
@@ -58,10 +60,12 @@ export async function loadAdminOverviewView({
 export async function loadAdminCustomerInventoryView({
   serviceStorageRoot,
   authContext,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadAdminDataset({
     serviceStorageRoot,
     authContext,
+    localDemoAuth,
   });
 
   return {
@@ -75,10 +79,12 @@ export async function loadAdminCustomerInventoryView({
 export async function loadAdminBillingOpsView({
   serviceStorageRoot,
   authContext,
+  localDemoAuth,
 } = {}) {
   const dataset = await loadAdminDataset({
     serviceStorageRoot,
     authContext,
+    localDemoAuth,
   });
   const adapter = resolveBillingProviderAdapter();
   const customers = buildCustomerInventory(dataset);
@@ -110,6 +116,7 @@ export async function loadAdminBillingOpsView({
 async function loadAdminDataset({
   serviceStorageRoot,
   authContext,
+  localDemoAuth,
 } = {}) {
   const viewer = resolveActorAccess(authContext?.actor ?? { surface: "admin" });
   const [customers, workspaceIdentities, workspacesPage, profilesPage, documents, benchmarksPage, auditEvents, requestTraces, alerts, trafficSummary] =
@@ -126,6 +133,7 @@ async function loadAdminDataset({
         serviceStorageRoot,
         surface: "admin",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),
@@ -133,6 +141,7 @@ async function loadAdminDataset({
         serviceStorageRoot,
         surface: "admin",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),
@@ -140,11 +149,13 @@ async function loadAdminDataset({
         serviceStorageRoot,
         surface: "admin",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
       }),
       loadAccessibleBenchmarkIndexPage({
         serviceStorageRoot,
         surface: "admin",
         actorSlug: authContext?.actor_slug,
+        localDemoAuth,
         limit: 500,
         offset: 0,
       }),
@@ -357,4 +368,3 @@ function toIsoDaysAhead(days) {
   date.setUTCDate(date.getUTCDate() + Number(days ?? 0));
   return date.toISOString();
 }
-

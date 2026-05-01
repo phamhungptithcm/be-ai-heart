@@ -1,0 +1,575 @@
+{
+  "schema_version": 2,
+  "report_type": "scenario",
+  "report_id": "be-ai-heart-cross-module-change-1777524293793",
+  "repo": "be-ai-heart",
+  "profile_slug": "be-ai-heart",
+  "scenario": "cross-module-change",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "generated_at": "2026-04-30T04:44:53.777Z",
+  "framework": {
+    "scenario": {
+      "id": "cross-module-change",
+      "title": "Cross Module Benchmark Automation",
+      "category": "architecture-constrained-change",
+      "dataset_id": "cross-module-boundaries",
+      "description": "Measures whether the workflow can automate repeated benchmark runs from the CLI while preserving benchmark package boundaries and sanitized publication behavior.",
+      "task_statement": "Automate repeatable scenario and suite benchmark runs from the CLI and publish sanitized report artifacts.",
+      "follow_up_prompts": [],
+      "expected_documents": [
+        {
+          "path": "docs/03-technical-architecture.md",
+          "title": "",
+          "reason": ""
+        },
+        {
+          "path": "docs/04-mcp-cli-spec.md",
+          "title": "",
+          "reason": ""
+        },
+        {
+          "path": "docs/11-implementation-blueprint-v2.md",
+          "title": "",
+          "reason": ""
+        }
+      ],
+      "reuse_targets": [
+        {
+          "path": "packages/benchmark/src/index.js",
+          "title": "",
+          "reason": ""
+        },
+        {
+          "path": "services/api/src/storage.js",
+          "title": "",
+          "reason": ""
+        }
+      ],
+      "architecture_rules": [
+        "Do not couple scoring logic to portal or admin rendering.",
+        "Published reports must remain sanitized."
+      ]
+    },
+    "dataset": {
+      "id": "cross-module-boundaries",
+      "title": "Cross Module Boundary Dataset",
+      "repo_strategy": "current-repo",
+      "summary": "Benchmark slice for work that spans CLI, benchmark, portal sync, and hosted storage boundaries while preserving narrow contracts.",
+      "source_paths": [
+        "packages/benchmark/src",
+        "packages/cli/src",
+        "services/api/src",
+        "apps/portal",
+        "apps/admin"
+      ],
+      "document_count": 3,
+      "reuse_target_count": 2
+    },
+    "evaluation": {
+      "weights": {
+        "context_efficiency": 0.25,
+        "context_retention": 0.2,
+        "duplicate_avoidance": 0.2,
+        "code_quality": 0.2,
+        "delivery": 0.15
+      },
+      "targets": {
+        "max_tokens": 2300,
+        "max_minutes": 32,
+        "max_memory_refreshes": 2,
+        "max_token_cost_usd": 0.44,
+        "max_duplicates": 1,
+        "max_policy_violations": 0,
+        "max_review_edits": 4
+      },
+      "rubric_dimensions": [
+        {
+          "id": "correctness",
+          "weight": 0.3
+        },
+        {
+          "id": "architecture",
+          "weight": 0.25
+        },
+        {
+          "id": "reuse",
+          "weight": 0.2
+        },
+        {
+          "id": "testing",
+          "weight": 0.15
+        },
+        {
+          "id": "intent_alignment",
+          "weight": 0.1
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "tokens": 3600,
+    "minutes": 52,
+    "duplicates": 4,
+    "policy_violations": 3,
+    "review_edits": 10,
+    "memory_refreshes": 7,
+    "token_cost_usd": 0.72,
+    "token_breakdown": {
+      "prompt_tokens": 980,
+      "discovery_tokens": 1500,
+      "tool_tokens": 0,
+      "completion_tokens": 1120,
+      "other_tokens": 0,
+      "total_tokens": 3600
+    },
+    "measurement": {
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 4,
+      "checkpoint_pass_pct": 25,
+      "document_hits": 1,
+      "document_targets": 3,
+      "document_hit_pct": 33.3,
+      "handoff_successes": 0,
+      "handoff_attempts": 0,
+      "score_pct": 29
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 3,
+      "reuse_hit_pct": 33.3,
+      "checks_passed": 1,
+      "checks_total": 3,
+      "checks_pass_pct": 33.3,
+      "duplicate_introductions": 4,
+      "score_pct": 30.5
+    },
+    "code_quality": {
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 2,
+        "reuse": 2,
+        "testing": 2,
+        "intent_alignment": 2
+      },
+      "rubric_score_pct": 46,
+      "tests_passed": 2,
+      "tests_total": 5,
+      "test_pass_pct": 40,
+      "score_pct": 31.5
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2,
+      "task_success": true,
+      "task_success_pct": 50,
+      "score_pct": 55.8
+    },
+    "scorecard": {
+      "context_efficiency": {
+        "score_pct": 49.5,
+        "targets": {
+          "max_tokens": 2300,
+          "max_minutes": 32,
+          "max_memory_refreshes": 2,
+          "max_token_cost_usd": 0.44
+        }
+      },
+      "context_retention": {
+        "checkpoints_passed": 1,
+        "checkpoints_total": 4,
+        "checkpoint_pass_pct": 25,
+        "document_hits": 1,
+        "document_targets": 3,
+        "document_hit_pct": 33.3,
+        "handoff_successes": 0,
+        "handoff_attempts": 0,
+        "score_pct": 29
+      },
+      "duplicate_avoidance": {
+        "reuse_hits": 1,
+        "reuse_targets": 3,
+        "reuse_hit_pct": 33.3,
+        "checks_passed": 1,
+        "checks_total": 3,
+        "checks_pass_pct": 33.3,
+        "duplicate_introductions": 4,
+        "score_pct": 30.5
+      },
+      "code_quality": {
+        "rubric_scores": {
+          "correctness": 3,
+          "architecture": 2,
+          "reuse": 2,
+          "testing": 2,
+          "intent_alignment": 2
+        },
+        "rubric_score_pct": 46,
+        "tests_passed": 2,
+        "tests_total": 5,
+        "test_pass_pct": 40,
+        "score_pct": 31.5
+      },
+      "delivery": {
+        "tasks_passed": 1,
+        "tasks_total": 2,
+        "task_success": true,
+        "task_success_pct": 50,
+        "score_pct": 55.8
+      },
+      "overall": {
+        "score_pct": 38.9,
+        "weights": {
+          "context_efficiency": 0.25,
+          "context_retention": 0.2,
+          "duplicate_avoidance": 0.2,
+          "code_quality": 0.2,
+          "delivery": 0.15
+        }
+      }
+    }
+  },
+  "assisted": {
+    "tokens": 2050,
+    "minutes": 31,
+    "duplicates": 1,
+    "policy_violations": 1,
+    "review_edits": 4,
+    "memory_refreshes": 2,
+    "token_cost_usd": 0.41,
+    "token_breakdown": {
+      "prompt_tokens": 420,
+      "discovery_tokens": 360,
+      "tool_tokens": 390,
+      "completion_tokens": 880,
+      "other_tokens": 0,
+      "total_tokens": 2050
+    },
+    "measurement": {
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "context_retention": {
+      "checkpoints_passed": 4,
+      "checkpoints_total": 4,
+      "checkpoint_pass_pct": 100,
+      "document_hits": 3,
+      "document_targets": 3,
+      "document_hit_pct": 100,
+      "handoff_successes": 0,
+      "handoff_attempts": 0,
+      "score_pct": 100
+    },
+    "duplicate_work": {
+      "reuse_hits": 3,
+      "reuse_targets": 3,
+      "reuse_hit_pct": 100,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "checks_pass_pct": 100,
+      "duplicate_introductions": 1,
+      "score_pct": 100
+    },
+    "code_quality": {
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 4,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 4
+      },
+      "rubric_score_pct": 90,
+      "tests_passed": 4,
+      "tests_total": 5,
+      "test_pass_pct": 80,
+      "score_pct": 67.5
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2,
+      "task_success": true,
+      "task_success_pct": 100,
+      "score_pct": 100
+    },
+    "scorecard": {
+      "context_efficiency": {
+        "score_pct": 100,
+        "targets": {
+          "max_tokens": 2300,
+          "max_minutes": 32,
+          "max_memory_refreshes": 2,
+          "max_token_cost_usd": 0.44
+        }
+      },
+      "context_retention": {
+        "checkpoints_passed": 4,
+        "checkpoints_total": 4,
+        "checkpoint_pass_pct": 100,
+        "document_hits": 3,
+        "document_targets": 3,
+        "document_hit_pct": 100,
+        "handoff_successes": 0,
+        "handoff_attempts": 0,
+        "score_pct": 100
+      },
+      "duplicate_avoidance": {
+        "reuse_hits": 3,
+        "reuse_targets": 3,
+        "reuse_hit_pct": 100,
+        "checks_passed": 3,
+        "checks_total": 3,
+        "checks_pass_pct": 100,
+        "duplicate_introductions": 1,
+        "score_pct": 100
+      },
+      "code_quality": {
+        "rubric_scores": {
+          "correctness": 5,
+          "architecture": 4,
+          "reuse": 5,
+          "testing": 4,
+          "intent_alignment": 4
+        },
+        "rubric_score_pct": 90,
+        "tests_passed": 4,
+        "tests_total": 5,
+        "test_pass_pct": 80,
+        "score_pct": 67.5
+      },
+      "delivery": {
+        "tasks_passed": 2,
+        "tasks_total": 2,
+        "task_success": true,
+        "task_success_pct": 100,
+        "score_pct": 100
+      },
+      "overall": {
+        "score_pct": 93.5,
+        "weights": {
+          "context_efficiency": 0.25,
+          "context_retention": 0.2,
+          "duplicate_avoidance": 0.2,
+          "code_quality": 0.2,
+          "delivery": 0.15
+        }
+      }
+    }
+  },
+  "metrics": {
+    "token_savings_pct": 43,
+    "time_savings_pct": 40,
+    "duplicate_reduction_pct": 75,
+    "policy_violation_reduction_pct": 67,
+    "review_edit_reduction_pct": 60,
+    "memory_refresh_reduction_pct": 71,
+    "token_cost_savings_pct": 43,
+    "token_cost_savings_usd": 0.31,
+    "time_saved_minutes": 21,
+    "review_edits_saved": 6,
+    "context_efficiency_gain_pct": 50.5,
+    "context_retention_gain_pct": 71,
+    "duplicate_avoidance_gain_pct": 69.5,
+    "code_quality_gain_pct": 36,
+    "delivery_gain_pct": 44.2,
+    "overall_score_gain_pct": 54.6,
+    "composite_roi_score": 56.6,
+    "context_pack_quality_score": 0,
+    "context_pack_compactness_score": 0,
+    "context_pack_task_coverage_pct": 0
+  },
+  "summary": "Token usage improved by 43%, context retention improved by 71%, and code quality improved by 36%.",
+  "manager_summary": "Benchmark shows 43% lower token usage, 40% faster completion, 71% fewer context reloads, and $0.31 lower direct token spend per compared run.",
+  "technical_summary": "Duplicate work dropped by 75% while duplicate-avoidance score improved by 69.5%, policy violations improved by 67%, review edits improved by 60%, and memory refreshes dropped by 71%.",
+  "provenance": {
+    "summary": {
+      "measurement_mode": "estimated",
+      "total_run_count": 2,
+      "sample_size": 0,
+      "observed_run_count": 0,
+      "observed_coverage_pct": 0,
+      "confidence_label": "low"
+    },
+    "baseline": {
+      "run_kind": "baseline",
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    },
+    "assisted": {
+      "run_kind": "assisted",
+      "mode": "estimated",
+      "run_id": "",
+      "observed_usage_coverage_pct": 0,
+      "traced_call_count": 0,
+      "observed_call_count": 0,
+      "source": "",
+      "note": ""
+    }
+  },
+  "automation": {
+    "commands": {
+      "run_scenario": "heart benchmark run cross-module-change",
+      "run_suite": "heart benchmark run --all",
+      "compare_runs": "heart benchmark compare baseline.json assisted.json"
+    }
+  },
+  "evidence": {
+    "baseline": {
+      "prompt_count": 0,
+      "tool_output_count": 0,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "assisted": {
+      "prompt_count": 0,
+      "tool_output_count": 2,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "scenario": {
+      "id": "cross-module-change",
+      "title": "Cross Module Benchmark Automation",
+      "category": "architecture-constrained-change",
+      "dataset_id": "cross-module-boundaries",
+      "description": "Measures whether the workflow can automate repeated benchmark runs from the CLI while preserving benchmark package boundaries and sanitized publication behavior."
+    },
+    "dataset": {
+      "id": "cross-module-boundaries",
+      "title": "Cross Module Boundary Dataset",
+      "repo_strategy": "current-repo",
+      "summary": "Benchmark slice for work that spans CLI, benchmark, portal sync, and hosted storage boundaries while preserving narrow contracts."
+    }
+  },
+  "evidence_bundle": {
+    "available": true,
+    "bundle_id": "be-ai-heart-cross-module-change-1777524293793",
+    "generated_at": "2026-04-30T04:44:53.777Z",
+    "local_root": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-cross-module-change-1777524293793",
+    "local_manifest_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-cross-module-change-1777524293793/manifest.json",
+    "files": {
+      "baseline": "baseline.json",
+      "assisted": "assisted.json",
+      "evaluation": "evaluation.json",
+      "scenario": "scenario.json",
+      "dataset": "dataset.json"
+    },
+    "baseline_summary": {
+      "prompt_count": 0,
+      "tool_output_count": 0,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "assisted_summary": {
+      "prompt_count": 0,
+      "tool_output_count": 2,
+      "output_artifact_count": 0,
+      "context_pack": {
+        "available": false,
+        "token_budget": null,
+        "estimated_tokens": 0,
+        "truncated": false,
+        "citation_count": 0,
+        "graph_citation_count": 0,
+        "document_citation_count": 0,
+        "policy_citation_count": 0,
+        "call_path_count": 0,
+        "tests_to_run_count": 0,
+        "relevant_file_count": 0,
+        "relevant_symbol_count": 0,
+        "relevant_document_count": 0,
+        "missing_context_warning_count": 0,
+        "matched_task_token_pct": 0,
+        "coverage_score": 0,
+        "compactness_score": 0,
+        "overall_evidence_score": 0,
+        "top_citations": []
+      }
+    },
+    "provenance_summary": {
+      "measurement_mode": "estimated",
+      "total_run_count": 2,
+      "sample_size": 0,
+      "observed_run_count": 0,
+      "observed_coverage_pct": 0,
+      "confidence_label": "low"
+    }
+  }
+}
