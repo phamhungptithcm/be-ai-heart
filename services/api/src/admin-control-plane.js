@@ -101,6 +101,10 @@ export async function loadAdminBillingOpsView({
     adapter_id: adapter.adapter_id,
     provider_mode: adapter.provider_mode,
     source_type: adapter.source_type,
+    live_billing_required: adapter.live_billing_required,
+    paid_public_release_ready: adapter.paid_public_release_ready,
+    release_gate: adapter.release_gate,
+    next_required_action: adapter.next_required_action,
     accounts: customers.map((customer) => ({
       customer_id: customer.customer_id,
       customer_slug: customer.customer_slug,

@@ -996,6 +996,10 @@ function buildBillingSnapshot(dataset) {
     adapter_id: billingAdapter.adapter_id,
     provider_mode: billingAdapter.provider_mode,
     source_type: billingAdapter.source_type,
+    live_billing_required: billingAdapter.live_billing_required,
+    paid_public_release_ready: billingAdapter.paid_public_release_ready,
+    release_gate: billingAdapter.release_gate,
+    next_required_action: billingAdapter.next_required_action,
     customer_id: dataset.customer.customer_id,
     account: {
       customer_id: dataset.customer.customer_id,
