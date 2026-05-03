@@ -53,7 +53,8 @@ test("CLI package installs from a tarball and exposes heart outside the monorepo
   });
 
   assert.equal(helpResult.status, 0, helpResult.stderr || helpResult.stdout);
-  assert.match(helpResult.stdout, /^heart\b/m);
+  assert.match(helpResult.stdout, /^BeHeart CLI\b/m);
+  assert.match(helpResult.stdout, /^\s+heart\s+init/m);
   assert.match(helpResult.stdout, /Start here/);
 
   const repoRoot = path.join(workspaceRoot, "repo");

@@ -2,7 +2,7 @@
   "name": "beheart",
   "version": "0.1.0",
   "type": "module",
-  "description": "Local-first CLI for be-ai-heart",
+  "description": "Local-first CLI for BeHeart",
   "main": "dist/index.js",
   "bin": {
     "heart": "dist/heart.js"

@@ -85,6 +85,26 @@ test("CLI doctor returns deterministic preflight diagnostics", async (t) => {
   assert.ok(payload.ignore_paths.includes("node_modules"));
   assert.ok(Array.isArray(payload.mcp.effective_enabled_tools));
   assert.ok(Array.isArray(payload.actions));
+  assert.equal(payload.first_run.schema_version, 1);
+  assert.deepEqual(
+    payload.first_run.steps.map((step) => step.id),
+    ["init", "doctor", "scan", "overview", "pack", "mcp_serve"],
+  );
+  assert.ok(payload.first_run.next_command.includes("heart scan") || payload.first_run.next_command.includes("heart overview"));
+});
+
+test("CLI doctor human output includes first-run checklist", async (t) => {
+  const fixtureRoot = await createUninitializedRepo(t);
+
+  assert.equal(runCli(["init", "--root", fixtureRoot]).status, 0);
+  const result = runCli(["doctor", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^First-run:/m);
+  assert.match(result.stdout, /\[done\] init: heart init --root /);
+  assert.match(result.stdout, /\[done\] doctor: heart doctor --root /);
+  assert.match(result.stdout, /pack: heart pack --root .*"your task"/);
+  assert.match(result.stdout, /mcp_serve: heart mcp serve --root /);
 });
 
 test("CLI doctor reports effective default ignores plus configured document roots", async (t) => {
@@ -147,6 +167,19 @@ test("CLI overview exposes reusable index readiness", async (t) => {
   assert.equal(payload.readiness.cache.status, "created");
   assert.equal(payload.readiness.parser.engine, "typescript-ast");
   assert.equal(payload.readiness.documents.count, payload.document_count);
+});
+
+test("CLI overview human output is concise and action-oriented", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  assert.equal(runCli(["init", "--root", fixtureRoot]).status, 0);
+  const result = runCli(["overview", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^Overview: sample-repo/m);
+  assert.match(result.stdout, /^Memory:/m);
+  assert.match(result.stdout, /^Docs\/spec:/m);
+  assert.match(result.stdout, /^Next:/m);
+  assert.doesNotMatch(result.stdout, /^readiness: \{/m);
 });
 
 test("CLI connect detect and doctor expose stable contracts", async (t) => {

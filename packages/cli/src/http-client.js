@@ -18,6 +18,18 @@ export async function exchangeProviderSessionRemote({
   });
 }
 
+export async function resolveSessionRemote({
+  baseUrl,
+  sessionToken,
+} = {}) {
+  return sendServiceRequest({
+    baseUrl,
+    path: "/api/session",
+    method: "GET",
+    sessionToken,
+  });
+}
+
 export async function syncRepositoryProfileRemote({
   baseUrl,
   sessionToken,
@@ -64,6 +76,25 @@ export async function syncBenchmarkReportRemote({
     sessionToken,
     body: {
       report,
+    },
+  });
+}
+
+export async function createRepositoryContextPackRemote({
+  baseUrl,
+  sessionToken,
+  profileSlug,
+  task,
+  tokenBudget,
+} = {}) {
+  return sendServiceRequest({
+    baseUrl,
+    path: `/api/repositories/${encodeURIComponent(String(profileSlug ?? ""))}/context-packs`,
+    method: "POST",
+    sessionToken,
+    body: {
+      task,
+      token_budget: tokenBudget,
     },
   });
 }
