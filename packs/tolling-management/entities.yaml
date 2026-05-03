@@ -208,7 +208,7 @@ entities:
     description: Customer or operator case for account, payment, invoice, violation, roadside, or scam issue.
     sensitive_fields: [transcript, customer_contact, account_reference]
     lifecycle_states: [open, triaged, pending_customer, escalated, resolved]
-    relationships: [may_reference Account, Invoice, ViolationNotice, Dispute]
+    relationships: [may_reference Account, may_reference Invoice, may_reference ViolationNotice, may_reference Dispute]
     validation_rules:
       - support answers must cite policy and avoid invented commitments
   AgentAction:
