@@ -75,7 +75,11 @@ export function PortalBenchmarkReportClient({ reportId }) {
   const { report } = state;
   const evidenceSummary = buildPortalBenchmarkEvidenceSummary(report);
   const evidenceManifest = report.evidence_manifest ?? {};
-  const evidenceFiles = Array.isArray(evidenceManifest.files) ? evidenceManifest.files : [];
+  const evidenceFiles = Array.isArray(evidenceManifest.artifact_list)
+    ? evidenceManifest.artifact_list
+    : Array.isArray(evidenceManifest.files)
+      ? evidenceManifest.files
+      : [];
   const topCitations = evidenceManifest.assisted?.context_pack?.top_citations ?? [];
   const evidenceRows = [
     {
@@ -208,6 +212,22 @@ export function PortalBenchmarkReportClient({ reportId }) {
                 </td>
                 <td>{evidenceSummary.measurement_mode}</td>
                 <td>{`${evidenceSummary.sample_size} observed run(s) | ${evidenceSummary.observed_coverage_pct}% observed coverage | ${evidenceSummary.confidence_label} confidence`}</td>
+              </tr>
+              <tr>
+                <td className="portal-table-primary">
+                  <strong>Run IDs</strong>
+                  <small>baseline / assisted</small>
+                </td>
+                <td>{evidenceSummary.baseline_run_id || "estimated baseline"}</td>
+                <td>{evidenceSummary.assisted_run_id || "estimated assisted"}</td>
+              </tr>
+              <tr>
+                <td className="portal-table-primary">
+                  <strong>Repo snapshot</strong>
+                  <small>config and policy hashes</small>
+                </td>
+                <td>{evidenceSummary.repo_snapshot_available ? "snapshot recorded" : "snapshot unavailable"}</td>
+                <td>{`config hash ${evidenceSummary.config_hash_present ? "present" : "missing"} | policy hash ${evidenceSummary.policy_hash_present ? "present" : "missing"} | ${evidenceSummary.ignore_path_count} ignores | ${evidenceSummary.document_root_count} document roots`}</td>
               </tr>
               <tr>
                 <td className="portal-table-primary">

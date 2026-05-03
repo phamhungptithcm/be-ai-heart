@@ -307,11 +307,27 @@ export function buildAdminBenchmarkEvidenceSummary(report = {}) {
   const assistedSummary = bundle.assisted_summary ?? {};
   const contextPack = assistedSummary.context_pack ?? {};
   const provenanceSummary = report.provenance?.summary ?? manifest.provenance_summary ?? bundle.provenance_summary ?? {};
+  const repoSnapshot = manifest.repo_snapshot ?? bundle.repo_snapshot ?? {};
+  const runIds = manifest.run_ids ?? bundle.run_ids ?? {};
+  const artifactList = Array.isArray(manifest.artifact_list)
+    ? manifest.artifact_list
+    : Object.entries(bundle.files ?? {}).map(([role, file]) => ({ role, file }));
 
   return {
     bundle_available: Boolean(bundle.available),
     bundle_id: String(bundle.bundle_id ?? ""),
-    bundle_file_count: Number(manifest.bundle_file_count ?? Object.keys(bundle.files ?? {}).length),
+    bundle_file_count: Number(manifest.bundle_file_count ?? artifactList.length),
+    artifact_count: artifactList.length,
+    provider: String(manifest.provider ?? bundle.provider ?? report.provider ?? ""),
+    model: String(manifest.model ?? bundle.model ?? report.model ?? ""),
+    task: String(manifest.task ?? bundle.task ?? report.framework?.scenario?.title ?? report.scenario ?? ""),
+    baseline_run_id: String(runIds.baseline ?? ""),
+    assisted_run_id: String(runIds.assisted ?? ""),
+    repo_snapshot_available: Boolean(repoSnapshot.available),
+    config_hash_present: Boolean(repoSnapshot.config_hash),
+    policy_hash_present: Boolean(repoSnapshot.policy_hash),
+    ignore_path_count: Number(repoSnapshot.ignore_path_count ?? 0),
+    document_root_count: Number(repoSnapshot.document_root_count ?? 0),
     prompt_count: Number(assistedSummary.prompt_count ?? 0),
     tool_output_count: Number(assistedSummary.tool_output_count ?? 0),
     output_artifact_count: Number(assistedSummary.output_artifact_count ?? 0),

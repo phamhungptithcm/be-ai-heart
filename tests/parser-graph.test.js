@@ -9,14 +9,103 @@ import {
   createDependencyExplanation,
   createImpactAnalysis,
   diffProjectGraphSnapshots,
+  hydrateProjectGraph,
   searchSymbols,
   snapshotProjectGraph,
 } from "../packages/graph/src/index.js";
+import {
+  EDGE_TYPES,
+  GRAPH_SNAPSHOT_SCHEMA_VERSION,
+  NODE_TYPES,
+  createGraphEdge,
+  createGraphNode,
+} from "../packages/shared-schema/src/index.js";
 import { scanSourceTree } from "../packages/parser-ts/src/index.js";
+import { buildHeartModel } from "../packages/entity-linker/src/index.js";
+import { scanDocumentTree } from "../packages/document-ingest/src/index.js";
 import { writeTypedGraphFixture } from "./helpers/typed-graph-fixture.js";
 import { createTempRepoCopy } from "./helpers/temp-repo.js";
 
 const fixtureRoot = path.resolve("tests/fixtures/sample-repo");
+
+test("shared graph schema exposes v2 node and edge contracts", () => {
+  assert.equal(GRAPH_SNAPSHOT_SCHEMA_VERSION, 2);
+  assert.deepEqual(
+    [
+      NODE_TYPES.repository,
+      NODE_TYPES.package,
+      NODE_TYPES.module,
+      NODE_TYPES.file,
+      NODE_TYPES.class,
+      NODE_TYPES.interface,
+      NODE_TYPES.function,
+      NODE_TYPES.method,
+      NODE_TYPES.test,
+      NODE_TYPES.document,
+      NODE_TYPES.decision,
+      NODE_TYPES.policy,
+    ],
+    [
+      "Repository",
+      "Package",
+      "Module",
+      "File",
+      "Class",
+      "Interface",
+      "Function",
+      "Method",
+      "Test",
+      "Document",
+      "Decision",
+      "Policy",
+    ],
+  );
+  assert.deepEqual(
+    [
+      EDGE_TYPES.contains,
+      EDGE_TYPES.imports,
+      EDGE_TYPES.calls,
+      EDGE_TYPES.extends,
+      EDGE_TYPES.implements,
+      EDGE_TYPES.testedBy,
+      EDGE_TYPES.documents,
+      EDGE_TYPES.constrains,
+      EDGE_TYPES.violatesPolicy,
+      EDGE_TYPES.impacts,
+      EDGE_TYPES.recommendedReuse,
+    ],
+    [
+      "CONTAINS",
+      "IMPORTS",
+      "CALLS",
+      "EXTENDS",
+      "IMPLEMENTS",
+      "TESTED_BY",
+      "DOCUMENTS",
+      "CONSTRAINS",
+      "VIOLATES_POLICY",
+      "IMPACTS",
+      "RECOMMENDED_REUSE",
+    ],
+  );
+
+  const node = createGraphNode({
+    id: "file:src/index.ts",
+    type: NODE_TYPES.file,
+    name: "index.ts",
+  });
+  const edge = createGraphEdge({
+    id: "edge:contains:repo:src/index.ts",
+    from: "repo:sample",
+    to: "file:src/index.ts",
+    type: EDGE_TYPES.contains,
+  });
+
+  assert.equal(node.confidence, 1);
+  assert.equal(node.source, "extracted");
+  assert.equal(edge.confidence, 1);
+  assert.equal(edge.provenance, "EXTRACTED");
+});
 
 test("parser scans source files and extracts symbols", async () => {
   const scanResult = await scanSourceTree(fixtureRoot);
@@ -117,8 +206,34 @@ test("parser extracts route metadata for Next app route handlers", async (t) => 
     route_kind: "next-app-router",
     framework: "next-app-router",
     registrar: "",
+    confidence: 0.95,
+    source: "parser-ts",
+    provenance: "EXTRACTED",
   });
   assert.equal(scanResult.totals.route_count >= 1, true);
+});
+
+test("parser relation contract includes explicit calls, routes, relations, and evidence", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  await writeTypedGraphFixture(repoRoot);
+
+  const scanResult = await scanSourceTree(repoRoot);
+  const serviceFile = scanResult.files.find((file) => file.relativePath === "src/auth/service.ts");
+  const serviceClass = serviceFile.symbols.find((symbol) => symbol.name === "AuthService");
+  const authenticateCall = serviceFile.calls.find((call) => call.to_name === "loginUser");
+
+  assert.ok(serviceFile);
+  assert.ok(serviceFile.import_details.some((detail) => detail.imported_names.includes("loginUser")));
+  assert.ok(serviceFile.imports.includes("./login"));
+  assert.ok(serviceFile.calls.length >= 1);
+  assert.equal(authenticateCall.from_symbol_name, "authenticate");
+  assert.equal(authenticateCall.confidence, 0.95);
+  assert.equal(authenticateCall.source, "parser-ts");
+  assert.equal(authenticateCall.provenance, "EXTRACTED");
+  assert.deepEqual(serviceClass.relations.extends, ["BaseAuthService"]);
+  assert.deepEqual(serviceClass.relations.implements, ["AuthWorkflow"]);
+  assert.ok(Array.isArray(serviceFile.routes));
+  assert.ok(Array.isArray(serviceFile.warnings));
 });
 
 test("graph builder promotes typed nodes and collaboration edges", async (t) => {
@@ -138,6 +253,9 @@ test("graph builder promotes typed nodes and collaboration edges", async (t) => 
   assert.ok(graph.summary.edge_types.IMPLEMENTS >= 1);
   assert.ok(graph.summary.edge_types.CALLS >= 2);
   assert.ok(graph.summary.edge_types.TESTED_BY >= 1);
+  assert.ok(graph.edges.every((edge) => typeof edge.confidence === "number"));
+  assert.ok(graph.edges.every((edge) => typeof edge.source === "string"));
+  assert.ok(graph.edges.every((edge) => typeof edge.provenance === "string"));
   assert.equal(edgeIds.has("edge:extends:sym:class:src/auth/service.ts:AuthService:4:sym:class:src/auth/base.ts:BaseAuthService:1"), true);
   assert.equal(edgeIds.has("edge:implements:sym:class:src/auth/service.ts:AuthService:4:sym:interface:src/auth/base.ts:AuthWorkflow:3"), true);
   assert.equal(edgeIds.has("edge:calls:sym:method:src/auth/service.ts:authenticate:5:sym:function:src/auth/login.ts:loginUser:3"), true);
@@ -179,6 +297,10 @@ test("impact analysis uses call and test relationships for symbol targets", asyn
   assert.ok(analysis.dependent_symbols.includes("authenticate"));
   assert.ok(analysis.related_tests.includes("src/auth/login.test.ts"));
   assert.equal(analysis.risk_level, "medium");
+  assert.ok(analysis.evidence.some((entry) => entry.type === "CALLS"));
+  assert.ok(analysis.evidence.some((entry) => entry.type === "TESTED_BY"));
+  assert.ok(Array.isArray(analysis.policy_violations));
+  assert.ok(Array.isArray(analysis.document_constraints));
 });
 
 test("graph snapshot diff reports typed additions in deterministic order", async (t) => {
@@ -201,6 +323,47 @@ test("graph snapshot diff reports typed additions in deterministic order", async
     diff.added_edges.map((edge) => edge.id),
     [...diff.added_edges.map((edge) => edge.id)].sort(),
   );
+});
+
+test("graph snapshot v2 preserves schema metadata and redacts local roots", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  await writeTypedGraphFixture(repoRoot);
+
+  const scanResult = await scanSourceTree(repoRoot);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+  const snapshot = snapshotProjectGraph(graph, {
+    root: ".",
+    generatedAt: "2026-05-02T00:00:00.000Z",
+    scanProvenance: {
+      repo_root: repoRoot,
+      cache_schema_version: 5,
+      config_path: path.join(repoRoot, "heart.config.yaml"),
+      config_hash: "config-hash",
+      policy_path: path.join(repoRoot, ".heart", "policies.yaml"),
+      policy_hash: "policy-hash",
+      ignore_paths: [".heart/cache", "dist"],
+      document_roots: ["docs"],
+    },
+  });
+  const hydrated = hydrateProjectGraph(snapshot, scanResult);
+
+  assert.equal(snapshot.schema_version, 2);
+  assert.equal(snapshot.repo, "sample-repo");
+  assert.equal(snapshot.root, ".");
+  assert.equal(snapshot.repoName, "sample-repo");
+  assert.equal(snapshot.rootDir, ".");
+  assert.equal(snapshot.generated_at, "2026-05-02T00:00:00.000Z");
+  assert.equal(snapshot.scan_provenance.repo_root, undefined);
+  assert.equal(snapshot.scan_provenance.config_path, "heart.config.yaml");
+  assert.equal(snapshot.nodes.some((node) => String(node.path).includes(repoRoot)), false);
+  assert.equal(snapshot.nodes.every((node) => typeof node.confidence === "number"), true);
+  assert.equal(snapshot.nodes.every((node) => typeof node.source === "string"), true);
+  assert.equal(snapshot.edges.every((edge) => typeof edge.confidence === "number"), true);
+  assert.equal(snapshot.edges.every((edge) => typeof edge.provenance === "string"), true);
+  assert.equal(hydrated.schema_version, 2);
+  assert.equal(hydrated.repo, "sample-repo");
+  assert.equal(hydrated.root, ".");
+  assert.deepEqual(hydrated.scanProvenance, snapshot.scan_provenance);
 });
 
 test("graph builder includes document and policy nodes when context is provided", async () => {
@@ -252,4 +415,79 @@ test("dependency explanation returns imports, calls, inheritance, and tests", as
   assert.ok(explanation.extends.includes("BaseAuthService"));
   assert.ok(explanation.implements.includes("AuthWorkflow"));
   assert.equal(explanation.related_tests.length, 0);
+  assert.ok(explanation.contained_symbols.includes("authenticate"));
+  assert.ok(explanation.evidence.some((entry) => entry.type === "IMPORTS"));
+  assert.ok(explanation.evidence.some((entry) => entry.type === "CALLS"));
+  assert.ok(Array.isArray(explanation.policy_violations));
+  assert.ok(Array.isArray(explanation.document_constraints));
+});
+
+test("dependency explanation includes policy violations and empty document constraints when available", async () => {
+  const scanResult = await scanSourceTree(fixtureRoot);
+  const graph = buildProjectGraph(scanResult, {
+    repoName: "sample-repo",
+    documentIndex: {
+      documents: [
+        {
+          path: "docs/requirements.md",
+          title: "Login Audit Requirements",
+          category: "requirements",
+        },
+      ],
+    },
+    policyReport: {
+      rules: [
+        {
+          id: "auth-must-use-session-module",
+          description: "Auth work must stay anchored to the session module.",
+        },
+      ],
+      violations: [
+        {
+          rule_id: "auth-must-use-session-module",
+          file: "src/auth/login.ts",
+          specifier: "./session",
+          resolved_path: "src/auth/session.ts",
+        },
+      ],
+    },
+  });
+  const explanation = createDependencyExplanation(graph, "src/auth/login.ts");
+
+  assert.deepEqual(explanation.policy_violations, [
+    {
+      rule_id: "auth-must-use-session-module",
+      policy: "auth-must-use-session-module",
+      file: "src/auth/login.ts",
+      specifier: "./session",
+      resolved_path: "src/auth/session.ts",
+      confidence: 1,
+    },
+  ]);
+  assert.deepEqual(explanation.document_constraints, []);
+});
+
+test("graph builder exposes document-to-module and decision constraints from heart model", async () => {
+  const scanResult = await scanSourceTree(fixtureRoot);
+  const documentIndex = await scanDocumentTree(fixtureRoot, {
+    roots: ["docs"],
+  });
+  const heartModel = buildHeartModel({
+    scanResult,
+    documentIndex,
+  });
+  const graph = buildProjectGraph(scanResult, {
+    repoName: "sample-repo",
+    documentIndex,
+    heartModel,
+  });
+  const sessionExplanation = createDependencyExplanation(graph, "src/auth/session.ts");
+
+  assert.ok(graph.summary.node_types.Module >= 1);
+  assert.ok(graph.summary.node_types.Decision >= 1);
+  assert.ok(graph.summary.edge_types.DOCUMENTS >= 1);
+  assert.ok(graph.summary.edge_types.CONSTRAINS >= 1);
+  assert.ok(graph.edges.some((edge) => edge.type === "DOCUMENTS" && edge.from.startsWith("document:")));
+  assert.ok(graph.edges.some((edge) => edge.type === "CONSTRAINS" && edge.from.startsWith("decision:")));
+  assert.ok(sessionExplanation.document_constraints.some((constraint) => constraint.document === "docs/system-design.md"));
 });

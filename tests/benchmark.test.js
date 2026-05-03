@@ -214,6 +214,8 @@ test("benchmark report writes locally and publishes sanitized web artifacts", as
       repo: "sample-repo",
       profile_slug: "sample-repo",
       scenario: "cross-module-change",
+      provider: "openai",
+      model: "gpt-5.4",
       report_id: "sample-benchmark-report",
     },
   );
@@ -243,6 +245,38 @@ test("benchmark report writes locally and publishes sanitized web artifacts", as
       id: "cross-module-boundaries",
       title: "Cross Module Boundaries",
       repo_strategy: "current-repo",
+    },
+    scanProvenance: {
+      repo_root: repoRoot,
+      cache_schema_version: 5,
+      config_path: path.join(repoRoot, "heart.config.yaml"),
+      config_exists: true,
+      config_hash: "config-hash",
+      policy_path: path.join(repoRoot, ".heart", "policies.yaml"),
+      policy_exists: true,
+      policy_hash: "policy-hash",
+      ignore_paths: ["node_modules", ".heart/benchmarks", "dist"],
+      document_roots: ["docs", ".heart/imported-documents"],
+    },
+    readiness: {
+      schema_version: 1,
+      status: "ready",
+      config_status: "loaded",
+      policy_status: "loaded",
+      generated_noise_exclusion: {
+        status: "ready",
+        missing_ignore_paths: [],
+      },
+      parser: {
+        engine: "typescript-ast",
+        source_file_count: 3,
+        warning_count: 0,
+      },
+      documents: {
+        count: 2,
+        roots: ["docs", ".heart/imported-documents"],
+      },
+      warnings: [],
     },
   });
   const persisted = await writeBenchmarkReport(repoRoot, {
@@ -306,22 +340,47 @@ test("benchmark report writes locally and publishes sanitized web artifacts", as
   assert.equal(workspaceIndex.workspaces.length, 1);
   assert.equal(workspaceIndex.workspaces[0].benchmark_report_count, 1);
   assert.equal(portalWorkspaceIndex.workspaces[0].benchmark_report_count, 1);
-  await assert.doesNotReject(() =>
-    fs.readFile(path.join(repoRoot, ".heart", "benchmarks", "evidence", "sample-benchmark-report", "manifest.json"), "utf8"),
-  );
-  await assert.doesNotReject(() =>
-    fs.readFile(path.join(repoRoot, ".heart", "benchmarks", "evidence", "sample-benchmark-report", "baseline.json"), "utf8"),
-  );
-  await assert.doesNotReject(() =>
-    fs.readFile(path.join(repoRoot, ".heart", "benchmarks", "evidence", "sample-benchmark-report", "assisted.json"), "utf8"),
-  );
+  const localEvidenceRoot = path.join(repoRoot, ".heart", "benchmarks", "evidence", "sample-benchmark-report");
+  const localEvidenceManifest = JSON.parse(await fs.readFile(path.join(localEvidenceRoot, "manifest.json"), "utf8"));
+  const localBaselineEvidence = JSON.parse(await fs.readFile(path.join(localEvidenceRoot, "baseline.json"), "utf8"));
+  const localAssistedEvidence = JSON.parse(await fs.readFile(path.join(localEvidenceRoot, "assisted.json"), "utf8"));
   const portalEvidenceManifest = JSON.parse(
     await fs.readFile(
       path.join(portalRoot, "public", "benchmarks", "evidence", "sample-benchmark-report.json"),
       "utf8",
     ),
   );
+  assert.equal(localEvidenceManifest.scan_provenance.available, true);
+  assert.equal(localEvidenceManifest.scan_provenance.cache_schema_version, 5);
+  assert.equal(localEvidenceManifest.scan_provenance.config_path, "heart.config.yaml");
+  assert.equal(localEvidenceManifest.scan_provenance.policy_path, ".heart/policies.yaml");
+  assert.equal(localEvidenceManifest.scan_provenance.repo_root, undefined);
+  assert.ok(localEvidenceManifest.scan_provenance.ignore_paths.includes(".heart/benchmarks"));
+  assert.deepEqual(evidenceBundle.scan_provenance, localEvidenceManifest.scan_provenance);
+  assert.equal(localEvidenceManifest.readiness.status, "ready");
+  assert.equal(localEvidenceManifest.readiness.generated_noise_exclusion.status, "ready");
+  assert.equal(localEvidenceManifest.readiness.repo_root, undefined);
+  assert.equal(localEvidenceManifest.provider, "openai");
+  assert.equal(localEvidenceManifest.model, "gpt-5.4");
+  assert.equal(localEvidenceManifest.task, "Cross Module Change");
+  assert.equal(localEvidenceManifest.measurement_mode, "estimated");
+  assert.deepEqual(localEvidenceManifest.run_ids, {
+    baseline: "",
+    assisted: "",
+  });
+  assert.equal(localEvidenceManifest.repo_snapshot.config_hash, "config-hash");
+  assert.equal(localEvidenceManifest.repo_snapshot.policy_hash, "policy-hash");
+  assert.ok(localEvidenceManifest.artifact_list.some((artifact) => artifact.role === "assisted"));
+  assert.deepEqual(evidenceBundle.readiness, localEvidenceManifest.readiness);
+  assert.deepEqual(evidenceBundle.repo_snapshot, localEvidenceManifest.repo_snapshot);
+  assert.equal(localBaselineEvidence.prompt, "Explore login audit flow without heart");
+  assert.deepEqual(localAssistedEvidence.scan_provenance, localEvidenceManifest.scan_provenance);
+  assert.deepEqual(localAssistedEvidence.readiness, localEvidenceManifest.readiness);
   assert.equal(portalEvidenceManifest.bundle_id, "sample-benchmark-report");
+  assert.deepEqual(portalEvidenceManifest.scan_provenance, localEvidenceManifest.scan_provenance);
+  assert.deepEqual(portalEvidenceManifest.readiness, localEvidenceManifest.readiness);
+  assert.deepEqual(portalEvidenceManifest.repo_snapshot, localEvidenceManifest.repo_snapshot);
+  assert.deepEqual(portalEvidenceManifest.run_ids, localEvidenceManifest.run_ids);
   assert.equal(portalEvidenceManifest.assisted.context_pack.top_citations[0].path, undefined);
 });
 

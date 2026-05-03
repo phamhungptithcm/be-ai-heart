@@ -25,6 +25,7 @@ test("MCP tool registry exposes expected tools", () => {
     "context_pack",
     "impact_analysis",
     "document_search",
+    "docs_search",
     "policy_check",
   ]);
   assert.equal(registry[3].inputSchema.properties.token_budget.type, "integer");
@@ -37,7 +38,7 @@ test("MCP tool registry respects enabled tool allowlist", () => {
 
   assert.deepEqual(
     registry.map((tool) => tool.name),
-    ["project_overview", "document_search"],
+    ["project_overview", "document_search", "docs_search"],
   );
 });
 
@@ -133,6 +134,10 @@ test("MCP dependency explain tool returns typed dependency evidence", async (t) 
   assert.ok(result.outgoing_calls.includes("loginUser"));
   assert.ok(result.extends.includes("BaseAuthService"));
   assert.ok(result.implements.includes("AuthWorkflow"));
+  assert.ok(result.evidence.some((entry) => entry.type === "IMPORTS"));
+  assert.ok(result.evidence.some((entry) => entry.type === "CALLS"));
+  assert.ok(Array.isArray(result.policy_violations));
+  assert.ok(Array.isArray(result.document_constraints));
 });
 
 test("MCP workflow hints and agent contracts honor the effective tool allowlist and fail safe on thin packs", async (t) => {
@@ -239,8 +244,16 @@ test("MCP document search prefers latest lineage version and redacts restricted 
     graph: { scanResult: { files: [] }, nodes: [], edges: [] },
     documentIndex,
   });
+  const aliasResult = handleToolCall({
+    name: "docs_search",
+    args: { query: "auth approval audit secret" },
+    graph: { scanResult: { files: [] }, nodes: [], edges: [] },
+    documentIndex,
+    enabledTools: ["document_search"],
+  });
 
   assert.equal(result.matches.some((document) => document.path.endsWith("auth-prd-v2.md")), true);
+  assert.deepEqual(aliasResult.matches, result.matches);
   assert.equal(result.matches.some((document) => document.path.endsWith("auth-prd-v1.md")), false);
   const secretMatch = result.matches.find((document) => document.path.endsWith("auth-secret.md"));
   assert.ok(secretMatch);

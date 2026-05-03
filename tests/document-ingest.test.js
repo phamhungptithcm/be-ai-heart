@@ -91,9 +91,16 @@ trailer
 
   assert.ok(docxDocument);
   assert.equal(docxDocument.source_type, "docx");
+  assert.ok(docxDocument.document_id.startsWith("document:"));
+  assert.deepEqual(docxDocument.source, {
+    type: "docx",
+    path: "docs/customer-brief.docx",
+  });
   assert.equal(docxDocument.title, "Customer Brief");
   assert.match(docxDocument.summary, /Acceptance criteria/i);
   assert.ok(docxDocument.freshness.updated_at);
+  assert.equal(docxDocument.version_ref.path, "docs/customer-brief.docx");
+  assert.ok(docxDocument.citations.some((citation) => citation.type === "document_path"));
 
   assert.ok(pdfDocument);
   assert.equal(pdfDocument.source_type, "pdf");
@@ -114,6 +121,11 @@ trailer
   assert.ok(documentIndex.totals.sensitivity_counts.customer >= 1);
 
   const artifactDocument = documentArtifact.documents.find((document) => document.path === importedDocument.path);
+  assert.equal(documentArtifact.schema_version, 2);
+  assert.ok(artifactDocument.document_id.startsWith("document:"));
+  assert.equal(artifactDocument.source.type, "json");
+  assert.ok(artifactDocument.version_ref.lineage_id);
+  assert.ok(artifactDocument.citations.some((citation) => citation.path === importedDocument.path));
   assert.equal(artifactDocument.source_type, "json");
   assert.equal(artifactDocument.lineage.source_system, "portal-web-upload");
   assert.equal(artifactDocument.sensitivity.level, "customer");

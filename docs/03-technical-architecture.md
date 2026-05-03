@@ -33,6 +33,7 @@ Responsibilities:
 
 - Discover repository structure
 - Respect ignore rules
+- Apply generated/vendor ignore defaults together with repo-local overrides
 - Detect languages and frameworks
 - Parse source into AST and symbol metadata
 
@@ -46,7 +47,10 @@ Output:
 - Normalized symbol records
 - File dependency records
 - Parsed route descriptors for HTTP handlers and framework route files
+- Parser relation evidence for calls and routes with confidence, source, and provenance
 - Structural fingerprints for incremental re-indexing
+- Scan provenance with config hash, policy hash, cache schema version, effective ignores, and document roots
+- Workspace readiness with config status, policy status, generated-noise exclusion status, cache status, parser coverage, document count, blocking errors, and warnings
 
 ### 2. Symbol Extractor
 
@@ -57,6 +61,17 @@ Responsibilities:
 - Enrich nodes with docstrings, comments, annotations, ownership tags, and code signatures
 
 ### 3. Project Graph Store
+
+Current local snapshot contract:
+
+- `schema_version: 2`
+- `repo` and compatibility `repoName`
+- sanitized `root` and compatibility `rootDir`
+- `generated_at`
+- sanitized `scan_provenance` without absolute local repo roots
+- typed `nodes`, typed `edges`, and `summary`
+
+Graph nodes carry `confidence` and `source`. Graph edges carry `confidence`, `source`, and `provenance`; extracted parser edges default to `EXTRACTED`.
 
 Initial storage recommendation:
 

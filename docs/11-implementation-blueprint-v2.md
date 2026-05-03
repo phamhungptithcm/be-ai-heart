@@ -243,6 +243,19 @@ Owns:
 
 The graph must evolve from a lightweight file-symbol index into a typed project-memory graph.
 
+Snapshot fields:
+
+- `schema_version`
+- `repo`
+- `root`
+- `nodes`
+- `edges`
+- `summary`
+- `generated_at`
+- `scan_provenance`
+
+The local cache may retain compatibility fields such as `repoName` and `rootDir`, but graph artifacts must use sanitized roots and scan provenance so absolute local paths are not published through shared artifacts.
+
 Minimum node types:
 
 - `Repository`
@@ -317,10 +330,13 @@ Minimum fields:
 
 The pack must support a real `token_budget` input and trim deterministically to it.
 
+`packages/context-compiler` exposes a deterministic context-pack contract validator so CLI, MCP, tests, and future hosted consumers can check required v2 fields without duplicating schema assumptions.
+
 ### Diagram Artifact v2
 
 Diagram artifacts remain human-facing. They should include:
 
+- `schema_version`
 - `type`
 - `title`
 - `format`
@@ -328,6 +344,8 @@ Diagram artifacts remain human-facing. They should include:
 - `summary`
 - `confidence`
 - `scope`
+- `validation`
+- relative `artifact_path`
 - `content`
 
 Each diagram should answer one specific question:
@@ -340,11 +358,12 @@ Each diagram should answer one specific question:
 
 ### Document Artifact v2
 
-Minimum fields:
+Document memory artifacts should use `schema_version: 2` and carry:
 
 - `document_id`
 - `path`
 - `source`
+- `source_type`
 - `category`
 - `title`
 - `summary`
@@ -352,7 +371,16 @@ Minimum fields:
 - `freshness`
 - `sensitivity`
 - `version_ref`
+- `lineage`
+- `extraction`
 - `citations`
+
+Document-to-graph evidence:
+
+- heart model domains are exposed as `Module` nodes in the project graph
+- document-to-module links are exposed as `DOCUMENTS` edges
+- decision-like documents are exposed as `Decision` nodes with `CONSTRAINS` edges to implementation files or symbols
+- dependency and impact queries may surface these constraints when the target is linked
 
 ## Milestone 1: Index Truthfulness
 
@@ -367,6 +395,16 @@ Make scans reflect the real project rather than a polluted or partially configur
 - Load `.heart/policies.yaml` into the policy engine instead of relying only on hardcoded rules.
 - Exclude generated and vendor artifacts from indexing by default, including `.next` and similar directories.
 - Persist cache metadata with explicit schema version and scan provenance.
+
+Implementation contract:
+
+- Effective ignores are the union of built-in generated/vendor defaults and configured `project.ignore` entries.
+- `heart doctor --json` reports effective `ignore_paths` and effective `document_roots`.
+- Workspace cache provenance records the cache schema version, config hash, policy hash, default ignores, configured ignores, effective ignores, and document roots.
+- Workspace readiness records config status, policy status, generated-noise exclusion status, cache status, parser coverage, document count, blocking errors, and warnings.
+- Benchmark evidence bundles record sanitized scan provenance for assisted context without publishing absolute local paths.
+- Benchmark evidence bundles record sanitized workspace readiness next to scan provenance.
+- Benchmark evidence manifests use schema version 2 and record provider, model, task, measurement mode, run IDs, compact repo snapshot hashes, and a deterministic artifact list.
 
 ### Acceptance Criteria
 
@@ -389,9 +427,11 @@ Promote the graph from a file-symbol catalog to a queryable collaboration model.
 
 - Introduce typed nodes for class, interface, function, method, test, document, and policy.
 - Persist `EXTENDS` and `IMPLEMENTS` edges from parser output.
-- Add first-pass `CALLS` extraction for supported TypeScript and JavaScript patterns.
+- Add first-pass `CALLS` extraction for supported TypeScript and JavaScript patterns, with parser relation confidence, source, and provenance.
 - Add `TESTED_BY` links from test naming and import/reference heuristics.
 - Add `IMPACTS` derivation helpers for graph queries.
+- Dependency and impact query outputs should include compact relationship evidence plus policy violations and document constraints when those edges are present.
+- Reuse candidates may be derived in the context compiler as `RECOMMENDED_REUSE` evidence with confidence, source, and provenance instead of persisted when confidence is heuristic.
 
 ### Acceptance Criteria
 
@@ -416,6 +456,7 @@ Make `context_pack` the smallest useful memory unit for AI work.
 - Rank by graph proximity, document linkage, policy relevance, reuse signals, and likely test impact.
 - Add citation objects for documents, symbols, and graph-derived evidence.
 - Add stable compact schema for MCP and CLI JSON outputs.
+- Keep MCP document-memory naming compatible: `docs_search` aliases `document_search`, and enabling either exposes both names.
 - Add explicit confidence rollups for relevance, reuse, and architecture fit.
 
 ### Acceptance Criteria
@@ -490,6 +531,8 @@ Make ROI claims defensible with run artifacts rather than scenario summaries alo
 - Add a runner that captures baseline and assisted runs as separate evidence bundles.
 - Store raw prompts, tool outputs, resulting patches or output artifacts, and evaluation outputs.
 - Keep model, task, repo snapshot, and rubric aligned across runs.
+- Persist v2 evidence manifests with provider/model/task, measurement mode, run IDs, sanitized repo snapshot hashes, readiness, and deterministic artifact lists.
+- Refuse observed benchmark comparisons when run modes, scenarios, provider/model identity, completion status, or usage coverage do not line up.
 - Generate manager, technical, and raw-evidence views from the same run set.
 - Publish benchmark history to portal and admin surfaces with per-workspace trends.
 

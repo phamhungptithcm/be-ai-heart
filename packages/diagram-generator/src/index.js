@@ -69,13 +69,13 @@ export async function writeDiagramBundle(repoRoot, bundle) {
       ...diagram,
       artifact_file: fileName,
       artifact_path: filePath,
+      manifest_artifact_path: path.posix.join(".heart", "diagrams", fileName),
     });
   }
 
   const manifest = {
-    schema_version: 1,
+    schema_version: 2,
     repo: bundle.repo,
-    repo_root: bundle.repo_root,
     generated_at: bundle.generated_at,
     diagrams: diagrams.map((diagram) => ({
       type: diagram.type,
@@ -87,6 +87,7 @@ export async function writeDiagramBundle(repoRoot, bundle) {
       validation: diagram.validation,
       scope: diagram.scope,
       artifact_file: diagram.artifact_file,
+      artifact_path: diagram.manifest_artifact_path,
       summary: diagram.summary,
     })),
   };

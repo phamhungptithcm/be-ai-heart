@@ -19,6 +19,10 @@ test("MCP stdio server completes initialize, list, and call flow", async (t) => 
     input: child.stdout,
     crlfDelay: Infinity,
   });
+  t.after(() => {
+    output.close();
+    child.kill();
+  });
 
   const iterator = output[Symbol.asyncIterator]();
   const nextMessage = async () => {
@@ -53,7 +57,7 @@ test("MCP stdio server completes initialize, list, and call flow", async (t) => 
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
 
   const toolsResponse = await nextMessage();
-  assert.equal(toolsResponse.result.tools.length, 7);
+  assert.equal(toolsResponse.result.tools.length, 8);
   assert.equal(toolsResponse.result.tools[3].name, "context_pack");
 
   child.stdin.write(
@@ -74,6 +78,24 @@ test("MCP stdio server completes initialize, list, and call flow", async (t) => 
   assert.equal(callResponse.result.isError, false);
   assert.equal(callResponse.result.structuredContent.task, "improve login audit flow");
   assert.ok(callResponse.result.structuredContent.relevant_symbols.length >= 1);
+
+  child.stdin.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "project_overview",
+        arguments: {},
+      },
+    })}\n`,
+  );
+
+  const overviewResponse = await nextMessage();
+  assert.equal(overviewResponse.result.isError, false);
+  assert.equal(overviewResponse.result.structuredContent.readiness.schema_version, 1);
+  assert.equal(overviewResponse.result.structuredContent.readiness.config_status, "missing");
+  assert.equal(overviewResponse.result.structuredContent.readiness.generated_noise_exclusion.status, "ready");
 
   output.close();
   child.kill();
@@ -98,6 +120,10 @@ test("MCP stdio server enforces mcp.enabled_tools for list and call", async (t) 
   const output = readline.createInterface({
     input: child.stdout,
     crlfDelay: Infinity,
+  });
+  t.after(() => {
+    output.close();
+    child.kill();
   });
   const iterator = output[Symbol.asyncIterator]();
   const nextMessage = async () => {

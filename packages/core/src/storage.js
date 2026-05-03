@@ -32,6 +32,7 @@ export async function loadCachedWorkspaceState(repoRoot) {
       schemaVersion: payload.schema_version,
       savedAt: payload.saved_at,
       scanProvenance: payload.scan_provenance ?? null,
+      readiness: payload.readiness ?? null,
       scanResult: payload.scan_result,
       documentIndex: payload.document_index,
       graphSnapshot: payload.graph_snapshot,
@@ -54,9 +55,14 @@ export async function persistWorkspaceState(repoRoot, state) {
     schema_version: WORKSPACE_CACHE_SCHEMA_VERSION,
     saved_at: new Date().toISOString(),
     scan_provenance: state.scanProvenance,
+    readiness: state.readiness,
     scan_result: state.scanResult,
     document_index: state.documentIndex,
-    graph_snapshot: snapshotProjectGraph(state.graph),
+    graph_snapshot: snapshotProjectGraph(state.graph, {
+      root: ".",
+      repoRoot,
+      scanProvenance: state.scanProvenance,
+    }),
     heart_model: state.heartModel,
     policy_report: state.policyReport,
   };

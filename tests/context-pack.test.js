@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { compileContextPack } from "../packages/context-compiler/src/index.js";
+import { compileContextPack, validateContextPackContract } from "../packages/context-compiler/src/index.js";
 import { buildHeartModel } from "../packages/entity-linker/src/index.js";
 import { buildProjectGraph } from "../packages/graph/src/index.js";
 import { scanDocumentTree } from "../packages/document-ingest/src/index.js";
@@ -40,12 +40,40 @@ test("context compiler returns relevant files and reuse candidates", async () =>
   assert.equal(pack.relevant_documents[0].path, "docs/requirements.md");
   assert.equal(pack.linked_context.modules[0].module, "auth");
   assert.ok(pack.reuse_candidates.some((candidate) => candidate.name === "recordLoginAudit"));
+  const reuseCandidate = pack.reuse_candidates.find((candidate) => candidate.name === "recordLoginAudit");
+  assert.equal(reuseCandidate.file, "src/auth/session.ts");
+  assert.equal(reuseCandidate.kind, "function");
+  assert.match(reuseCandidate.reason, /reusable function/);
+  assert.ok(reuseCandidate.confidence > 0.5);
+  assert.deepEqual(reuseCandidate.evidence, {
+    type: "RECOMMENDED_REUSE",
+    source: "context-compiler",
+    provenance: "DERIVED",
+    symbol_id: "sym:function:src/auth/session.ts:recordLoginAudit:5",
+    file: "src/auth/session.ts",
+  });
   assert.ok(pack.quality.relevance_score > 0.5);
   assert.ok(pack.quality.reuse_confidence > 0.4);
   assert.ok(pack.quality.architecture_confidence > 0.4);
   assert.equal(pack.schema_version, 2);
   assert.ok(pack.citations.length >= 1);
   assert.ok(pack.confidence.overall > 0.4);
+  assert.deepEqual(validateContextPackContract(pack), {
+    valid: true,
+    errors: [],
+  });
+});
+
+test("context pack contract validator reports missing or invalid schema fields", () => {
+  const validation = validateContextPackContract({
+    schema_version: 2,
+    task: "missing required arrays",
+    summary: "Invalid fixture",
+  });
+
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.includes("relevant_files must be an array."));
+  assert.ok(validation.errors.includes("confidence must be an object."));
 });
 
 test("context compiler adds stable evidence ranks and summary metadata", async () => {

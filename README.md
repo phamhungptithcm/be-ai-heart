@@ -1,176 +1,300 @@
-# BeHeart
+# be-ai-heart
 
-> Stop paying AI to relearn your repo every session.
+Durable project memory for AI-assisted software teams.
 
-BeHeart gives AI coding tools shared memory for your codebase.
+![Local-first MVP](https://img.shields.io/badge/status-local--first%20MVP-0f766e)
+![CLI and MCP](https://img.shields.io/badge/interface-CLI%20%2B%20MCP-2563eb)
+![Web UI](https://img.shields.io/badge/surfaces-website%20%2B%20portal%20%2B%20admin-9333ea)
+![TypeScript Node](https://img.shields.io/badge/focus-TypeScript%20%2F%20Node-7c3aed)
+![Benchmark driven](https://img.shields.io/badge/ROI-benchmark--driven-b45309)
 
-It saves the important parts of your project once, then returns the right context when a real task starts.
+`be-ai-heart` helps AI coding tools understand a repository before they write code. It scans code and project documents, builds reusable project memory, serves compact task-specific context through the `heart` CLI and MCP, and includes web surfaces for customer visibility and internal operations.
 
-That means:
+**Less repeated discovery. Lower token waste. Better reuse. Safer AI coding workflows.**
 
-- less repeated context
-- less token waste
-- less duplicate work
-- more useful AI output
+If this project speaks to a problem your team feels every week, star the repo so it is easier to find again.
 
-![BeHeart hero](./docs/assets/readme-hero.svg)
+## Quick Read
 
-## Why This Matters
-
-Most teams use AI like this:
-
-1. open a new session
-2. explain the repo again
-3. pay tokens for old context again
-4. hope the AI understands what already exists
-
-That works, but it does not scale well.
-
-BeHeart fixes that by helping AI reuse project knowledge instead of rebuilding it from scratch every time.
-
-## Without BeHeart / With BeHeart
-
-| Without BeHeart | With BeHeart |
+| Question | Short answer |
 | --- | --- |
-| AI has to relearn the project | AI reuses project memory |
-| Token spend keeps growing on old context | More tokens go to the actual task |
-| Existing code is easier to miss | Existing code is easier to reuse |
-| Results vary too much between sessions | Results become more consistent |
+| What is it? | A durable context and memory layer for AI coding agents. |
+| Who is it for? | Engineers, tech leads, platform teams, managers, design partners, and AI-heavy software teams. |
+| Why now? | AI coding is growing fast, but repo memory, reuse, governance, and ROI measurement have not caught up. |
+| How do I try it? | Run `heart init`, `heart scan`, then `heart pack "your task"`. |
+| What is MVP? | Local-first CLI, MCP server, graph memory, document memory, context packs, policies, benchmarks, and web UI surfaces. |
+| What comes later? | Deeper team workspace, shared graph storage, analytics, RBAC, SSO, audit logs, and private deployment paths. |
 
-## What BeHeart Does
+## Start Here
 
-BeHeart does four simple things:
+- **New visitor:** read [Why This Exists](#why-this-exists), then [What be-ai-heart Does](#what-be-ai-heart-does).
+- **Engineer:** jump to [Daily Workflow](#daily-workflow).
+- **Design partner:** check [Web UI Surfaces](#web-ui-surfaces) and [Benchmark-Backed ROI](#benchmark-backed-roi).
+- **Tech lead or platform owner:** scan [Trust, Safety, and Governance](#trust-safety-and-governance).
+- **Manager, customer, or investor:** read [Benchmark-Backed ROI](#benchmark-backed-roi) and [Roadmap](#roadmap).
 
-1. scans the codebase
-2. builds project memory
-3. finds the context needed for the task
-4. shares that context through CLI or MCP
+## Tags
 
-Think of it like reusable notes for AI.
+`local-first` `AI coding` `project memory` `CLI` `MCP` `web UI` `portal` `admin` `code graph` `document memory` `context packs` `policy warnings` `benchmark ROI`
 
-## What BeHeart Is
+## Why This Exists
 
-BeHeart is not another coding assistant.
+AI coding agents are powerful, but they still start cold too often.
 
-It also treats project documents as first-class context inputs so the heart can preserve business intent, requirements, and system design alongside code.
+They forget project context between sessions. They repeat the same discovery work. They burn tokens reading files an engineer already explained yesterday. They miss architecture rules. They recreate code that already exists.
 
-It includes a local `heart connect` workflow for detecting, installing, verifying, and diagnosing external MCP client wiring.
+That creates real workflow drag:
 
-It sits underneath tools like Codex, Cursor, Claude Code, or Copilot and helps them work with better memory.
+| Pain | What it causes |
+| --- | --- |
+| Lost context | More prompting, re-reading, and hand-holding |
+| Token waste | More spend on old context instead of new work |
+| Missed reuse | Duplicate helpers, services, and patterns |
+| Weak guardrails | Architecture drift and policy cleanup in review |
+| Soft ROI | AI feels useful, but savings are hard to prove |
 
-It helps people and teams use AI in a smarter, more cost-aware way.
+`be-ai-heart` exists so AI agents do not have to relearn the project every time a task begins.
 
-## Quick Example
+## What be-ai-heart Does
 
-Without BeHeart:
+`be-ai-heart` scans a repository, builds durable project memory, creates a code and document graph, and returns the smallest useful context for a task.
 
-```text
-Task: add login audit logging
+That context can include:
 
-"Here is our repo structure..."
-"Here is the auth flow..."
-"Here is where the logging logic lives..."
-"Please do not duplicate what already exists..."
-```
+- **Code context:** relevant files, symbols, modules, call paths, and tests.
+- **Reuse context:** existing services, helpers, and implementation paths.
+- **Document context:** requirements, decisions, system design, and architecture notes.
+- **Governance context:** policy warnings, ownership hints, and architecture constraints.
+- **Delivery context:** risks, missing information, citations, and suggested starting points.
 
-With BeHeart:
+Instead of pasting a large repo summary into every prompt, teams can ask `heart` for a focused context pack and give that to an AI agent through the CLI or MCP.
 
-```text
-Task: add login audit logging
+The repo also includes web UI surfaces so teams can review synced project memory, diagrams, documents, benchmark evidence, usage signals, and operational state outside the terminal.
 
-1. scan once
-2. reuse project memory
-3. send only the context the task needs
-```
+## Who It Helps
 
-![BeHeart CLI demo](./docs/assets/readme-cli-demo.svg)
+`be-ai-heart` is built for teams already using AI in daily engineering work:
 
-## Current MVP
+- Software engineers who want agents to reuse existing patterns instead of guessing.
+- Tech leads who want AI-generated changes to respect architecture boundaries.
+- Platform teams building safer internal AI coding workflows.
+- Engineering managers who need measurable evidence that AI spend improves delivery.
+- AI-native startups moving quickly across fast-changing codebases.
+- Teams using Cursor, Codex, Claude Code, GitHub Copilot, Continue, or internal agents.
 
-- code graph, context compiler, policy engine, CLI, MCP, and benchmark workflow
-- document-aware memory with local-first publishing into website, portal, and admin surfaces
-- hosted auth, session, observability, benchmark, and tenant-control APIs under `services/api`
-- separated `website`, `portal`, and `admin` Next.js surfaces for public, customer, and internal use
-- deterministic local validation with `npm test`
+## The Product Promise
 
-## Quick Start
+`be-ai-heart` is designed to make AI-assisted development more useful, predictable, and economically defensible.
 
-### Requirements
+| Team wants | `be-ai-heart` helps by |
+| --- | --- |
+| Less repeated prompting | Reusing durable project memory |
+| Lower token spend | Returning compact task-specific packs |
+| Better code reuse | Surfacing existing implementation paths |
+| Safer agent workflows | Returning policies, risks, and warnings |
+| Clearer architecture guidance | Connecting code, docs, modules, and decisions |
+| Measurable ROI | Comparing baseline vs assisted workflows with benchmarks |
 
-- Node.js `>= 22`
-- npm
+The promise is not that AI becomes perfect. The promise is that agents start with better memory, better constraints, and better evidence before they make changes.
 
-### Install
+## How It Works
 
-```bash
-npm install
-```
+| Step | Command | Result |
+| --- | --- | --- |
+| 1. Initialize a repo | `heart init` | Creates or repairs local config and policy files |
+| 2. Scan code and docs | `heart scan` | Discovers source, symbols, dependencies, docs, and knowledge roots |
+| 3. Build project memory | automatic after scan | Stores a versioned local graph of code, documents, policies, and relationships |
+| 4. Ask for a context pack | `heart pack "add SSO login audit logging"` | Returns compact context with reuse candidates, citations, risks, and policy signals |
+| 5. Connect an AI agent | `heart mcp serve` | Exposes project memory through MCP tools |
+| 6. Review on the web | website, portal, admin | Shows public product flow, customer workspace, and internal control plane surfaces |
 
-### Build And Verify
+## Daily Workflow
 
-```bash
-npm run build
-npm test
-```
-
-### Try The Core Workflow
-
-```bash
-node ./packages/cli/bin/heart.js overview --json
-node ./packages/cli/bin/heart.js pack --json "improve login audit flow"
-node ./packages/cli/bin/heart.js find symbol loginUser
-node ./packages/cli/bin/heart.js deps src/auth/login.ts
-```
-
-### Try Additional Workflows
-
-```bash
-node ./packages/cli/bin/heart.js doctor --json
-node ./packages/cli/bin/heart.js connect detect --json
-node ./packages/cli/bin/heart.js connect verify --json --client cursor
-node ./packages/cli/bin/heart.js auth provider-session --url https://portal.example.com --id-token <jwt>
-node ./packages/cli/bin/heart.js service export --json
-```
-
-## Integration
-
-### CLI
-
-Use BeHeart directly from the command line inside the repo.
+**Install globally**
 
 ```bash
-node ./packages/cli/bin/heart.js overview --json
-node ./packages/cli/bin/heart.js pack --json "add SSO login audit logging"
-node ./packages/cli/bin/heart.js docs search "login requirements"
-node ./packages/cli/bin/heart.js impact src/billing/service.ts
+npm install -g beheart
 ```
 
-### MCP
-
-If your AI tool supports MCP, it can talk to BeHeart directly.
+**Or install in a repo**
 
 ```bash
-npm run mcp:serve
+npm install --save-dev beheart
+npx heart doctor
 ```
 
-This starts the local MCP server so the AI tool can ask BeHeart about your project.
+**Core loop**
 
-## What Is In This Repo
+```bash
+heart init
+heart doctor
+heart scan
+heart overview
+heart pack "add SSO login audit logging"
+heart mcp serve
+heart benchmark run --all
+```
 
-- `packages/` reusable product logic
-- `apps/` product surfaces
-- `services/` service-side runtime and APIs
-- `docs/` product and technical documents
-- `skills/` repo-specific AI operating guidance
+**Inspect the system**
+
+```bash
+heart find symbol loginUser
+heart deps src/auth/login.ts
+heart impact src/billing/service.ts
+heart policy check
+heart docs search "login audit requirements"
+```
+
+**Wire MCP into an agent**
+
+```bash
+heart connect detect
+heart connect install --client cursor --scope repo
+heart connect verify --client cursor --scope repo
+heart connect doctor
+```
+
+**Run the web surfaces**
+
+```bash
+npm run api:dev
+npm run website:dev
+npm run portal:dev
+npm run admin:dev
+```
+
+## Web UI Surfaces
+
+`be-ai-heart` is local-first at the core, but it also includes Next.js web UI surfaces for the product experience around that core.
+
+| Surface | Path | Purpose |
+| --- | --- | --- |
+| Website | `apps/website` | Public product narrative, docs entry points, trial flow, service pages, and design-partner intake |
+| Portal | `apps/portal` | Customer workspace for repository profiles, document memory, diagrams, benchmarks, usage, members, security, and settings |
+| Admin | `apps/admin` | Internal control plane for intake, support, customer inventory, benchmark history, billing posture, observability, and audit work |
+| API | `services/api` | Hosted service layer for tenant-scoped portal/admin data, auth/session flow, benchmark launch, intake, and telemetry |
+
+The split is intentional: **website sells, portal proves, admin operates**. The web UI should make project memory and ROI evidence easier to inspect while keeping customer-facing workspace data separate from internal controls.
+
+## What Makes It Different
+
+`be-ai-heart` is not another coding assistant.
+
+It is the context operating layer underneath AI coding tools.
+
+| Feature | Why it matters |
+| --- | --- |
+| Durable repo memory | Project understanding persists across sessions. |
+| Architecture-aware retrieval | Agents get relevant modules, symbols, policies, and tests instead of broad file dumps. |
+| Project document awareness | Requirements, design notes, decisions, and technical docs can guide code work. |
+| Reuse detection | Agents can see likely existing implementation paths before creating new ones. |
+| Policy warnings | Architecture and governance rules surface before edits happen. |
+| MCP integration | Compatible agents can query project memory through structured tools. |
+| Web UI surfaces | Teams can inspect project memory, documents, diagrams, benchmarks, and operations outside the terminal. |
+| Benchmark evidence | Teams can compare baseline AI work against assisted work with versioned reports. |
+
+## Local-First by Design
+
+The core MVP is designed to work locally first.
+
+A team should be able to initialize a repo, scan it, generate context packs, run the MCP server, and execute benchmarks without depending on a hosted service. The local repository remains the source of truth for indexing and graph construction.
+
+That matters because adoption should feel natural for developers:
+
+- configuration lives with the repo
+- scans respect ignore rules and generated/vendor defaults
+- project memory can be rebuilt from local source
+- core CLI and MCP workflows fit into existing AI coding habits
+- web and cloud services can mirror, share, visualize, and govern artifacts without becoming the first dependency
+
+## Trust, Safety, and Governance
+
+Context is powerful, so it has to be handled carefully.
+
+`be-ai-heart` is designed around a few security and governance principles:
+
+- **Redaction:** sensitive content should be removed from previews, benchmark reports, and shared artifacts.
+- **Ignore safety:** generated output, vendor folders, build artifacts, and caches should stay out of retrieval.
+- **Index readiness:** CLI, MCP, and benchmark evidence expose config, policy, cache, parser, document, and generated-noise status.
+- **Policy guidance:** rules should guide agents toward approved modules and away from deprecated or banned patterns.
+- **MCP allowlists:** disabled tools should not appear available to agents.
+- **Evidence discipline:** reports should separate evidence from interpretation.
+
+Future enterprise controls include shared graph storage, auditability, RBAC, SSO/SAML, tenant isolation, usage analytics, private deployment paths, and VPC or on-prem options.
+
+## Benchmark-Backed ROI
+
+`be-ai-heart` is built to prove value, not just claim it.
+
+The benchmark goal is to compare a baseline AI workflow against an assisted workflow using `be-ai-heart` on the same task, repository snapshot, model class, and scoring rubric.
+
+The benchmark framework is designed to measure:
+
+| Metric | What it tells the team |
+| --- | --- |
+| Token savings | Whether context packs reduce repeated prompt and discovery cost |
+| Time savings | Whether assisted work reaches acceptable output faster |
+| Duplicate-work reduction | Whether agents reuse existing code instead of recreating it |
+| Context retention | Whether project memory survives follow-up turns and handoffs |
+| Architecture compliance | Whether changes follow documented constraints |
+| Review cleanup reduction | Whether reviewers spend less time correcting avoidable AI drift |
+
+Reports can include both machine-readable JSON and manager-friendly Markdown. Evidence manifests carry provider, model,
+task, measurement mode, run IDs, sanitized repo snapshot hashes, readiness, and deterministic artifact lists. The
+framework also separates observed telemetry from estimated inputs, so teams can tell which results are fully measured
+and which are directional.
+
+This README does not claim fixed savings numbers. Validated results should come from repeatable benchmark runs and design-partner evidence.
+
+## Project Status
+
+The current product direction is a local-first MVP with a TypeScript and Node.js focus.
+
+| Area | Status direction |
+| --- | --- |
+| CLI | `heart` binary for local setup, scan, inspection, context packs, and benchmarks |
+| MCP | Local server through `heart mcp serve` |
+| Web UI | Next.js website, portal, and admin surfaces under `apps/*` |
+| API | `services/api` for hosted auth, tenant-scoped portal/admin data, intake, benchmark launch, and telemetry |
+| Graph | Code and document graph memory for one repository first |
+| Context compiler | Task-specific packs with citations, reuse signals, risks, and policy guidance |
+| Document memory | Project docs treated as first-class context |
+| Benchmark harness | Evidence bundles and baseline vs assisted reports |
+
+The v2 implementation focus is to make this memory more credible: cleaner indexing, deeper typed graph relationships, stronger context ranking, safer document memory, clearer citations, and benchmark reports backed by reproducible evidence.
+
+Hosted team and enterprise surfaces are part of the platform direction, but the core product should prove value locally first.
+
+## Roadmap
+
+| Phase | Focus | Highlights |
+| --- | --- | --- |
+| Local MVP | Prove daily value in one repo | Local indexing, TypeScript/JavaScript graph extraction, CLI, MCP, context packs, document memory, local benchmark reports, initial web surfaces |
+| Team Workspace | Share memory across teams | Portal workspace, shared graph storage, team policies, usage analytics, report export, benchmark history, organization foundations |
+| Enterprise Readiness | Govern AI coding at scale | Admin controls, multi-repo graph, SSO/SAML, RBAC, audit logs, tenant isolation, private deployment, VPC/on-prem options |
+
+## Contributing / Design Partners
+
+Teams using AI coding tools heavily are welcome to test `be-ai-heart`, share feedback, and help shape benchmark scenarios.
+
+The most useful design-partner feedback is grounded in real work:
+
+- tasks where agents repeatedly lose context
+- areas where duplicate implementations are common
+- architecture rules that AI tools often miss
+- project documents that should influence code changes
+- before-and-after benchmark runs with clear evidence
+
+The product is being built for serious daily use: local first, measurable, governable, and practical for engineers who want AI to understand the system before it edits the system.
+
+**Star this repo** if you want AI agents to start with durable project memory instead of a cold read of the same codebase every session.
 
 ## Read More
 
 - [Executive Summary](./docs/00-executive-summary.md)
-- [PRD](./docs/02-prd.md)
+- [Product Story](./docs/01-product-story.md)
+- [Product Requirements](./docs/02-prd.md)
 - [Technical Architecture](./docs/03-technical-architecture.md)
-- [CLI and MCP Spec](./docs/04-mcp-cli-spec.md)
+- [CLI and MCP Specification](./docs/04-mcp-cli-spec.md)
+- [Benchmark Framework](./docs/06-benchmark-framework.md)
 - [Roadmap and Operating Model](./docs/08-roadmap-operating-model.md)
-
-## In One Sentence
-
-BeHeart helps AI remember your project, so teams spend less on repeated context and get more useful work from each session.

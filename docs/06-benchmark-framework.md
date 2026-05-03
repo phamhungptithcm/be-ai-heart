@@ -72,6 +72,15 @@ Runtime artifacts:
     <suite-id>.md
 ```
 
+Evidence bundle manifests use schema version 2 and include local-first traceability fields:
+
+- sanitized `scan_provenance` for the assisted context source, without publishing absolute repo roots
+- sanitized `readiness` showing config status, policy status, generated-noise exclusion status, cache status, parser coverage, document count, and warnings
+- `provider`, `model`, `task`, and `measurement_mode` copied from the compared runs
+- `run_ids` for baseline and assisted telemetry correlation
+- `repo_snapshot` with schema/config/policy hashes and compact counts, not local absolute paths
+- deterministic `artifact_list` entries for baseline, assisted, evaluation, scenario, and dataset evidence files
+
 ## Scenario Design
 
 Each scenario manifest must define:
@@ -251,6 +260,14 @@ Evidence bundle manifest:
 - includes scenario and dataset summaries
 - captures the CLI automation commands used to reproduce the run
 - records baseline and assisted measurement metadata so portal/admin surfaces can distinguish observed vs estimated evidence
+- records sanitized scan provenance for the assisted context path, including cache schema version, config and policy hashes, effective ignores, and document roots without absolute local paths
+
+Observed run comparison requires both `--baseline-run` and `--assisted-run`. The CLI rejects mismatched modes, scenario
+mismatches, failed runs, provider/model mismatches, and incomplete usage coverage instead of silently downgrading a
+claimed observed comparison.
+
+Portal and admin benchmark detail views surface the same v2 evidence manifest trace fields: provider, model, task,
+baseline/assisted run IDs, repo snapshot hash presence, ignored-path count, document-root count, and artifact inventory.
 
 ## CLI Automation
 

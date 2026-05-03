@@ -192,6 +192,15 @@ test("repository profile sync publishes diagrams and makes them readable by port
     task: "improve login audit flow",
   });
   const artifacts = await writeDiagramBundle(repoRoot, bundle);
+
+  assert.equal(artifacts.manifest.schema_version, 2);
+  assert.equal(artifacts.manifest.repo_root, undefined);
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => diagram.artifact_path.startsWith(".heart/diagrams/")));
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => typeof diagram.inference_mode === "string"));
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => typeof diagram.summary === "string"));
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => typeof diagram.confidence === "string"));
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => typeof diagram.scope?.focus === "string"));
+  assert.ok(artifacts.manifest.diagrams.every((diagram) => typeof diagram.validation?.status === "string"));
   const syncResult = await syncRepositoryProfile({
     repoRoot,
     workspaceState,

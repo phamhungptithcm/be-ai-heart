@@ -1,5 +1,7 @@
 export const NODE_TYPES = Object.freeze({
   repository: "Repository",
+  package: "Package",
+  module: "Module",
   file: "File",
   symbol: "Symbol",
   class: "Class",
@@ -8,7 +10,10 @@ export const NODE_TYPES = Object.freeze({
   method: "Method",
   test: "Test",
   document: "Document",
+  decision: "Decision",
   policy: "Policy",
+  owner: "Owner",
+  taskRun: "TaskRun",
 });
 
 export const EDGE_TYPES = Object.freeze({
@@ -18,10 +23,61 @@ export const EDGE_TYPES = Object.freeze({
   extends: "EXTENDS",
   implements: "IMPLEMENTS",
   testedBy: "TESTED_BY",
+  documents: "DOCUMENTS",
+  constrains: "CONSTRAINS",
   violatesPolicy: "VIOLATES_POLICY",
+  impacts: "IMPACTS",
+  recommendedReuse: "RECOMMENDED_REUSE",
+  ownedBy: "OWNED_BY",
+  relatesTo: "RELATES_TO",
 });
 
-export function createGraphNode({ id, type, name, path = null, metadata = {} }) {
+export const GRAPH_SNAPSHOT_SCHEMA_VERSION = 2;
+
+export const DEFAULT_IGNORE_PATHS = Object.freeze([
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  "coverage",
+  "vendor",
+  ".git",
+  ".worktrees",
+  ".next",
+  ".cache",
+  ".turbo",
+  ".vercel",
+  ".parcel-cache",
+  "output",
+  ".playwright-cli",
+  "playwright-report",
+  ".heart/benchmarks",
+  ".heart/cache",
+  ".heart/diagrams",
+  ".heart/published",
+]);
+
+export function resolveIgnorePaths(configuredPaths = []) {
+  const configured = Array.isArray(configuredPaths) ? configuredPaths : [];
+  return [
+    ...new Set(
+      [...DEFAULT_IGNORE_PATHS, ...configured]
+        .filter((value) => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+export function createGraphNode({
+  id,
+  type,
+  name,
+  path = null,
+  metadata = {},
+  confidence = 1,
+  source = "extracted",
+}) {
   if (!id || !type || !name) {
     throw new Error("Graph node requires id, type, and name.");
   }
@@ -31,11 +87,22 @@ export function createGraphNode({ id, type, name, path = null, metadata = {} }) 
     type,
     name,
     path,
+    confidence: normalizeConfidence(confidence),
+    source: String(source || "extracted"),
     metadata,
   };
 }
 
-export function createGraphEdge({ id, from, to, type, metadata = {} }) {
+export function createGraphEdge({
+  id,
+  from,
+  to,
+  type,
+  metadata = {},
+  confidence = 1,
+  source = "extracted",
+  provenance = "EXTRACTED",
+}) {
   if (!id || !from || !to || !type) {
     throw new Error("Graph edge requires id, from, to, and type.");
   }
@@ -45,8 +112,20 @@ export function createGraphEdge({ id, from, to, type, metadata = {} }) {
     from,
     to,
     type,
+    confidence: normalizeConfidence(confidence),
+    source: String(source || "extracted"),
+    provenance: String(provenance || "EXTRACTED"),
     metadata,
   };
+}
+
+function normalizeConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, numeric));
 }
 
 export function createGraphSummary({ nodes, edges }) {

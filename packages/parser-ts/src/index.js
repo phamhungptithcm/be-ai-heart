@@ -2,31 +2,18 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { resolveIgnorePaths } from "../../shared-schema/src/index.js";
 
 const require = createRequire(import.meta.url);
 
 const SUPPORTED_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"]);
-const DEFAULT_IGNORES = new Set([
-  "node_modules",
-  "dist",
-  "coverage",
-  ".git",
-  ".worktrees",
-  ".next",
-  "output",
-  ".playwright-cli",
-  ".heart/benchmarks",
-  ".heart/cache",
-  ".heart/diagrams",
-  ".heart/published",
-]);
 const ROUTE_METHOD_NAMES = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
 let cachedTypeScriptModule;
 let hasTriedLoadingTypeScript = false;
 
 export async function scanSourceTree(rootDir, options = {}) {
-  const ignore = new Set([...(options.ignore ?? []), ...DEFAULT_IGNORES]);
+  const ignore = new Set(resolveIgnorePaths(options.ignore ?? []));
   const discoveredFiles = await discoverSourceFiles(rootDir, ignore, rootDir);
   const previousFilesByPath = new Map(
     (options.previousScanResult?.files ?? []).map((file) => [file.relativePath, file]),
@@ -355,8 +342,12 @@ function extractCallsWithTypeScript(typescriptModule, sourceFile, relativePath) 
       from_symbol_name: sourceSymbol.name,
       from_kind: sourceSymbol.kind,
       to_name: target.name,
+      target_kind: target.kind,
       expression: target.expression,
       line,
+      confidence: target.confidence,
+      source: "parser-ts",
+      provenance: "EXTRACTED",
     });
   });
 
@@ -687,6 +678,8 @@ function readCallTarget(typescriptModule, expression) {
     return {
       name: expression.text,
       expression: expression.text,
+      kind: "identifier",
+      confidence: 0.95,
     };
   }
 
@@ -694,6 +687,8 @@ function readCallTarget(typescriptModule, expression) {
     return {
       name: expression.name.text,
       expression: expression.getText(),
+      kind: "property-access",
+      confidence: 0.82,
     };
   }
 
@@ -705,6 +700,8 @@ function readCallTarget(typescriptModule, expression) {
     return {
       name: expression.argumentExpression.text,
       expression: expression.getText(),
+      kind: "element-access",
+      confidence: 0.72,
     };
   }
 
@@ -790,6 +787,9 @@ function pushRouteRecord(routes, seen, record) {
     route_kind: String(record.route_kind ?? "route"),
     framework: String(record.framework ?? "generic"),
     registrar: String(record.registrar ?? "").trim(),
+    confidence: normalizeConfidence(record.confidence ?? inferRouteConfidence(record)),
+    source: "parser-ts",
+    provenance: "EXTRACTED",
   };
 
   if (!normalized.method || !normalized.path) {
@@ -810,6 +810,27 @@ function pushRouteRecord(routes, seen, record) {
 
   seen.add(dedupeKey);
   routes.push(normalized);
+}
+
+function inferRouteConfidence(record) {
+  if (record.route_kind === "next-app-router" && record.handler_name) {
+    return 0.95;
+  }
+
+  if (record.handler_name || record.handler_expression) {
+    return 0.86;
+  }
+
+  return 0.7;
+}
+
+function normalizeConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, numeric));
 }
 
 function isRouteMethodName(value) {

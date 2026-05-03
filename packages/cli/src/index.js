@@ -212,7 +212,14 @@ async function handleOverview(flags, io) {
     workspaceState.heartModel,
   );
 
-  writeOutput(overview, flags.json, io);
+  writeOutput(
+    {
+      ...overview,
+      readiness: workspaceState.readiness,
+    },
+    flags.json,
+    io,
+  );
   return 0;
 }
 
@@ -516,6 +523,9 @@ async function handleBenchmark(subcommand, flags, positional, io) {
       io.stderr.write("Both --baseline-run and --assisted-run are required for observed benchmark reports.\n");
       return 1;
     }
+    const benchmarkWorkspaceState = await buildWorkspaceState(repoRoot);
+    const scanProvenance = benchmarkWorkspaceState.scanProvenance;
+    const readiness = benchmarkWorkspaceState.readiness;
     if (flags.all) {
       const suiteResult = await runBenchmarkSuite({
         repoRoot,
@@ -535,6 +545,8 @@ async function handleBenchmark(subcommand, flags, positional, io) {
           },
           scenario: scenarioRun.scenario,
           dataset: scenarioRun.dataset,
+          scanProvenance,
+          readiness,
         });
         const reportWithEvidence = {
           ...scenarioRun.report,
@@ -569,18 +581,34 @@ async function handleBenchmark(subcommand, flags, positional, io) {
 
     const scenarioRef = positional[0];
     const scenario = await loadBenchmarkScenario(scenarioRef, repoRoot);
-    const observedBaseline = flags.baselineRun
-      ? await loadObservedRunSummary({
-          serviceStorageRoot: resolveServiceStorageRoot({ repoRoot }),
-          runId: flags.baselineRun,
-        })
-      : null;
-    const observedAssisted = flags.assistedRun
-      ? await loadObservedRunSummary({
-          serviceStorageRoot: resolveServiceStorageRoot({ repoRoot }),
-          runId: flags.assistedRun,
-        })
-      : null;
+    let observedBaseline = null;
+    let observedAssisted = null;
+    try {
+      observedBaseline = flags.baselineRun
+        ? await loadObservedRunSummary({
+            serviceStorageRoot: resolveServiceStorageRoot({ repoRoot }),
+            runId: flags.baselineRun,
+          })
+        : null;
+      observedAssisted = flags.assistedRun
+        ? await loadObservedRunSummary({
+            serviceStorageRoot: resolveServiceStorageRoot({ repoRoot }),
+            runId: flags.assistedRun,
+          })
+        : null;
+    } catch (error) {
+      io.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+    const observedValidationError = validateObservedBenchmarkRunPair({
+      scenario,
+      baselineRun: observedBaseline,
+      assistedRun: observedAssisted,
+    });
+    if (observedValidationError) {
+      io.stderr.write(`${observedValidationError}\n`);
+      return 1;
+    }
     const baselineInput = mergeObservedRunIntoBenchmarkInput(scenario.baseline, observedBaseline);
     const assistedInput = mergeObservedRunIntoBenchmarkInput(scenario.assisted, observedAssisted);
     const report = await runBenchmarkScenario(scenarioRef, {
@@ -604,6 +632,8 @@ async function handleBenchmark(subcommand, flags, positional, io) {
       },
       scenario,
       dataset: scenario.dataset ?? null,
+      scanProvenance,
+      readiness,
     });
     const reportWithEvidence = {
       ...report,
@@ -650,6 +680,7 @@ async function handleBenchmark(subcommand, flags, positional, io) {
   }
 
   const repoRoot = resolveRepoRoot(flags.root, io.cwd);
+  const benchmarkWorkspaceState = await buildWorkspaceState(repoRoot);
   const baselinePath = path.resolve(io.cwd, positional[0]);
   const assistedPath = path.resolve(io.cwd, positional[1]);
   const [baseline, assisted] = await Promise.all([
@@ -671,6 +702,8 @@ async function handleBenchmark(subcommand, flags, positional, io) {
       baseline_source: baselinePath,
       assisted_source: assistedPath,
     },
+    scanProvenance: benchmarkWorkspaceState.scanProvenance,
+    readiness: benchmarkWorkspaceState.readiness,
   });
   const reportWithEvidence = {
     ...report,
@@ -1135,6 +1168,7 @@ async function handleSync(subcommand, flags, positional, io) {
     return 1;
   }
 
+  const benchmarkWorkspaceState = await buildWorkspaceState(repoRoot);
   const scenario = await loadBenchmarkScenario(positional[0], repoRoot);
   const scenarioReport = await runBenchmarkScenario(positional[0], {
     repoRoot,
@@ -1153,6 +1187,8 @@ async function handleSync(subcommand, flags, positional, io) {
     },
     scenario,
     dataset: scenario.dataset ?? null,
+    scanProvenance: benchmarkWorkspaceState.scanProvenance,
+    readiness: benchmarkWorkspaceState.readiness,
   });
   const report = {
     ...prepareBenchmarkReportArtifact({
@@ -1733,10 +1769,75 @@ async function loadObservedRunSummary({ serviceStorageRoot, runId } = {}) {
   return {
     ...capture.summary,
     run_id: capture.run.run_id,
+    mode: capture.run.mode,
+    status: capture.run.status,
+    scenario_id: capture.run.scenario_id,
+    dataset_id: capture.run.dataset_id,
     provider: capture.run.provider || capture.summary.provider,
     model: capture.run.model || capture.summary.model,
+    duration_ms: capture.summary.duration_ms,
+    command: capture.run.command ?? {},
     source: "agent_run",
   };
+}
+
+function validateObservedBenchmarkRunPair({ scenario = {}, baselineRun = null, assistedRun = null } = {}) {
+  if (!baselineRun && !assistedRun) {
+    return null;
+  }
+
+  const baselineError = validateObservedBenchmarkRun({
+    run: baselineRun,
+    expectedMode: "baseline",
+    scenarioId: scenario.id,
+  });
+  if (baselineError) {
+    return baselineError;
+  }
+
+  const assistedError = validateObservedBenchmarkRun({
+    run: assistedRun,
+    expectedMode: "assisted",
+    scenarioId: scenario.id,
+  });
+  if (assistedError) {
+    return assistedError;
+  }
+
+  if (baselineRun.provider && assistedRun.provider && baselineRun.provider !== assistedRun.provider) {
+    return `Observed run provider mismatch: baseline=${baselineRun.provider} assisted=${assistedRun.provider}.`;
+  }
+
+  if (baselineRun.model && assistedRun.model && baselineRun.model !== assistedRun.model) {
+    return `Observed run model mismatch: baseline=${baselineRun.model} assisted=${assistedRun.model}.`;
+  }
+
+  return null;
+}
+
+function validateObservedBenchmarkRun({ run = null, expectedMode, scenarioId } = {}) {
+  if (!run) {
+    return null;
+  }
+
+  const label = expectedMode === "assisted" ? "assisted" : "baseline";
+  if (run.mode && run.mode !== expectedMode) {
+    return `Observed ${label} run mode must be ${expectedMode}; received ${run.mode}.`;
+  }
+
+  if (run.status && run.status !== "completed") {
+    return `Observed ${label} run must be completed before benchmark compare; received ${run.status}.`;
+  }
+
+  if (run.scenario_id && scenarioId && run.scenario_id !== scenarioId) {
+    return `Observed ${label} run scenario ${run.scenario_id} does not match benchmark scenario ${scenarioId}.`;
+  }
+
+  if (run.measurement_mode !== "observed" || numberOrZero(run.observed_usage_coverage_pct) < 100) {
+    return `Observed ${label} run does not have fully observed usage; rerun it through the Heart proxy before comparing.`;
+  }
+
+  return null;
 }
 
 function createPricingConfig(flags = {}) {
@@ -1846,6 +1947,17 @@ function parseFlagValue(token, rawValue, definition) {
     return { value: parsedValue };
   }
 
+  if (definition.type === "nonNegativeNumber") {
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      return {
+        error: `${token} must be a non-negative number.`,
+      };
+    }
+
+    return { value: parsedValue };
+  }
+
   return { value: rawValue };
 }
 
@@ -1891,9 +2003,9 @@ function createFlagDefinitions() {
     "--baseline-run": { key: "baselineRun", type: "string" },
     "--assisted-run": { key: "assistedRun", type: "string" },
     "--upstream-base-url": { key: "upstreamBaseUrl", type: "string" },
-    "--input-cost-per-1m": { key: "inputCostPer1m", type: "number" },
-    "--cached-input-cost-per-1m": { key: "cachedInputCostPer1m", type: "number" },
-    "--output-cost-per-1m": { key: "outputCostPer1m", type: "number" },
+    "--input-cost-per-1m": { key: "inputCostPer1m", type: "nonNegativeNumber" },
+    "--cached-input-cost-per-1m": { key: "cachedInputCostPer1m", type: "nonNegativeNumber" },
+    "--output-cost-per-1m": { key: "outputCostPer1m", type: "nonNegativeNumber" },
     "--url": { key: "url", type: "string" },
     "--session": { key: "session", type: "string" },
     "--workspace": { key: "workspace", type: "string" },

@@ -3,23 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { resolveIgnorePaths } from "../../shared-schema/src/index.js";
 
 const execFileAsync = promisify(execFile);
 const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".json", ".yaml", ".yml", ".docx", ".pdf"]);
-const DEFAULT_IGNORES = new Set([
-  "node_modules",
-  "dist",
-  "coverage",
-  ".git",
-  ".worktrees",
-  ".next",
-  "output",
-  ".playwright-cli",
-  ".heart/benchmarks",
-  ".heart/cache",
-  ".heart/diagrams",
-  ".heart/published",
-]);
 const SECRET_PATTERNS = [
   /\b(sk|rk|pk)_[a-z0-9_-]{8,}\b/gi,
   /\b(ghp|github_pat)_[a-z0-9_]{10,}\b/gi,
@@ -68,7 +55,7 @@ let cachedOcrCapabilityKey = "";
 
 export async function scanDocumentTree(rootDir, options = {}) {
   const configuredRoots = options.roots?.length ? options.roots : ["docs"];
-  const ignore = new Set([...(options.ignore ?? []), ...DEFAULT_IGNORES]);
+  const ignore = new Set(resolveIgnorePaths(options.ignore ?? []));
   const files = [];
   const previousDocumentsByPath = new Map(
     (options.previousDocumentIndex?.documents ?? []).map((document) => [document.path, document]),
@@ -156,7 +143,9 @@ export function findRelevantDocuments(documentIndex, task, limit = 4) {
     .filter((document) => document.score > 0 || document.semantic_score >= 0.18)
     .slice(0, limit)
     .map((document) => ({
+      document_id: document.document_id,
       path: document.path,
+      source: document.source,
       category: document.category,
       title: document.title,
       source_type: document.source_type,
@@ -164,8 +153,10 @@ export function findRelevantDocuments(documentIndex, task, limit = 4) {
       summary_redacted: document.sensitivity?.level === "restricted",
       freshness: document.freshness,
       sensitivity: document.sensitivity,
+      version_ref: document.version_ref,
       lineage: compactLineage(document.lineage),
       extraction: compactExtraction(document.extraction),
+      citations: document.citations ?? [],
       lexical_score: document.lexical_score,
       semantic_score: document.semantic_score,
       score: document.score,
@@ -217,8 +208,13 @@ async function createDocumentRecord(filePath, relativePath, statSummary) {
   const contentPreview = redactSensitiveContent(previewSource);
 
   return {
+    document_id: createDocumentId(relativePath),
     path: relativePath,
     source_type: resolveSourceType(relativePath),
+    source: {
+      type: resolveSourceType(relativePath),
+      path: relativePath,
+    },
     title,
     category,
     headings,
@@ -326,6 +322,37 @@ function countLineages(documents) {
   return new Set(
     documents.map((document) => document.lineage?.lineage_id || `path:${document.path}`),
   ).size;
+}
+
+function createDocumentId(relativePath) {
+  return `document:${normalizeSlug(relativePath)}`;
+}
+
+function createVersionRef(lineage = {}, documentPath = "") {
+  return {
+    lineage_id: lineage.lineage_id ?? lineage.lineage_seed ?? "",
+    version_label: lineage.version_label ?? "",
+    version_rank: Number(lineage.version_rank ?? 0),
+    is_latest: lineage.is_latest ?? true,
+    path: documentPath,
+    latest_path: lineage.latest_path ?? documentPath,
+    previous_path: lineage.previous_path ?? "",
+  };
+}
+
+function createDocumentCitations(document, lineage = {}) {
+  return [
+    {
+      type: "document_path",
+      path: document.path,
+      title: document.title,
+    },
+    {
+      type: "lineage",
+      lineage_id: lineage.lineage_id ?? document.lineage?.lineage_seed ?? "",
+      latest_path: lineage.latest_path ?? document.path,
+    },
+  ];
 }
 
 function scoreDocument(document, tokens, queryProfile) {
@@ -950,6 +977,24 @@ function enrichDocumentsWithLineage(documents) {
             : group.length - currentIndex,
         group_size: group.length,
       },
+      version_ref: createVersionRef({
+        ...document.lineage,
+        lineage_id: lineageId,
+        canonical_title: latest.title,
+        is_latest: latest.path === document.path,
+        latest_path: latest.path,
+        previous_path: previous?.path ?? "",
+        version_label: document.lineage?.version_label || inferVersionLabelFromOrder(group, currentIndex),
+        version_rank:
+          Number.isFinite(Number(document.lineage?.version_rank)) && Number(document.lineage?.version_rank) > 0
+            ? Number(document.lineage.version_rank)
+            : group.length - currentIndex,
+        group_size: group.length,
+      }, document.path),
+      citations: createDocumentCitations(document, {
+        lineage_id: lineageId,
+        latest_path: latest.path,
+      }),
     };
   });
 }

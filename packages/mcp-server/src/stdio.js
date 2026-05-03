@@ -157,6 +157,7 @@ async function handleToolRequest(state, params) {
     heartModel: workspaceState.heartModel,
     scanResult: workspaceState.scanResult,
     policyReport: workspaceState.policyReport,
+    readiness: workspaceState.readiness,
     enabledTools: workspaceState.configState.config.mcp?.enabled_tools,
   });
 

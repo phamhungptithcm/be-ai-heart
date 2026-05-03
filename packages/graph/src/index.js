@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   EDGE_TYPES,
+  GRAPH_SNAPSHOT_SCHEMA_VERSION,
   NODE_TYPES,
   createGraphEdge,
   createGraphNode,
@@ -98,6 +99,7 @@ export function buildProjectGraph(scanResult, options = {}) {
   const repoName = options.repoName ?? path.basename(scanResult.rootDir);
   const documentIndex = options.documentIndex ?? { documents: [] };
   const policyReport = options.policyReport ?? { rules: [], violations: [] };
+  const heartModel = options.heartModel ?? { domains: [], links: [] };
   const nodes = [];
   const edges = [];
   const edgeIds = new Set();
@@ -337,8 +339,12 @@ export function buildProjectGraph(scanResult, options = {}) {
           from: call.from_symbol_id,
           to: targetSymbol.id,
           type: EDGE_TYPES.calls,
+          confidence: call.confidence ?? 0.85,
+          source: call.source ?? "parser-ts",
+          provenance: call.provenance ?? "EXTRACTED",
           metadata: {
             expression: call.expression,
+            target_kind: call.target_kind ?? "",
             line: call.line,
           },
         }),
@@ -404,6 +410,15 @@ export function buildProjectGraph(scanResult, options = {}) {
     );
   }
 
+  addHeartModelGraphEvidence({
+    nodes,
+    edges,
+    edgeIds,
+    repositoryNode,
+    heartModel,
+    documentIndex,
+  });
+
   const policyRules = [...(policyReport.rules ?? [])].sort((left, right) => left.id.localeCompare(right.id));
   for (const rule of policyRules) {
     const policyNode = createGraphNode({
@@ -463,21 +478,137 @@ export function buildProjectGraph(scanResult, options = {}) {
   };
 }
 
-export function snapshotProjectGraph(graph) {
+export function snapshotProjectGraph(graph, options = {}) {
+  const repoRoot = options.repoRoot ?? graph.rootDir ?? graph.scanResult?.rootDir ?? null;
+  const repo = graph.repo ?? graph.repoName ?? "";
+  const root = sanitizeSnapshotPath(options.root ?? graph.root ?? ".", repoRoot) || ".";
+  const nodes = (graph.nodes ?? []).map((node) => normalizeSnapshotNode(node, repoRoot));
+  const edges = (graph.edges ?? []).map((edge) => normalizeSnapshotEdge(edge));
+
   return {
+    schema_version: GRAPH_SNAPSHOT_SCHEMA_VERSION,
+    repo,
+    root,
     repoName: graph.repoName,
-    rootDir: graph.rootDir,
-    nodes: graph.nodes,
-    edges: graph.edges,
-    summary: graph.summary,
+    rootDir: root,
+    nodes,
+    edges,
+    summary: graph.summary ?? createGraphSummary({ nodes, edges }),
+    generated_at: options.generatedAt ?? new Date().toISOString(),
+    scan_provenance: sanitizeSnapshotScanProvenance(options.scanProvenance ?? graph.scanProvenance, repoRoot),
   };
 }
 
 export function hydrateProjectGraph(snapshot, scanResult) {
+  const nodes = (snapshot.nodes ?? []).map((node) => normalizeSnapshotNode(node, scanResult?.rootDir));
+  const edges = (snapshot.edges ?? []).map((edge) => normalizeSnapshotEdge(edge));
+  const repo = snapshot.repo ?? snapshot.repoName ?? path.basename(scanResult?.rootDir ?? "");
+  const root = snapshot.root ?? snapshot.rootDir ?? ".";
+
   return {
     ...snapshot,
+    schema_version: snapshot.schema_version ?? 1,
+    repo,
+    root,
+    repoName: snapshot.repoName ?? repo,
+    rootDir: snapshot.rootDir ?? root,
+    nodes,
+    edges,
+    summary: snapshot.summary ?? createGraphSummary({ nodes, edges }),
+    generated_at: snapshot.generated_at ?? null,
+    scan_provenance: snapshot.scan_provenance ?? null,
+    scanProvenance: snapshot.scan_provenance ?? null,
     scanResult,
   };
+}
+
+function normalizeSnapshotNode(node, repoRoot) {
+  return {
+    ...node,
+    path: sanitizeSnapshotPath(node.path, repoRoot),
+    confidence: normalizeConfidence(node.confidence),
+    source: String(node.source || "extracted"),
+    metadata: node.metadata ?? {},
+  };
+}
+
+function normalizeSnapshotEdge(edge) {
+  return {
+    ...edge,
+    confidence: normalizeConfidence(edge.confidence),
+    source: String(edge.source || "extracted"),
+    provenance: String(edge.provenance || "EXTRACTED"),
+    metadata: edge.metadata ?? {},
+  };
+}
+
+function sanitizeSnapshotScanProvenance(provenance = null, repoRoot = null) {
+  if (!provenance || typeof provenance !== "object") {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    available: true,
+    cache_schema_version: numberOrZero(provenance.cache_schema_version),
+    config_path: sanitizeSnapshotPath(provenance.config_path, repoRoot),
+    config_exists: Boolean(provenance.config_exists),
+    config_hash: String(provenance.config_hash ?? ""),
+    policy_path: sanitizeSnapshotPath(provenance.policy_path, repoRoot),
+    policy_exists: Boolean(provenance.policy_exists),
+    policy_hash: String(provenance.policy_hash ?? ""),
+    default_ignore_paths: sanitizeSnapshotPathList(provenance.default_ignore_paths, repoRoot),
+    configured_ignore_paths: sanitizeSnapshotPathList(provenance.configured_ignore_paths, repoRoot),
+    ignore_paths: sanitizeSnapshotPathList(provenance.ignore_paths, repoRoot),
+    document_roots: sanitizeSnapshotPathList(provenance.document_roots, repoRoot),
+  };
+}
+
+function sanitizeSnapshotPathList(paths = [], repoRoot = null) {
+  return Array.isArray(paths)
+    ? paths
+        .filter((value) => typeof value === "string")
+        .map((value) => sanitizeSnapshotPath(value, repoRoot))
+        .filter(Boolean)
+    : [];
+}
+
+function sanitizeSnapshotPath(value, repoRoot = null) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  const normalized = String(value).replace(/\\/g, "/");
+  if (!path.isAbsolute(normalized)) {
+    return normalized;
+  }
+
+  const resolvedRoot = repoRoot ? path.resolve(repoRoot) : null;
+  const resolvedValue = path.resolve(normalized);
+  if (resolvedRoot && resolvedValue === resolvedRoot) {
+    return ".";
+  }
+
+  if (resolvedRoot && resolvedValue.startsWith(`${resolvedRoot}${path.sep}`)) {
+    return path.relative(resolvedRoot, resolvedValue).replace(/\\/g, "/") || ".";
+  }
+
+  return path.basename(resolvedValue);
+}
+
+function normalizeConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function numberOrZero(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 export function diffProjectGraphSnapshots(previousSnapshot, nextSnapshot) {
@@ -656,11 +787,13 @@ export function createImpactAnalysis(graph, target) {
   const dependentFiles = new Set();
   const dependentSymbols = new Set();
   const relatedTests = new Set();
+  const evidence = [];
 
   if (resolved.file) {
     for (const edge of graph.edges) {
       if (edge.type === EDGE_TYPES.imports && edge.to === `file:${resolved.file}`) {
         dependentFiles.add(edge.from.replace(/^file:/, ""));
+        evidence.push(createRelationshipEvidence(edge, "incoming_import"));
       }
     }
   }
@@ -674,6 +807,7 @@ export function createImpactAnalysis(graph, target) {
           if (caller.path) {
             dependentFiles.add(caller.path);
           }
+          evidence.push(createRelationshipEvidence(edge, "incoming_call"));
         }
       }
 
@@ -681,6 +815,7 @@ export function createImpactAnalysis(graph, target) {
         const testNode = findNode(graph, edge.to);
         if (testNode?.path) {
           relatedTests.add(testNode.path);
+          evidence.push(createRelationshipEvidence(edge, "related_test"));
         }
       }
     }
@@ -692,12 +827,15 @@ export function createImpactAnalysis(graph, target) {
         const testNode = findNode(graph, edge.to);
         if (testNode?.path) {
           relatedTests.add(testNode.path);
+          evidence.push(createRelationshipEvidence(edge, "related_test"));
         }
       }
     }
   }
 
   const riskScore = dependentFiles.size + dependentSymbols.size + relatedTests.size;
+  const policyViolations = collectPolicyViolations(graph, resolved);
+  const documentConstraints = collectDocumentConstraints(graph, resolved);
 
   return {
     target,
@@ -708,6 +846,9 @@ export function createImpactAnalysis(graph, target) {
     dependent_files: [...dependentFiles].sort(),
     dependent_symbols: [...dependentSymbols].sort(),
     related_tests: [...relatedTests].sort(),
+    policy_violations: policyViolations,
+    document_constraints: documentConstraints,
+    evidence: dedupeEvidence(evidence),
     risk_level: riskScore > 3 ? "medium" : riskScore > 0 ? "low" : "minimal",
   };
 }
@@ -726,15 +867,18 @@ export function createDependencyExplanation(graph, target) {
   const extendsRelations = new Set();
   const implementsRelations = new Set();
   const relatedTests = new Set();
+  const evidence = [];
 
   if (resolved.file) {
     for (const edge of graph.edges) {
       if (edge.type === EDGE_TYPES.imports && edge.from === `file:${resolved.file}`) {
         outgoingImports.add(edge.to.replace(/^file:/, ""));
+        evidence.push(createRelationshipEvidence(edge, "outgoing_import"));
       }
 
       if (edge.type === EDGE_TYPES.imports && edge.to === `file:${resolved.file}`) {
         incomingImports.add(edge.from.replace(/^file:/, ""));
+        evidence.push(createRelationshipEvidence(edge, "incoming_import"));
       }
     }
   }
@@ -745,6 +889,7 @@ export function createDependencyExplanation(graph, target) {
         const callee = findNode(graph, edge.to);
         if (callee) {
           outgoingCalls.add(callee.name);
+          evidence.push(createRelationshipEvidence(edge, "outgoing_call"));
         }
       }
 
@@ -752,6 +897,7 @@ export function createDependencyExplanation(graph, target) {
         const caller = findNode(graph, edge.from);
         if (caller) {
           incomingCalls.add(caller.name);
+          evidence.push(createRelationshipEvidence(edge, "incoming_call"));
         }
       }
     }
@@ -764,6 +910,7 @@ export function createDependencyExplanation(graph, target) {
         const parent = findNode(graph, edge.to);
         if (parent) {
           extendsRelations.add(parent.name);
+          evidence.push(createRelationshipEvidence(edge, "extends"));
         }
       }
 
@@ -771,6 +918,7 @@ export function createDependencyExplanation(graph, target) {
         const contract = findNode(graph, edge.to);
         if (contract) {
           implementsRelations.add(contract.name);
+          evidence.push(createRelationshipEvidence(edge, "implements"));
         }
       }
 
@@ -778,6 +926,7 @@ export function createDependencyExplanation(graph, target) {
         const testNode = findNode(graph, edge.to);
         if (testNode?.path) {
           relatedTests.add(testNode.path);
+          evidence.push(createRelationshipEvidence(edge, "related_test"));
         }
       }
     }
@@ -789,10 +938,14 @@ export function createDependencyExplanation(graph, target) {
         const testNode = findNode(graph, edge.to);
         if (testNode?.path) {
           relatedTests.add(testNode.path);
+          evidence.push(createRelationshipEvidence(edge, "related_test"));
         }
       }
     }
   }
+  const containedSymbols = collectContainedSymbols(graph, resolved.file);
+  const policyViolations = collectPolicyViolations(graph, resolved);
+  const documentConstraints = collectDocumentConstraints(graph, resolved);
 
   return {
     target,
@@ -807,7 +960,146 @@ export function createDependencyExplanation(graph, target) {
     extends: [...extendsRelations].sort(),
     implements: [...implementsRelations].sort(),
     related_tests: [...relatedTests].sort(),
+    contained_symbols: containedSymbols,
+    policy_violations: policyViolations,
+    document_constraints: documentConstraints,
+    evidence: dedupeEvidence(evidence),
   };
+}
+
+function collectContainedSymbols(graph, filePath) {
+  if (!filePath) {
+    return [];
+  }
+
+  return graph.edges
+    .filter((edge) => edge.type === EDGE_TYPES.contains && edge.from === `file:${filePath}`)
+    .map((edge) => findNode(graph, edge.to))
+    .filter((node) => node && node.type !== NODE_TYPES.test)
+    .map((node) => node.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function collectPolicyViolations(graph, resolved) {
+  const targetFiles = collectResolvedFiles(graph, resolved);
+
+  return graph.edges
+    .filter((edge) => edge.type === EDGE_TYPES.violatesPolicy)
+    .map((edge) => {
+      const filePath = edge.from.replace(/^file:/, "");
+      if (!targetFiles.has(filePath)) {
+        return null;
+      }
+
+      const policyNode = findNode(graph, edge.to);
+      return {
+        rule_id: policyNode?.name ?? edge.to.replace(/^policy:/, ""),
+        policy: policyNode?.name ?? edge.to.replace(/^policy:/, ""),
+        file: filePath,
+        specifier: edge.metadata?.specifier ?? null,
+        resolved_path: edge.metadata?.resolved_path ?? null,
+        confidence: normalizeConfidence(edge.confidence),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.file !== right.file) {
+        return left.file.localeCompare(right.file);
+      }
+
+      return left.rule_id.localeCompare(right.rule_id);
+    });
+}
+
+function collectDocumentConstraints(graph, resolved) {
+  const targetNodeIds = collectResolvedNodeIds(graph, resolved);
+
+  return graph.edges
+    .filter((edge) => edge.type === EDGE_TYPES.constrains || edge.type === EDGE_TYPES.documents)
+    .map((edge) => {
+      const fromNode = findNode(graph, edge.from);
+      const toNode = findNode(graph, edge.to);
+      const touchesTarget = targetNodeIds.has(edge.from) || targetNodeIds.has(edge.to);
+      if (!touchesTarget || ![NODE_TYPES.document, NODE_TYPES.decision].includes(fromNode?.type)) {
+        return null;
+      }
+
+      return {
+        document: fromNode.path ?? fromNode.name,
+        target: toNode?.path ?? toNode?.name ?? edge.to,
+        type: edge.type,
+        confidence: normalizeConfidence(edge.confidence),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.document !== right.document) {
+        return left.document.localeCompare(right.document);
+      }
+
+      return left.target.localeCompare(right.target);
+    });
+}
+
+function collectResolvedFiles(graph, resolved) {
+  const files = new Set();
+  if (resolved.file) {
+    files.add(resolved.file);
+  }
+
+  for (const symbolId of resolved.symbolIds ?? []) {
+    const node = findNode(graph, symbolId);
+    if (node?.path) {
+      files.add(node.path);
+    }
+  }
+
+  return files;
+}
+
+function collectResolvedNodeIds(graph, resolved) {
+  const nodeIds = new Set(resolved.symbolIds ?? []);
+  if (resolved.file) {
+    nodeIds.add(`file:${resolved.file}`);
+  }
+
+  for (const filePath of collectResolvedFiles(graph, resolved)) {
+    nodeIds.add(`file:${filePath}`);
+  }
+
+  return nodeIds;
+}
+
+function createRelationshipEvidence(edge, relation) {
+  return {
+    id: edge.id,
+    type: edge.type,
+    relation,
+    from: edge.from,
+    to: edge.to,
+    confidence: normalizeConfidence(edge.confidence),
+    provenance: String(edge.provenance || "EXTRACTED"),
+  };
+}
+
+function dedupeEvidence(evidence) {
+  const byKey = new Map();
+
+  for (const entry of evidence) {
+    byKey.set(`${entry.id}:${entry.relation}`, entry);
+  }
+
+  return [...byKey.values()].sort((left, right) => {
+    if (left.type !== right.type) {
+      return left.type.localeCompare(right.type);
+    }
+
+    if (left.relation !== right.relation) {
+      return left.relation.localeCompare(right.relation);
+    }
+
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function summarizeTopDirectories(files) {
@@ -1393,6 +1685,155 @@ function mapSymbolKindToNodeType(kind) {
     default:
       return NODE_TYPES.symbol;
   }
+}
+
+function addHeartModelGraphEvidence({ nodes, edges, edgeIds, repositoryNode, heartModel, documentIndex }) {
+  const domainsById = new Map((heartModel.domains ?? []).map((domain) => [domain.id, domain]));
+  const documentsByPath = new Map((documentIndex.documents ?? []).map((document) => [document.path, document]));
+
+  for (const domain of [...domainsById.values()].sort((left, right) => left.id.localeCompare(right.id))) {
+    const moduleNode = createGraphNode({
+      id: domain.id,
+      type: NODE_TYPES.module,
+      name: domain.name,
+      path: null,
+      source: "entity-linker",
+      confidence: 0.8,
+      metadata: {
+        file_paths: [...(domain.file_paths ?? [])],
+        symbol_names: [...(domain.symbol_names ?? [])],
+        document_paths: [...(domain.document_paths ?? [])],
+      },
+    });
+    pushNode(nodes, moduleNode);
+    pushEdge(
+      edges,
+      edgeIds,
+      createGraphEdge({
+        id: `edge:contains:repo:${domain.id}`,
+        from: repositoryNode.id,
+        to: domain.id,
+        type: EDGE_TYPES.contains,
+        source: "entity-linker",
+        provenance: "DERIVED",
+        confidence: 0.8,
+      }),
+    );
+  }
+
+  for (const link of [...(heartModel.links ?? [])].sort((left, right) => left.id.localeCompare(right.id))) {
+    if (link.type === "DOCUMENT_TO_MODULE") {
+      const documentPath = readDocumentPath(link.from);
+      if (!documentsByPath.has(documentPath) || !domainsById.has(link.to)) {
+        continue;
+      }
+
+      pushEdge(
+        edges,
+        edgeIds,
+        createGraphEdge({
+          id: `edge:documents:${link.from}:${link.to}`,
+          from: link.from,
+          to: link.to,
+          type: EDGE_TYPES.documents,
+          confidence: link.score,
+          source: "entity-linker",
+          provenance: "DERIVED",
+          metadata: {
+            rationale: link.rationale,
+            ...link.metadata,
+          },
+        }),
+      );
+      continue;
+    }
+
+    if (link.type !== "DECISION_TO_IMPLEMENTATION") {
+      continue;
+    }
+
+    const documentPath = readDocumentPath(link.from);
+    const document = documentsByPath.get(documentPath);
+    if (!document || !nodes.some((node) => node.id === link.to)) {
+      continue;
+    }
+
+    const decisionNodeId = `decision:${documentPath}`;
+    pushNode(
+      nodes,
+      createGraphNode({
+        id: decisionNodeId,
+        type: NODE_TYPES.decision,
+        name: document.title || path.posix.basename(documentPath),
+        path: documentPath,
+        source: "document-ingest",
+        confidence: link.score,
+        metadata: {
+          document_path: documentPath,
+          category: document.category,
+        },
+      }),
+    );
+    pushEdge(
+      edges,
+      edgeIds,
+      createGraphEdge({
+        id: `edge:contains:repo:${decisionNodeId}`,
+        from: repositoryNode.id,
+        to: decisionNodeId,
+        type: EDGE_TYPES.contains,
+        source: "entity-linker",
+        provenance: "DERIVED",
+        confidence: link.score,
+      }),
+    );
+    pushEdge(
+      edges,
+      edgeIds,
+      createGraphEdge({
+        id: `edge:documents:${link.from}:${decisionNodeId}`,
+        from: link.from,
+        to: decisionNodeId,
+        type: EDGE_TYPES.documents,
+        confidence: link.score,
+        source: "entity-linker",
+        provenance: "DERIVED",
+        metadata: {
+          rationale: link.rationale,
+          ...link.metadata,
+        },
+      }),
+    );
+    pushEdge(
+      edges,
+      edgeIds,
+      createGraphEdge({
+        id: `edge:constrains:${decisionNodeId}:${link.to}`,
+        from: decisionNodeId,
+        to: link.to,
+        type: EDGE_TYPES.constrains,
+        confidence: link.score,
+        source: "entity-linker",
+        provenance: "DERIVED",
+        metadata: {
+          rationale: link.rationale,
+          ...link.metadata,
+        },
+      }),
+    );
+  }
+}
+
+function readDocumentPath(documentNodeId) {
+  return String(documentNodeId ?? "").replace(/^document:/, "");
+}
+
+function pushNode(nodes, node) {
+  if (nodes.some((entry) => entry.id === node.id)) {
+    return;
+  }
+
+  nodes.push(node);
 }
 
 function pushEdge(edges, edgeIds, edge) {

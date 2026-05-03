@@ -254,7 +254,7 @@ export async function importLocalDocument({
 
 function createWebDocumentArtifact({ profileSlug, repo, documentIndex }) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     profile_slug: sanitizeSlug(profileSlug),
     workspace_slug: sanitizeSlug(profileSlug),
     customer_slug: sanitizeSlug(profileSlug),
@@ -262,7 +262,12 @@ function createWebDocumentArtifact({ profileSlug, repo, documentIndex }) {
     generated_at: new Date().toISOString(),
     totals: documentIndex.totals,
     documents: documentIndex.documents.map((document) => ({
+      document_id: document.document_id ?? `document:${sanitizeSlug(document.path)}`,
       path: document.path,
+      source: document.source ?? {
+        type: document.source_type ?? "",
+        path: document.path,
+      },
       source_type: document.source_type ?? "",
       title: document.title,
       category: document.category,
@@ -273,9 +278,11 @@ function createWebDocumentArtifact({ profileSlug, repo, documentIndex }) {
           : document.summary,
       content_preview: document.content_preview ?? "",
       freshness: document.freshness ?? {},
+      version_ref: document.version_ref ?? {},
       lineage: document.lineage ?? {},
       sensitivity: document.sensitivity ?? { level: "internal", reasons: [] },
       extraction: document.extraction ?? {},
+      citations: document.citations ?? [],
     })),
   };
 }

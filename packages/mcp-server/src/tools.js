@@ -96,6 +96,21 @@ const TOOL_DEFINITIONS = Object.freeze([
       },
     },
     {
+      name: "docs_search",
+      description: "Alias for document_search for MCP clients that prefer docs naming.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Task, domain, or document concept to search for.",
+          },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      },
+    },
+    {
       name: "policy_check",
       description: "Evaluate current source files against lightweight repository policies.",
       inputSchema: emptyInputSchema(),
@@ -115,6 +130,7 @@ export function handleToolCall({
   heartModel = { domains: [], links: [], summary: { relationship_count: 0 } },
   scanResult = graph.scanResult,
   policyReport,
+  readiness,
   enabledTools,
 }) {
   if (!isToolEnabled(name, enabledTools)) {
@@ -132,6 +148,7 @@ export function handleToolCall({
       );
       return {
         ...overview,
+        readiness,
         memory_profile: createMemoryProfile(graph, documentIndex, resolvedPolicyReport),
         agent_workflow: createProjectOverviewWorkflow(documentIndex, enabledTools),
       };
@@ -160,6 +177,7 @@ export function handleToolCall({
     case "impact_analysis":
       return createImpactAnalysis(graph, args.target ?? "");
     case "document_search":
+    case "docs_search":
       return {
         query: args.query ?? "",
         matches: findRelevantDocuments(documentIndex, args.query ?? "", 8),
@@ -197,7 +215,14 @@ function normalizeEnabledTools(enabledTools) {
     return null;
   }
 
-  return new Set(enabledTools);
+  const selected = new Set(enabledTools);
+  if (selected.has("document_search")) {
+    selected.add("docs_search");
+  }
+  if (selected.has("docs_search")) {
+    selected.add("document_search");
+  }
+  return selected;
 }
 
 function isToolEnabled(name, enabledTools) {

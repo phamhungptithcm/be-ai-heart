@@ -74,7 +74,11 @@ export function AdminBenchmarkReportClient({ reportId }) {
   const { report } = state;
   const evidenceSummary = buildAdminBenchmarkEvidenceSummary(report);
   const evidenceManifest = report.evidence_manifest ?? {};
-  const evidenceFiles = Array.isArray(evidenceManifest.files) ? evidenceManifest.files : [];
+  const evidenceFiles = Array.isArray(evidenceManifest.artifact_list)
+    ? evidenceManifest.artifact_list
+    : Array.isArray(evidenceManifest.files)
+      ? evidenceManifest.files
+      : [];
   const topCitations = evidenceManifest.assisted?.context_pack?.top_citations ?? [];
 
   return (
@@ -137,6 +141,24 @@ export function AdminBenchmarkReportClient({ reportId }) {
                 <p>{`${evidenceSummary.measurement_mode} measurement | ${evidenceSummary.sample_size} observed run(s) | ${evidenceSummary.observed_coverage_pct}% observed coverage`}</p>
               </div>
               <span>{evidenceSummary.confidence_label}</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Run trace</strong>
+                <p>{`Task ${evidenceSummary.task || report.scenario} | ${evidenceSummary.provider || report.provider}/${evidenceSummary.model || report.model} | baseline ${evidenceSummary.baseline_run_id || "estimated"} | assisted ${evidenceSummary.assisted_run_id || "estimated"}`}</p>
+              </div>
+              <span>v2 manifest</span>
+            </div>
+          </article>
+          <article className="admin-card">
+            <div className="admin-card-head">
+              <div>
+                <strong>Repo snapshot</strong>
+                <p>{`Config hash ${evidenceSummary.config_hash_present ? "present" : "missing"} | policy hash ${evidenceSummary.policy_hash_present ? "present" : "missing"} | ${evidenceSummary.ignore_path_count} ignored paths | ${evidenceSummary.document_root_count} document roots`}</p>
+              </div>
+              <span>{evidenceSummary.repo_snapshot_available ? "recorded" : "missing"}</span>
             </div>
           </article>
           <article className="admin-card">

@@ -90,6 +90,10 @@ test("CLI deps explains imports, calls, and inheritance for typed symbols", asyn
   assert.ok(result.outgoing_calls.includes("loginUser"));
   assert.ok(result.extends.includes("BaseAuthService"));
   assert.ok(result.implements.includes("AuthWorkflow"));
+  assert.ok(result.evidence.some((entry) => entry.type === "IMPORTS"));
+  assert.ok(result.evidence.some((entry) => entry.type === "CALLS"));
+  assert.ok(Array.isArray(result.policy_violations));
+  assert.ok(Array.isArray(result.document_constraints));
 });
 
 test("CLI impact uses typed graph evidence instead of import-only file analysis", async (t) => {
@@ -104,6 +108,8 @@ test("CLI impact uses typed graph evidence instead of import-only file analysis"
   assert.ok(result.dependent_files.includes("src/auth/service.ts"));
   assert.ok(result.related_tests.includes("src/auth/login.test.ts"));
   assert.ok(result.dependent_symbols.includes("authenticate"));
+  assert.ok(result.evidence.some((entry) => entry.type === "CALLS"));
+  assert.ok(result.evidence.some((entry) => entry.type === "TESTED_BY"));
 });
 
 test("CLI policy check returns repo policy violations", async (t) => {
@@ -577,6 +583,9 @@ test("CLI benchmark compare writes local report and publishes portal/admin bench
       "utf8",
     ),
   ]);
+  execFileSync("node", [cliPath, "init", "--root", fixtureRoot], {
+    encoding: "utf8",
+  });
 
   const raw = execFileSync(
     "node",
@@ -688,6 +697,9 @@ test("CLI benchmark run loads a scenario manifest and publishes benchmark artifa
       "utf8",
     ),
   ]);
+  execFileSync("node", [cliPath, "init", "--root", fixtureRoot], {
+    encoding: "utf8",
+  });
 
   const raw = execFileSync(
     "node",
@@ -719,6 +731,18 @@ test("CLI benchmark run loads a scenario manifest and publishes benchmark artifa
   assert.equal(result.report.metrics.memory_refresh_reduction_pct, 80);
   assert.equal(result.report.evidence_bundle.available, true);
   assert.equal(result.report.framework.dataset.id, "auth-audit-memory");
+  assert.equal(result.report.evidence_bundle.scan_provenance.available, true);
+  assert.ok(result.report.evidence_bundle.scan_provenance.config_hash);
+  assert.ok(result.report.evidence_bundle.scan_provenance.ignore_paths.includes(".heart/benchmarks"));
+  assert.equal(result.report.evidence_bundle.scan_provenance.repo_root, undefined);
+  assert.equal(result.report.evidence_bundle.readiness.status, "ready");
+  assert.equal(result.report.evidence_bundle.readiness.generated_noise_exclusion.status, "ready");
+  assert.equal(result.report.evidence_bundle.readiness.repo_root, undefined);
+  const localEvidenceManifest = JSON.parse(
+    await fs.readFile(result.report.evidence_bundle.local_manifest_path, "utf8"),
+  );
+  assert.deepEqual(localEvidenceManifest.scan_provenance, result.report.evidence_bundle.scan_provenance);
+  assert.deepEqual(localEvidenceManifest.readiness, result.report.evidence_bundle.readiness);
   assert.equal(portalIndex.reports.length, 1);
 });
 
@@ -990,6 +1014,96 @@ test("CLI benchmark run prefers observed agent run telemetry when run ids are su
   assert.equal(result.report.assisted.measurement.run_id, "assisted-run-1");
   assert.equal(result.report.metrics.token_savings_pct, 50);
   assert.equal(result.report.metrics.time_savings_pct, 67);
+
+  await writeAgentRunRecord({
+    serviceStorageRoot,
+    run: {
+      run_id: "estimated-baseline-run",
+      profile_slug: "fixture-profile",
+      workspace_slug: "fixture-profile",
+      customer_slug: "fixture-profile",
+      repo: path.basename(fixtureRoot),
+      scenario_id: "login-audit-flow",
+      mode: "baseline",
+      status: "completed",
+      provider: "openai",
+      model: "gpt-5.4",
+      started_at: "2026-04-19T17:00:00.000Z",
+      ended_at: "2026-04-19T17:01:00.000Z",
+    },
+  });
+  const incompleteObservedError = runCliExpectFailure([
+    cliPath,
+    "benchmark",
+    "run",
+    "--json",
+    "--root",
+    fixtureRoot,
+    "--slug",
+    "fixture-profile",
+    "--baseline-run",
+    "estimated-baseline-run",
+    "--assisted-run",
+    "assisted-run-1",
+    scenarioPath,
+  ]);
+  assert.match(String(incompleteObservedError.stderr), /fully observed usage/);
+
+  await Promise.all([
+    writeAgentRunRecord({
+      serviceStorageRoot,
+      run: {
+        run_id: "wrong-scenario-baseline-run",
+        profile_slug: "fixture-profile",
+        workspace_slug: "fixture-profile",
+        customer_slug: "fixture-profile",
+        repo: path.basename(fixtureRoot),
+        scenario_id: "wrong-scenario",
+        mode: "baseline",
+        status: "completed",
+        provider: "openai",
+        model: "gpt-5.4",
+        started_at: "2026-04-19T18:00:00.000Z",
+        ended_at: "2026-04-19T18:05:00.000Z",
+      },
+    }),
+    writeLlmCallRecord({
+      serviceStorageRoot,
+      call: {
+        llm_call_id: "wrong-scenario-call-1",
+        run_id: "wrong-scenario-baseline-run",
+        sequence: 1,
+        provider: "openai",
+        model: "gpt-5.4",
+        request_kind: "chat_completions",
+        method: "POST",
+        path: "/chat/completions",
+        status_code: 200,
+        latency_ms: 100,
+        prompt_tokens: 100,
+        completion_tokens: 50,
+        total_tokens: 150,
+        cost_usd: 0.02,
+        usage_available: true,
+      },
+    }),
+  ]);
+  const scenarioMismatchError = runCliExpectFailure([
+    cliPath,
+    "benchmark",
+    "run",
+    "--json",
+    "--root",
+    fixtureRoot,
+    "--slug",
+    "fixture-profile",
+    "--baseline-run",
+    "wrong-scenario-baseline-run",
+    "--assisted-run",
+    "assisted-run-1",
+    scenarioPath,
+  ]);
+  assert.match(String(scenarioMismatchError.stderr), /does not match benchmark scenario login-audit-flow/);
 });
 
 test("CLI benchmark run --all executes the full local suite and writes a suite report", async (t) => {

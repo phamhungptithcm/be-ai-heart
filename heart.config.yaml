@@ -10,12 +10,20 @@ project:
   ignore:
     - node_modules
     - dist
+    - build
+    - out
     - coverage
+    - vendor
     - .git
     - .worktrees
     - .next
+    - .cache
+    - .turbo
+    - .vercel
+    - .parcel-cache
     - output
     - .playwright-cli
+    - playwright-report
     - .heart/benchmarks
     - .heart/cache
     - .heart/diagrams
@@ -35,4 +43,5 @@ mcp:
     - context_pack
     - impact_analysis
     - document_search
+    - docs_search
     - policy_check

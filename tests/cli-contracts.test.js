@@ -87,6 +87,68 @@ test("CLI doctor returns deterministic preflight diagnostics", async (t) => {
   assert.ok(Array.isArray(payload.actions));
 });
 
+test("CLI doctor reports effective default ignores plus configured document roots", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+
+  await Promise.all([
+    fs.mkdir(path.join(fixtureRoot, ".heart"), { recursive: true }),
+    fs.mkdir(path.join(fixtureRoot, "generated"), { recursive: true }),
+    fs.mkdir(path.join(fixtureRoot, "notes"), { recursive: true }),
+  ]);
+  await Promise.all([
+    fs.writeFile(
+      path.join(fixtureRoot, ".heart", "policies.yaml"),
+      `rules:
+  - id: fixture-policy
+    description: fixture policy
+`,
+      "utf8",
+    ),
+    fs.writeFile(path.join(fixtureRoot, "generated", "artifact.ts"), "export const generated = true;\n", "utf8"),
+    fs.writeFile(path.join(fixtureRoot, "notes", "requirements.md"), "# Notes\n\nConfig-selected docs.\n", "utf8"),
+    fs.writeFile(
+      path.join(fixtureRoot, "heart.config.yaml"),
+      `project:
+  name: sample-repo
+  ignore:
+    - generated
+knowledge:
+  document_paths:
+    - notes
+`,
+      "utf8",
+    ),
+  ]);
+
+  const result = runCli(["doctor", "--json", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.deepEqual(payload.document_roots, ["notes", ".heart/imported-documents"]);
+  assert.ok(payload.ignore_paths.includes("generated"));
+  assert.ok(payload.ignore_paths.includes(".next"));
+  assert.ok(payload.ignore_paths.includes(".heart/cache"));
+  assert.ok(payload.ignore_paths.includes("vendor"));
+  assert.equal(payload.parser.source_file_count, 3);
+});
+
+test("CLI overview exposes reusable index readiness", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  assert.equal(runCli(["init", "--root", fixtureRoot]).status, 0);
+  const result = runCli(["overview", "--json", "--root", fixtureRoot]);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.readiness.schema_version, 1);
+  assert.equal(payload.readiness.status, "ready");
+  assert.equal(payload.readiness.config_status, "loaded");
+  assert.equal(payload.readiness.policy_status, "loaded");
+  assert.equal(payload.readiness.generated_noise_exclusion.status, "ready");
+  assert.equal(payload.readiness.cache.status, "created");
+  assert.equal(payload.readiness.parser.engine, "typescript-ast");
+  assert.equal(payload.readiness.documents.count, payload.document_count);
+});
+
 test("CLI connect detect and doctor expose stable contracts", async (t) => {
   const fixtureRoot = await createTempRepoCopy(t);
   const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "be-ai-heart-connect-"));
@@ -193,7 +255,45 @@ test("CLI validates numeric flag values instead of silently accepting NaN", asyn
   ]);
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /--input-cost-per-1m must be a valid number/);
+  assert.match(result.stderr, /--input-cost-per-1m must be a non-negative number/);
+});
+
+test("CLI rejects negative benchmark pricing flags", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const result = runCli([
+    "benchmark",
+    "capture",
+    "baseline",
+    "login-audit-flow",
+    "--root",
+    fixtureRoot,
+    "--output-cost-per-1m",
+    "-1",
+    "--upstream-base-url",
+    "http://127.0.0.1:8787/v1",
+    "--",
+    "echo",
+    "hi",
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--output-cost-per-1m must be a non-negative number/);
+});
+
+test("CLI requires paired observed benchmark run ids", async (t) => {
+  const fixtureRoot = await createTempRepoCopy(t);
+  const result = runCli([
+    "benchmark",
+    "run",
+    "--root",
+    fixtureRoot,
+    "--baseline-run",
+    "baseline-run-1",
+    "login-audit-flow",
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Both --baseline-run and --assisted-run are required/);
 });
 
 test("CLI returns empty matches for find symbol when nothing is found", async (t) => {

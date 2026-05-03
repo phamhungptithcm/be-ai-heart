@@ -7,9 +7,11 @@ import {
   loadHeartConfig,
   resolveDocumentRoots,
   resolveEnabledMcpTools,
+  resolveProjectIgnorePaths,
 } from "./config.js";
 import { detectProjectEnvironment } from "./environment.js";
 import { getWorkspaceCachePaths, loadCachedWorkspaceState } from "./storage.js";
+import { createWorkspaceReadinessSummary } from "./workspace.js";
 
 export async function runWorkspaceDoctor(repoRoot) {
   const configState = await loadHeartConfig(repoRoot);
@@ -17,7 +19,7 @@ export async function runWorkspaceDoctor(repoRoot) {
     rulesFile: configState.config.policies?.rules_file,
   });
   const documentRoots = resolveDocumentRoots(configState.config);
-  const ignorePaths = [...(configState.config.project.ignore ?? [])];
+  const ignorePaths = resolveProjectIgnorePaths(configState.config);
   const scanResult = await scanSourceTree(repoRoot, {
     ignore: ignorePaths,
   });
@@ -31,14 +33,20 @@ export async function runWorkspaceDoctor(repoRoot) {
   });
   const cache = await readCacheStatus(repoRoot);
   const effectiveEnabledTools = resolveEnabledMcpTools(configState.config.mcp?.enabled_tools);
-  const warnings = buildWarnings({
+  const readiness = createWorkspaceReadinessSummary({
     configState,
     policyState,
-    cache,
-    environment,
-    effectiveEnabledTools,
+    scanResult,
     documentIndex,
+    cache,
+    documentRoots,
+    ignorePaths,
   });
+  const warnings = [
+    ...readiness.blocking_errors,
+    ...readiness.warnings,
+    ...buildMcpWarnings({ environment, effectiveEnabledTools }),
+  ];
   const actions = buildActions({
     repoRoot,
     configState,
@@ -48,7 +56,12 @@ export async function runWorkspaceDoctor(repoRoot) {
     effectiveEnabledTools,
     documentIndex,
   });
-  const status = warnings.length > 0 ? "attention_required" : "ready";
+  const status =
+    readiness.blocking_error_count > 0
+      ? "blocked"
+      : warnings.length > 0
+        ? "attention_required"
+        : "ready";
 
   return {
     status,
@@ -71,6 +84,7 @@ export async function runWorkspaceDoctor(repoRoot) {
       errors: [...policyState.errors],
       rule_count: policyState.rules.length,
     },
+    readiness,
     detected: environment,
     document_roots: documentRoots,
     ignore_paths: ignorePaths,
@@ -107,31 +121,15 @@ async function readCacheStatus(repoRoot) {
   };
 }
 
-function buildWarnings({ configState, policyState, cache, environment, effectiveEnabledTools, documentIndex }) {
+function buildMcpWarnings({ environment, effectiveEnabledTools }) {
   const warnings = [];
-
-  if (configState.status !== "loaded") {
-    warnings.push(`Config status is ${configState.status}.`);
-  }
-
-  if (policyState.status !== "loaded") {
-    warnings.push(`Policy status is ${policyState.status}.`);
-  }
 
   if (environment.parser_engine !== "typescript-ast") {
     warnings.push("Parser is running in regex-fallback mode; typed graph coverage will be limited.");
   }
 
-  if (cache.status === "invalid") {
-    warnings.push("Workspace cache exists but could not be loaded safely.");
-  }
-
   if (effectiveEnabledTools.length === 0) {
     warnings.push("MCP tool surface is fully disabled by mcp.enabled_tools.");
-  }
-
-  if ((documentIndex.totals?.document_count ?? 0) === 0) {
-    warnings.push("No project documents were discovered in the effective document roots.");
   }
 
   return warnings;

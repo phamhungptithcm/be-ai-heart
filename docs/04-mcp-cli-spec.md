@@ -83,9 +83,11 @@ heart diagram sync
 Purpose:
 
 - `overview`: summarize system domains and architecture
+- `overview --json`: include the reusable workspace readiness contract used by CLI, MCP, cache, and benchmark evidence
 - `find symbol`: locate symbol definitions and related edges; a miss returns an empty `matches` array without failing the command
 - `deps`: explain dependencies; a missing target returns a deterministic `status = not_found` JSON payload and a non-zero exit code
-- `impact`: estimate blast radius; a missing target returns a deterministic `status = not_found` JSON payload and a non-zero exit code
+- `deps`: include compact graph evidence, contained symbols, policy violations, and document constraints when graph data has them
+- `impact`: estimate blast radius with compact graph evidence; a missing target returns a deterministic `status = not_found` JSON payload and a non-zero exit code
 - `policy check`: evaluate architecture rules
 - `docs search`: find relevant project documents for a task or domain across markdown, structured JSON/YAML, `docx`, and `pdf` sources using latest-lineage preference plus local semantic retrieval
 - `diagram generate`: write Mermaid review artifacts for repository structure, including a `mindmap` view that combines business, requirements, technical documents, and code domains from saved heart memory
@@ -162,6 +164,10 @@ Benchmark artifacts:
 - evidence bundle: `.heart/benchmarks/evidence/<report-id>/`
 - suite reports from `--all`: `.heart/benchmarks/suites/<suite-id>.json` and `.md`
 
+Evidence manifests use schema version 2 and include sanitized scan provenance, workspace readiness, provider, model,
+task, measurement mode, run IDs, a compact repo snapshot summary, and a deterministic artifact list. They must not
+publish absolute local repo roots.
+
 Portal launcher note:
 
 - when `heart sync profile` publishes a repository profile to the hosted service, the workspace identity may also register local benchmark-runner metadata for the current host
@@ -170,8 +176,9 @@ Portal launcher note:
 Observed benchmark inputs:
 
 - `heart benchmark run <scenario> --baseline-run <run-id> --assisted-run <run-id>` loads token, duration, and cost totals from persisted `agent_run` plus `llm_call` telemetry instead of only scenario stub values
-- if a supplied run has full usage coverage, the report marks that side as `measurement.mode = observed`
-- if a supplied run has incomplete or no provider usage, the report marks that side as `measurement.mode = estimated`
+- both run IDs are required together, cannot be combined with `--all`, and must match baseline/assisted modes for the selected scenario
+- observed run comparisons require completed runs with full provider usage coverage; incomplete captures must be rerun through the Heart proxy before comparing
+- estimated and observed values remain separate in reports through `measurement.mode`
 
 Launcher pricing flags:
 
@@ -180,6 +187,7 @@ Launcher pricing flags:
 - `--output-cost-per-1m`
 
 These flags are accepted by `heart agent run` and `heart benchmark capture` and are used to compute observed USD cost from provider usage totals when the upstream model API does not return cost directly.
+Pricing values must be non-negative numbers.
 ## Recommended Output Style
 
 Human mode:
@@ -276,14 +284,27 @@ project:
   ignore:
     - node_modules
     - dist
+    - build
+    - out
     - coverage
+    - vendor
+    - .next
+    - .turbo
+    - .vercel
+    - .heart/cache
+    - .heart/diagrams
+    - .heart/benchmarks
 
 policies:
   rules_file: .heart/policies.yaml
 
 indexing:
-  embedding: local
+  embeddings: local
   incremental: true
+
+knowledge:
+  document_paths:
+    - docs
 
 mcp:
   enabled_tools:
@@ -293,12 +314,15 @@ mcp:
     - context_pack
     - impact_analysis
     - document_search
+    - docs_search
     - policy_check
 ```
 
 Validation notes:
 
 - unknown top-level or nested config keys should mark config status as invalid
+- configured `project.ignore` values are additive with built-in generated/vendor defaults when scanning and in `doctor` output
+- `knowledge.document_paths` controls document roots, with `.heart/imported-documents` always added for local imported memory
 - `mcp.enabled_tools` should reject unknown tool ids
 - `indexing.embeddings` is currently limited to `disabled` or `local`
 
@@ -312,6 +336,7 @@ Returns:
 - architecture domains
 - notable modules
 - ownership hints
+- workspace readiness when the tool is served from `heart mcp serve`
 - memory profile with typed graph readiness, node counts, and edge counts
 - recommended agent workflow and next MCP tools
 
@@ -379,6 +404,9 @@ Returns:
 - likely risk areas
 
 ### `document_search`
+
+`docs_search` is a compatibility alias with the same input and output contract. If either alias is enabled in
+`mcp.enabled_tools`, both aliases are exposed because they dispatch to the same document-memory search behavior.
 
 Inputs:
 

@@ -6,10 +6,11 @@ export {
   loadHeartConfig,
   resolveDocumentRoots,
   resolveEnabledMcpTools,
+  resolveProjectIgnorePaths,
 } from "./config.js";
 export { detectProjectEnvironment } from "./environment.js";
 export { runWorkspaceDoctor } from "./doctor.js";
-export { buildWorkspaceState } from "./workspace.js";
+export { buildWorkspaceState, createWorkspaceReadinessSummary } from "./workspace.js";
 export {
   WORKSPACE_CACHE_SCHEMA_VERSION,
   getWorkspaceCachePaths,

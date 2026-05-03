@@ -244,6 +244,8 @@ export async function writeBenchmarkEvidenceBundle(
     evaluation = {},
     scenario = null,
     dataset = null,
+    scanProvenance = null,
+    readiness = null,
   } = {},
 ) {
   const evidenceRoot = path.join(repoRoot, ".heart", "benchmarks", "evidence", report.report_id);
@@ -256,9 +258,25 @@ export async function writeBenchmarkEvidenceBundle(
   const datasetPath = dataset ? path.join(evidenceRoot, "dataset.json") : null;
   const manifestPath = path.join(evidenceRoot, "manifest.json");
 
+  const safeScanProvenance = sanitizeScanProvenance(scanProvenance);
+  const safeReadiness = sanitizeWorkspaceReadiness(readiness);
+  const traceMetadata = buildEvidenceTraceMetadata({
+    report,
+    baselineInput,
+    assistedInput,
+    scenario,
+    dataset,
+    scanProvenance: safeScanProvenance,
+  });
   const baselinePayload = createEvidenceRunPayload("baseline", report, baselineInput);
-  const assistedPayload = createEvidenceRunPayload("assisted", report, assistedInput);
-  const evaluationPayload = createEvidenceEvaluationPayload(report, evaluation);
+  const assistedPayload = createEvidenceRunPayload("assisted", report, assistedInput, {
+    scanProvenance: safeScanProvenance,
+    readiness: safeReadiness,
+  });
+  const evaluationPayload = createEvidenceEvaluationPayload(report, evaluation, {
+    scanProvenance: safeScanProvenance,
+    readiness: safeReadiness,
+  });
   const manifest = {
     schema_version: 2,
     bundle_id: report.report_id,
@@ -266,6 +284,14 @@ export async function writeBenchmarkEvidenceBundle(
     repo: report.repo,
     profile_slug: report.profile_slug,
     scenario: report.scenario,
+    scenario_id: traceMetadata.scenario_id,
+    dataset_id: traceMetadata.dataset_id,
+    provider: traceMetadata.provider,
+    model: traceMetadata.model,
+    task: traceMetadata.task,
+    measurement_mode: traceMetadata.measurement_mode,
+    run_ids: traceMetadata.run_ids,
+    repo_snapshot: traceMetadata.repo_snapshot,
     generated_at: report.generated_at,
     files: compactObject({
       baseline: "baseline.json",
@@ -277,10 +303,13 @@ export async function writeBenchmarkEvidenceBundle(
     baseline_summary: summarizeRunEvidence(baselineInput),
     assisted_summary: summarizeRunEvidence(assistedInput),
     provenance_summary: (report.provenance ?? buildBenchmarkProvenance(report)).summary,
+    scan_provenance: safeScanProvenance,
+    readiness: safeReadiness,
     scenario_summary: summarizeScenarioManifest(scenario),
     dataset_summary: summarizeDatasetManifest(dataset),
     automation: report.automation ?? {},
   };
+  manifest.artifact_list = buildArtifactList(manifest.files);
 
   const writes = [
     fs.writeFile(baselinePath, `${JSON.stringify(baselinePayload, null, 2)}\n`, "utf8"),
@@ -307,6 +336,17 @@ export async function writeBenchmarkEvidenceBundle(
     baseline_summary: manifest.baseline_summary,
     assisted_summary: manifest.assisted_summary,
     provenance_summary: manifest.provenance_summary,
+    scan_provenance: manifest.scan_provenance,
+    readiness: manifest.readiness,
+    provider: manifest.provider,
+    model: manifest.model,
+    task: manifest.task,
+    scenario_id: manifest.scenario_id,
+    dataset_id: manifest.dataset_id,
+    measurement_mode: manifest.measurement_mode,
+    run_ids: manifest.run_ids,
+    repo_snapshot: manifest.repo_snapshot,
+    artifact_list: manifest.artifact_list,
   };
 }
 
@@ -445,6 +485,116 @@ function summarizeDatasetManifest(dataset = null) {
   };
 }
 
+function sanitizeScanProvenance(provenance = null) {
+  if (!provenance?.available && !hasScanProvenanceSignal(provenance)) {
+    return {
+      available: false,
+    };
+  }
+
+  const repoRoot = provenance.repo_root;
+  return {
+    available: true,
+    cache_schema_version: numberOrZero(provenance.cache_schema_version),
+    config_path: sanitizeProvenancePath(provenance.config_path, repoRoot),
+    config_exists: Boolean(provenance.config_exists),
+    config_hash: String(provenance.config_hash ?? ""),
+    policy_path: sanitizeProvenancePath(provenance.policy_path, repoRoot),
+    policy_exists: Boolean(provenance.policy_exists),
+    policy_hash: String(provenance.policy_hash ?? ""),
+    default_ignore_paths: sanitizePathList(provenance.default_ignore_paths),
+    configured_ignore_paths: sanitizePathList(provenance.configured_ignore_paths),
+    ignore_paths: sanitizePathList(provenance.ignore_paths),
+    document_roots: sanitizePathList(provenance.document_roots),
+  };
+}
+
+function sanitizeWorkspaceReadiness(readiness = null) {
+  if (!readiness || typeof readiness !== "object") {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    available: true,
+    schema_version: numberOrZero(readiness.schema_version),
+    status: String(readiness.status ?? ""),
+    blocking_error_count: numberOrZero(readiness.blocking_error_count),
+    warning_count: numberOrZero(readiness.warning_count),
+    config_status: String(readiness.config_status ?? ""),
+    policy_status: String(readiness.policy_status ?? ""),
+    generated_noise_exclusion: {
+      status: String(readiness.generated_noise_exclusion?.status ?? ""),
+      required_ignore_paths: sanitizePathList(readiness.generated_noise_exclusion?.required_ignore_paths),
+      default_ignore_count: numberOrZero(readiness.generated_noise_exclusion?.default_ignore_count),
+      effective_ignore_count: numberOrZero(readiness.generated_noise_exclusion?.effective_ignore_count),
+      missing_ignore_paths: sanitizePathList(readiness.generated_noise_exclusion?.missing_ignore_paths),
+    },
+    cache: {
+      status: String(readiness.cache?.status ?? ""),
+      provenance_changed: Boolean(readiness.cache?.provenance_changed),
+    },
+    parser: {
+      engine: String(readiness.parser?.engine ?? ""),
+      source_file_count: numberOrZero(readiness.parser?.source_file_count),
+      symbol_count: numberOrZero(readiness.parser?.symbol_count),
+      warning_count: numberOrZero(readiness.parser?.warning_count),
+    },
+    documents: {
+      count: numberOrZero(readiness.documents?.count),
+      roots: sanitizePathList(readiness.documents?.roots),
+    },
+    blocking_errors: sanitizeMessageList(readiness.blocking_errors),
+    warnings: sanitizeMessageList(readiness.warnings),
+  };
+}
+
+function sanitizeMessageList(values = []) {
+  return Array.isArray(values) ? values.map((value) => String(value)).filter(Boolean) : [];
+}
+
+function hasScanProvenanceSignal(provenance) {
+  return Boolean(provenance) && typeof provenance === "object" && Object.keys(provenance).length > 0;
+}
+
+function sanitizePathList(paths = []) {
+  return Array.isArray(paths)
+    ? paths
+        .filter((value) => typeof value === "string")
+        .map((value) => sanitizeProvenancePath(value))
+        .filter(Boolean)
+    : [];
+}
+
+function sanitizeProvenancePath(candidatePath, repoRoot = "") {
+  if (typeof candidatePath !== "string" || candidatePath.trim() === "") {
+    return "";
+  }
+
+  const normalizedCandidate = normalizePath(candidatePath.trim());
+  if (!path.isAbsolute(candidatePath)) {
+    return normalizedCandidate;
+  }
+
+  if (typeof repoRoot === "string" && repoRoot.trim() !== "") {
+    const resolvedRoot = path.resolve(repoRoot);
+    const resolvedCandidate = path.resolve(candidatePath);
+    if (resolvedCandidate === resolvedRoot) {
+      return ".";
+    }
+    if (resolvedCandidate.startsWith(`${resolvedRoot}${path.sep}`)) {
+      return normalizePath(path.relative(resolvedRoot, resolvedCandidate));
+    }
+  }
+
+  return path.basename(candidatePath);
+}
+
+function normalizePath(filePath) {
+  return filePath.split(path.sep).join("/");
+}
+
 function numberOrZero(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -508,8 +658,8 @@ function createWebBenchmarkReport(report) {
   };
 }
 
-function createEvidenceRunPayload(kind, report, input = {}) {
-  return {
+function createEvidenceRunPayload(kind, report, input = {}, options = {}) {
+  return compactObject({
     schema_version: 2,
     run_kind: kind,
     report_id: report.report_id,
@@ -529,10 +679,12 @@ function createEvidenceRunPayload(kind, report, input = {}) {
     output_artifacts: Array.isArray(input.output_artifacts) ? input.output_artifacts : [],
     evaluation_outputs: Array.isArray(input.evaluation_outputs) ? input.evaluation_outputs : [],
     context_pack: resolveContextPackArtifact(input),
-  };
+    scan_provenance: kind === "assisted" ? options.scanProvenance : undefined,
+    readiness: kind === "assisted" ? options.readiness : undefined,
+  });
 }
 
-function createEvidenceEvaluationPayload(report, evaluation = {}) {
+function createEvidenceEvaluationPayload(report, evaluation = {}, options = {}) {
   return {
     schema_version: 2,
     report_id: report.report_id,
@@ -545,6 +697,112 @@ function createEvidenceEvaluationPayload(report, evaluation = {}) {
     framework: report.framework,
     evidence: report.evidence,
     evaluation,
+    scan_provenance: sanitizeScanProvenance(options.scanProvenance),
+    readiness: sanitizeWorkspaceReadiness(options.readiness),
+  };
+}
+
+function buildEvidenceTraceMetadata({
+  report = {},
+  baselineInput = {},
+  assistedInput = {},
+  scenario = null,
+  dataset = null,
+  scanProvenance = null,
+} = {}) {
+  const provenance = sanitizePublishedProvenance(report.provenance ?? buildBenchmarkProvenance(report));
+
+  return {
+    provider: String(report.provider ?? ""),
+    model: String(report.model ?? ""),
+    task: String(scenario?.title ?? report.framework?.scenario?.title ?? report.scenario ?? ""),
+    scenario_id: String(scenario?.id ?? report.framework?.scenario?.id ?? report.scenario ?? ""),
+    dataset_id: String(dataset?.id ?? scenario?.dataset?.id ?? report.framework?.dataset?.id ?? ""),
+    measurement_mode: String(provenance.summary.measurement_mode ?? "estimated"),
+    run_ids: {
+      baseline: String(
+        provenance.baseline?.run_id ?? baselineInput.measurement?.run_id ?? baselineInput.run_id ?? "",
+      ),
+      assisted: String(
+        provenance.assisted?.run_id ?? assistedInput.measurement?.run_id ?? assistedInput.run_id ?? "",
+      ),
+    },
+    repo_snapshot: buildRepoSnapshotSummary(scanProvenance),
+  };
+}
+
+function buildRepoSnapshotSummary(scanProvenance = null) {
+  if (!scanProvenance?.available) {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    available: true,
+    source: "scan_provenance",
+    cache_schema_version: numberOrZero(scanProvenance.cache_schema_version),
+    config_exists: Boolean(scanProvenance.config_exists),
+    config_hash: String(scanProvenance.config_hash ?? ""),
+    policy_exists: Boolean(scanProvenance.policy_exists),
+    policy_hash: String(scanProvenance.policy_hash ?? ""),
+    ignore_path_count: Array.isArray(scanProvenance.ignore_paths) ? scanProvenance.ignore_paths.length : 0,
+    document_root_count: Array.isArray(scanProvenance.document_roots) ? scanProvenance.document_roots.length : 0,
+  };
+}
+
+function buildArtifactList(files = {}) {
+  return sanitizeArtifactList(Object.entries(files).map(([role, file]) => ({ role, file })));
+}
+
+function sanitizeArtifactList(artifacts = []) {
+  if (!Array.isArray(artifacts)) {
+    return [];
+  }
+
+  return artifacts
+    .map((artifact) => ({
+      role: String(artifact?.role ?? ""),
+      file: sanitizeProvenancePath(String(artifact?.file ?? "")),
+    }))
+    .filter((artifact) => artifact.role && artifact.file)
+    .sort(compareArtifacts);
+}
+
+function compareArtifacts(left, right) {
+  const roleOrder = ["baseline", "assisted", "evaluation", "scenario", "dataset"];
+  const leftRoleIndex = roleOrder.includes(left.role) ? roleOrder.indexOf(left.role) : roleOrder.length;
+  const rightRoleIndex = roleOrder.includes(right.role) ? roleOrder.indexOf(right.role) : roleOrder.length;
+  if (leftRoleIndex !== rightRoleIndex) {
+    return leftRoleIndex - rightRoleIndex;
+  }
+  return `${left.role}:${left.file}`.localeCompare(`${right.role}:${right.file}`);
+}
+
+function sanitizeRunIds(runIds = {}) {
+  return {
+    baseline: String(runIds?.baseline ?? ""),
+    assisted: String(runIds?.assisted ?? ""),
+  };
+}
+
+function sanitizeRepoSnapshot(snapshot = null) {
+  if (!snapshot?.available) {
+    return {
+      available: false,
+    };
+  }
+
+  return {
+    available: true,
+    source: String(snapshot.source ?? "scan_provenance"),
+    cache_schema_version: numberOrZero(snapshot.cache_schema_version),
+    config_exists: Boolean(snapshot.config_exists),
+    config_hash: String(snapshot.config_hash ?? ""),
+    policy_exists: Boolean(snapshot.policy_exists),
+    policy_hash: String(snapshot.policy_hash ?? ""),
+    ignore_path_count: numberOrZero(snapshot.ignore_path_count),
+    document_root_count: numberOrZero(snapshot.document_root_count),
   };
 }
 
@@ -563,6 +821,17 @@ function sanitizeEvidenceBundle(bundle) {
     baseline_summary: bundle.baseline_summary ?? {},
     assisted_summary: bundle.assisted_summary ?? {},
     provenance_summary: bundle.provenance_summary ?? {},
+    scan_provenance: sanitizeScanProvenance(bundle.scan_provenance),
+    readiness: sanitizeWorkspaceReadiness(bundle.readiness),
+    provider: String(bundle.provider ?? ""),
+    model: String(bundle.model ?? ""),
+    task: String(bundle.task ?? ""),
+    scenario_id: String(bundle.scenario_id ?? ""),
+    dataset_id: String(bundle.dataset_id ?? ""),
+    measurement_mode: String(bundle.measurement_mode ?? "estimated"),
+    run_ids: sanitizeRunIds(bundle.run_ids),
+    repo_snapshot: sanitizeRepoSnapshot(bundle.repo_snapshot),
+    artifact_list: sanitizeArtifactList(bundle.artifact_list ?? buildArtifactList(bundle.files ?? {})),
   };
 }
 
@@ -570,19 +839,29 @@ function buildPublishedEvidenceManifest(report) {
   const bundle = sanitizeEvidenceBundle(report.evidence_bundle);
   const provenance = sanitizePublishedProvenance(report.provenance ?? buildBenchmarkProvenance(report));
   const manifest = {
-    schema_version: 1,
+    schema_version: 2,
     available: bundle.available,
     bundle_id: bundle.bundle_id ?? "",
     report_id: report.report_id,
     repo: report.repo,
     profile_slug: report.profile_slug,
     scenario_id: report.scenario ?? report.framework?.scenario?.id ?? "",
+    dataset_id: report.framework?.dataset?.id ?? bundle.dataset_id ?? "",
+    provider: bundle.provider ?? String(report.provider ?? ""),
+    model: bundle.model ?? String(report.model ?? ""),
+    task: bundle.task ?? String(report.framework?.scenario?.title ?? report.scenario ?? ""),
+    measurement_mode: bundle.measurement_mode ?? provenance.summary.measurement_mode,
+    run_ids: sanitizeRunIds(bundle.run_ids),
+    repo_snapshot: sanitizeRepoSnapshot(bundle.repo_snapshot),
+    artifact_list: sanitizeArtifactList(bundle.artifact_list ?? buildArtifactList(bundle.files ?? {})),
     generated_at: bundle.generated_at ?? report.generated_at,
     bundle_file_count: Object.keys(bundle.files ?? {}).length,
     files: Object.entries(bundle.files ?? {}).map(([role, file]) => ({ role, file })),
     baseline: sanitizePublishedRunEvidence(bundle.baseline_summary),
     assisted: sanitizePublishedRunEvidence(bundle.assisted_summary),
     provenance_summary: provenance.summary,
+    scan_provenance: sanitizeScanProvenance(bundle.scan_provenance),
+    readiness: sanitizeWorkspaceReadiness(bundle.readiness),
     scenario: summarizeScenarioManifest(report.framework?.scenario),
     dataset: summarizeDatasetManifest(report.framework?.dataset),
   };

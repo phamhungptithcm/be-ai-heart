@@ -232,14 +232,9 @@ export function compileContextPack({
   const selectedFiles = relevantFiles.length > 0 ? relevantFiles : fallbackFiles;
 
   const reuseCandidates = relevantSymbolEntries
-    .filter((symbol) => symbol.exported)
+    .filter((symbol) => symbol.exported && isReusableSymbolKind(symbol.kind))
     .slice(0, 5)
-    .map((symbol) => ({
-      name: symbol.name,
-      kind: symbol.kind,
-      file: symbol.file,
-      reason: `Matches task terms and already exists as reusable ${symbol.kind}.`,
-    }));
+    .map((symbol) => createReuseCandidate(symbol));
 
   const relevantFilePaths = selectedFiles.map(({ file, score }) => ({
     path: file.relativePath,
@@ -315,6 +310,71 @@ export function compileContextPack({
   };
 
   return finalizeContextPack(pack, normalizedTokenBudget);
+}
+
+export function validateContextPackContract(pack) {
+  const errors = [];
+  const requiredArrays = [
+    "relevant_files",
+    "relevant_symbols",
+    "relevant_documents",
+    "call_paths",
+    "tests_to_run",
+    "reuse_candidates",
+    "risks",
+    "missing_context_warnings",
+    "citations",
+  ];
+
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    return {
+      valid: false,
+      errors: ["context pack must be an object."],
+    };
+  }
+
+  if (pack.schema_version !== 2) {
+    errors.push("schema_version must be 2.");
+  }
+
+  for (const field of ["task", "summary"]) {
+    if (typeof pack[field] !== "string") {
+      errors.push(`${field} must be a string.`);
+    }
+  }
+
+  for (const field of requiredArrays) {
+    if (!Array.isArray(pack[field])) {
+      errors.push(`${field} must be an array.`);
+    }
+  }
+
+  for (const field of ["confidence", "quality"]) {
+    if (!pack[field] || typeof pack[field] !== "object" || Array.isArray(pack[field])) {
+      errors.push(`${field} must be an object.`);
+    }
+  }
+
+  if (!Number.isFinite(Number(pack.estimated_tokens)) || Number(pack.estimated_tokens) < 0) {
+    errors.push("estimated_tokens must be a non-negative number.");
+  }
+
+  if (typeof pack.truncated !== "boolean") {
+    errors.push("truncated must be a boolean.");
+  }
+
+  if (
+    pack.token_budget !== null &&
+    pack.token_budget !== undefined &&
+    (!Number.isInteger(Number(pack.token_budget)) || Number(pack.token_budget) < 1)
+  ) {
+    errors.push("token_budget must be a positive integer when provided.");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
 }
 
 function tokenize(value) {
@@ -764,6 +824,34 @@ function createDocumentInfluenceMap(relevantDocuments, documentIndex, taskTokens
   }
 
   return influences;
+}
+
+function createReuseCandidate(symbol) {
+  return {
+    name: symbol.name,
+    kind: symbol.kind,
+    file: symbol.file,
+    reason: `Matches task terms and already exists as reusable ${symbol.kind}.`,
+    confidence: deriveReuseConfidence(symbol),
+    evidence: {
+      type: EDGE_TYPES.recommendedReuse,
+      source: "context-compiler",
+      provenance: "DERIVED",
+      symbol_id: symbol.id,
+      file: symbol.file,
+    },
+  };
+}
+
+function isReusableSymbolKind(kind) {
+  return ["function", "class", "interface", "method"].includes(String(kind ?? ""));
+}
+
+function deriveReuseConfidence(symbol) {
+  const scoreComponent = Math.min(numberOrZero(symbol.score), 4) * 0.08;
+  const exportBoost = symbol.exported ? 0.12 : 0;
+  const typeBoost = symbol.kind === "class" || symbol.kind === "interface" ? 0.04 : 0;
+  return clampScore(0.5 + scoreComponent + exportBoost + typeBoost);
 }
 
 function buildQuality({

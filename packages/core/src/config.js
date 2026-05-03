@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { parseSimpleYaml } from "../../shared-schema/src/index.js";
+import {
+  DEFAULT_IGNORE_PATHS,
+  parseSimpleYaml,
+  resolveIgnorePaths,
+} from "../../shared-schema/src/index.js";
 
 export const KNOWN_MCP_TOOL_NAMES = Object.freeze([
   "project_overview",
@@ -9,28 +13,21 @@ export const KNOWN_MCP_TOOL_NAMES = Object.freeze([
   "context_pack",
   "impact_analysis",
   "document_search",
+  "docs_search",
   "policy_check",
 ]);
+
+const MCP_TOOL_ALIASES = Object.freeze({
+  document_search: ["docs_search"],
+  docs_search: ["document_search"],
+});
 
 export const DEFAULT_CONFIG = Object.freeze({
   project: {
     name: "be-ai-heart",
     language_priority: ["typescript", "javascript"],
     entrypoints: ["packages", "apps", "services"],
-    ignore: [
-      "node_modules",
-      "dist",
-      "coverage",
-      ".git",
-      ".worktrees",
-      ".next",
-      "output",
-      ".playwright-cli",
-      ".heart/benchmarks",
-      ".heart/cache",
-      ".heart/diagrams",
-      ".heart/published",
-    ],
+    ignore: [...DEFAULT_IGNORE_PATHS],
   },
   policies: {
     rules_file: ".heart/policies.yaml",
@@ -70,18 +67,7 @@ ${languagePriority.map((language) => `    - ${language}`).join("\n")}
     - apps
     - services
   ignore:
-    - node_modules
-    - dist
-    - coverage
-    - .git
-    - .worktrees
-    - .next
-    - output
-    - .playwright-cli
-    - .heart/benchmarks
-    - .heart/cache
-    - .heart/diagrams
-    - .heart/published
+${DEFAULT_IGNORE_PATHS.map((ignorePath) => `    - ${ignorePath}`).join("\n")}
 policies:
   rules_file: .heart/policies.yaml
 indexing:
@@ -140,13 +126,22 @@ export function resolveDocumentRoots(config) {
   return [...new Set([...(config?.knowledge?.document_paths ?? []), ".heart/imported-documents"].filter(Boolean))];
 }
 
+export function resolveProjectIgnorePaths(config) {
+  return resolveIgnorePaths(config?.project?.ignore ?? []);
+}
+
 export function resolveEnabledMcpTools(enabledTools) {
   if (!Array.isArray(enabledTools)) {
     return [...KNOWN_MCP_TOOL_NAMES];
   }
 
-  const filtered = enabledTools.filter((tool) => KNOWN_MCP_TOOL_NAMES.includes(tool));
-  return [...new Set(filtered)];
+  const selected = new Set(enabledTools.filter((tool) => KNOWN_MCP_TOOL_NAMES.includes(tool)));
+  for (const tool of [...selected]) {
+    for (const alias of MCP_TOOL_ALIASES[tool] ?? []) {
+      selected.add(alias);
+    }
+  }
+  return KNOWN_MCP_TOOL_NAMES.filter((tool) => selected.has(tool));
 }
 
 function mergeConfig(base, overrides) {

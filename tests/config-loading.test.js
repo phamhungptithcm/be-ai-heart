@@ -51,7 +51,7 @@ mcp:
   assert.equal(configState.config.indexing.incremental, false);
   assert.equal(configState.config.indexing.embeddings, "local");
   assert.deepEqual(configState.config.knowledge.document_paths, ["docs", "notes"]);
-  assert.deepEqual(configState.config.mcp.enabled_tools, ["project_overview", "document_search"]);
+  assert.deepEqual(configState.config.mcp.enabled_tools, ["project_overview", "document_search", "docs_search"]);
 });
 
 test("config loader marks unknown keys and invalid values as schema errors", async (t) => {
