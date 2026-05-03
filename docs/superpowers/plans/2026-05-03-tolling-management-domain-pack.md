@@ -1389,7 +1389,8 @@ Use this content for `packs/tolling-management/benchmark-scenarios.json`:
       "guardrails": [
         "posting must be idempotent",
         "duplicate detection runs before posting",
-        "money-changing actions require audit"
+        "money-changing actions require audit",
+        "do not invent toll rates, fee amounts, deadlines, or legal outcomes"
       ],
       "roi_fields": [
         "prompt_tokens_avoided",
@@ -1413,7 +1414,8 @@ Use this content for `packs/tolling-management/benchmark-scenarios.json`:
       "guardrails": [
         "low-confidence outcomes require human review",
         "raw image access is restricted",
-        "review corrections create audit events"
+        "review corrections create audit events",
+        "do not invent toll rates, fee amounts, deadlines, or legal outcomes"
       ],
       "roi_fields": [
         "prompt_tokens_avoided",
@@ -1435,7 +1437,8 @@ Use this content for `packs/tolling-management/benchmark-scenarios.json`:
       "guardrails": [
         "direct users to official agency websites or known phone numbers",
         "do not validate unknown payment links",
-        "do not request credentials or payment data"
+        "do not request credentials or payment data",
+        "do not invent toll rates, fee amounts, deadlines, or legal outcomes"
       ],
       "roi_fields": [
         "prompt_tokens_avoided",
