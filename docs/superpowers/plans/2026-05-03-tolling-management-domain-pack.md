@@ -265,7 +265,7 @@ Use in pack:
 Run:
 
 ```bash
-ruby -e 'require "yaml"; doc = YAML.safe_load_file("packs/tolling-management/pack.yaml", permitted_classes: [], aliases: false); abort("missing pack_id") unless doc["pack_id"] == "tolling-management"; abort("missing sources") unless doc.dig("documents", "sources") == "source-notes.md"; puts "pack.yaml ok"'
+ruby -e 'require "yaml"; doc = YAML.load_file("packs/tolling-management/pack.yaml"); abort("missing pack_id") unless doc["pack_id"] == "tolling-management"; abort("missing sources") unless doc.dig("documents", "sources") == "source-notes.md"; puts "pack.yaml ok"'
 rg -n "https://|Retrieved: 2026-05-02|Source Use Rules" packs/tolling-management/source-notes.md
 ```
 
@@ -605,7 +605,7 @@ entities:
 Run:
 
 ```bash
-ruby -e 'require "yaml"; doc = YAML.safe_load_file("packs/tolling-management/entities.yaml", permitted_classes: [], aliases: false); entities = doc["entities"] || {}; required = %w[Agency Facility RoadSegment Gantry Lane Transponder Vehicle LicensePlate VehicleClass Account PaymentMethod ReplenishmentEvent RoadsideEvent LaneEvent PlateImage ImageReviewTask OcrCandidate TollTransaction Trip TripSegment RatePlan Invoice ViolationNotice Dispute WaiverRequest CollectionCase InteroperabilityPartner HomeAgencySettlement AwayAgencyTransaction SupportCase AgentAction AuditEvent]; missing = required.reject { |name| entities.key?(name) }; abort("missing entities: #{missing.join(", ")}") unless missing.empty?; puts "entities.yaml ok"'
+ruby -e 'require "yaml"; doc = YAML.load_file("packs/tolling-management/entities.yaml"); entities = doc["entities"] || {}; required = %w[Agency Facility RoadSegment Gantry Lane Transponder Vehicle LicensePlate VehicleClass Account PaymentMethod ReplenishmentEvent RoadsideEvent LaneEvent PlateImage ImageReviewTask OcrCandidate TollTransaction Trip TripSegment RatePlan Invoice ViolationNotice Dispute WaiverRequest CollectionCase InteroperabilityPartner HomeAgencySettlement AwayAgencyTransaction SupportCase AgentAction AuditEvent]; missing = required.reject { |name| entities.key?(name) }; abort("missing entities: #{missing.join(", ")}") unless missing.empty?; puts "entities.yaml ok"'
 ```
 
 Expected:
@@ -1659,7 +1659,7 @@ Use this content for `benchmarks/scenarios/tolling-trip-posting-dedupe.json`:
         }
       ],
       "tests_to_run": [
-        "ruby -e 'require \"yaml\"; YAML.safe_load_file(\"packs/tolling-management/entities.yaml\", permitted_classes: [], aliases: false)'",
+        "ruby -e 'require \"yaml\"; YAML.load_file(\"packs/tolling-management/entities.yaml\")'",
         "node -e 'JSON.parse(require(\"node:fs\").readFileSync(\"packs/tolling-management/benchmark-scenarios.json\", \"utf8\"))'"
       ],
       "citations": [
@@ -1732,7 +1732,7 @@ Expected: commit succeeds with only Task 5 files staged.
 Run:
 
 ```bash
-ruby -e 'require "yaml"; root = "packs/tolling-management"; doc = YAML.safe_load_file("#{root}/pack.yaml", permitted_classes: [], aliases: false); missing = doc["documents"].values.reject { |path| File.exist?("#{root}/#{path}") }; abort("missing files: #{missing.join(", ")}") unless missing.empty?; puts "manifest file references ok"'
+ruby -e 'require "yaml"; root = "packs/tolling-management"; doc = YAML.load_file("#{root}/pack.yaml"); missing = doc["documents"].values.reject { |path| File.exist?("#{root}/#{path}") }; abort("missing files: #{missing.join(", ")}") unless missing.empty?; puts "manifest file references ok"'
 ```
 
 Expected:
