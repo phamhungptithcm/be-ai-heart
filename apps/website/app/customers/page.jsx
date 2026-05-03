@@ -1,5 +1,4 @@
 import { WebsiteShell, WebsiteSection } from "../../components/WebsiteShell.jsx";
-import { WebsiteInsightRail } from "../../components/WebsiteInsightRail.jsx";
 import { createWebsiteMetadata } from "../../src/metadata.js";
 
 export const metadata = createWebsiteMetadata({
@@ -22,25 +21,14 @@ export default function CustomersPage() {
       nav={["home", "product", "benchmark", "pricing", "security", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
       accent="amber"
       aside={
-        <WebsiteInsightRail
-          eyebrow="ICP signal"
-          title="The best design partners already feel AI waste in delivery."
-          description="This page should behave like an early customer scorecard, not a generic testimonial wall."
-          metrics={[
-            { label: "Primary fit", value: "SMB teams", detail: "Need speed but cannot afford uncontrolled token burn." },
-            { label: "Strong motion", value: "Design partner", detail: "Best when the team can run benchmarks on real tasks quickly." },
-            { label: "Retention hook", value: "Visible ROI", detail: "Savings and cleaner output keep the product sticky." },
-          ]}
-          bars={[
-            { label: "SMB engineering teams", value: 86, caption: "Most urgent mix of budget pressure and AI ambition", tone: "brand" },
-            { label: "Consultancies and agencies", value: 68, caption: "Need repeatable context transfer across many repos", tone: "teal" },
-            { label: "Growing product orgs", value: 74, caption: "Need governance and benchmark-backed rollout", tone: "cyan" },
-          ]}
-          notes={[
-            { label: "What to add next", detail: "This surface should mature into case studies, benchmark proof, and fit-by-segment examples." },
-            { label: "What to avoid", detail: "Testimonials without cost, governance, or reuse proof will make BeHeart feel generic." },
-          ]}
-        />
+        <div className="website-aside-stack">
+          <p className="website-aside-copy">Best fit: teams already paying for AI but still repeating repo discovery and review cleanup.</p>
+          <div className="website-inline-stat">
+            <span>SMB</span>
+            <span>Design partner</span>
+            <span>ROI proof</span>
+          </div>
+        </div>
       }
     >
       <WebsiteSection title="Best-fit customer profile">

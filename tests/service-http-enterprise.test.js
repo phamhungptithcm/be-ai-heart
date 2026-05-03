@@ -1,14 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import { handleServiceHttpRequest, resolveHttpConfig } from "../services/api/src/http.js";
 import {
+  getServiceStoragePaths,
   issueWorkspaceSession,
   replaceActorMemberships,
   upsertActor,
   upsertWorkspaceIdentity,
+  writeBenchmarkArtifactRecord,
   writeAuditEvent,
+  writeRepositoryProfileArtifactRecord,
 } from "../services/api/src/index.js";
 import { createTempRepoCopy } from "./helpers/temp-repo.js";
 
@@ -460,6 +464,76 @@ test("admin internal RBAC gates observability without breaking sales ops revenue
       sessionToken: "admin-engineering-session",
     }),
   ]);
+  const servicePaths = getServiceStoragePaths({ serviceStorageRoot: config.serviceStorageRoot });
+  const contextPackRepoRoot = path.join(servicePaths.contextPackRepositoryFilesRoot, "founder-workspace");
+  await fs.mkdir(contextPackRepoRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(contextPackRepoRoot, "pack-founder.json"),
+    `${JSON.stringify({
+      pack_id: "pack-founder",
+      profile_slug: "founder-workspace",
+      created_at: new Date().toISOString(),
+      status: "ready",
+    }, null, 2)}\n`,
+    "utf8",
+  );
+  await writeRepositoryProfileArtifactRecord({
+    serviceStorageRoot: config.serviceStorageRoot,
+    profile: {
+      profile_slug: "founder-workspace",
+      workspace_slug: "founder-workspace",
+      customer_slug: "customer-founder",
+      repo: "founder/repo",
+      display_name: "Founder Repo",
+      generated_at: new Date().toISOString(),
+      overview: {},
+      heart: {},
+      documents: {},
+      cache: {},
+      diagrams: [],
+    },
+  });
+  await writeBenchmarkArtifactRecord({
+    serviceStorageRoot: config.serviceStorageRoot,
+    report: {
+      report_id: "founder-report",
+      profile_slug: "founder-workspace",
+      workspace_slug: "founder-workspace",
+      customer_slug: "customer-founder",
+      repo: "founder/repo",
+      scenario: "founder-dashboard",
+      provider: "openai",
+      model: "gpt-5.4-mini",
+      generated_at: new Date().toISOString(),
+      metrics: {
+        token_savings_pct: 17.5,
+        token_cost_savings_usd: 42,
+      },
+      summary: "Founder dashboard benchmark report",
+    },
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "mcp.connected",
+      outcome: "success",
+      surface: "admin",
+      actor_slug: "sales-ops-admin",
+      workspace_slug: "founder-workspace",
+      customer_slug: "customer-founder",
+    },
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "repository.sync_failed",
+      outcome: "failure",
+      surface: "admin",
+      actor_slug: "sales-ops-admin",
+      workspace_slug: "founder-workspace",
+      customer_slug: "customer-founder",
+    },
+  });
 
   const intakeResponse = await handleServiceHttpRequest(
     new Request("http://127.0.0.1:4010/api/admin/intake", {
@@ -516,4 +590,15 @@ test("admin internal RBAC gates observability without breaking sales ops revenue
   assert.equal(salesBillingOpsResponse.status, 200);
   assert.equal(engineeringObservabilityResponse.status, 200);
   assert.equal(blockedEngineeringBillingOpsResponse.status, 403);
+
+  const salesOverviewPayload = await salesOverviewResponse.json();
+  assert.equal(salesOverviewPayload.founder_metrics.active_workspaces, 1);
+  assert.equal(salesOverviewPayload.founder_metrics.active_repos, 1);
+  assert.equal(salesOverviewPayload.founder_metrics.context_packs_generated, 1);
+  assert.equal(salesOverviewPayload.founder_metrics.benchmark_runs, 1);
+  assert.equal(salesOverviewPayload.founder_metrics.token_savings_reported, 17.5);
+  assert.equal(salesOverviewPayload.founder_metrics.estimated_cost_savings, 42);
+  assert.equal(salesOverviewPayload.founder_metrics.mcp_connections, 1);
+  assert.equal(salesOverviewPayload.founder_metrics.failed_sync_jobs, 1);
+  assert.match(salesOverviewPayload.founder_metrics.source_note, /Financial values are estimates/);
 });

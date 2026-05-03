@@ -2,6 +2,10 @@
 
 ## 18-Month Roadmap
 
+Status note: the repository is past concept-only local scaffolding. Current work includes local CLI/workbench, MCP,
+document memory, context packs, domain packs, benchmark artifacts, and guided website/portal/admin surfaces. Roadmap
+items below separate what is implemented enough for guided pilots from what remains planned or future.
+
 ### Phase 0: Validation and Design Partner Setup
 
 Duration:
@@ -21,7 +25,7 @@ Deliverables:
 - benchmark methodology draft
 - technical architecture decision memo
 
-### Phase 1: Local MVP
+### Phase 1: Local MVP And Guided Pilot
 
 Duration:
 
@@ -34,12 +38,18 @@ Goals:
 - context pack generation
 - local MCP server
 - CLI happy path
+- interactive CLI AI workbench
+- provider/model selection and one-shot AI chat
+- docs/spec sync
+- Tolling Management Domain Pack and Tolling Sales MVP Demo Kit
 - early benchmark runner
 
 Success criteria:
 
 - usable on one TypeScript repo
-- benchmark shows directional value
+- benchmark shows directional value with clear observed/estimated labels
+- generated demo artifacts stay fake-data-only and source-cited
+- design partners can run the local flow without hosted dependency
 
 ### Phase 2: Team Product
 
@@ -51,6 +61,9 @@ Goals:
 
 - shared graph store
 - team policies
+- portal chat over synced artifacts
+- saved context pack history
+- team model settings and provider posture
 - usage analytics
 - report export
 - basic billing and org management
@@ -73,6 +86,9 @@ Goals:
 - audit logs
 - VPC/on-prem
 - customer admin console
+- billing provider integration
+- enterprise model administration
+- backup, restore, retention, and deletion operations
 
 Success criteria:
 
@@ -106,6 +122,9 @@ Success criteria:
 - activated repos
 - weekly active teams
 - benchmark completion rate
+- observed benchmark coverage
+- domain-pack artifact generation
+- portal chat command completion rate
 - token savings median
 - duplicate reduction median
 - trial-to-pilot conversion
@@ -177,26 +196,30 @@ Prioritize roadmap items that improve one of these:
 
 ## Recommended Milestones
 
-### 30 Days
+### Now / Local Pilot
 
-- architecture spec complete
-- initial CLI commands stubbed
-- first parser prototype
+- keep README, PRD, CLI/MCP spec, security docs, and benchmark docs aligned with implemented command surface
+- run one-repo local pilot with `heart init`, `doctor`, `scan`, `pack`, `mcp tools`, `models`, `chat`, and one benchmark
+- validate Tolling Sales MVP Demo Kit generation and safety labels
 
-### 60 Days
+### Next 30-60 Days
 
-- local graph build works
-- context pack demo works
-- first internal benchmark runs
+- improve portal chat execution depth while keeping allowlisted actions
+- add saved context-pack history and stronger docs/spec drift visibility
+- calibrate benchmark scenarios with real design-partner tasks
+- decide first billing provider adapter and enterprise model admin scope
 
 ### 90 Days
 
 - first design partner usage
-- landing page live
-- demo flow stable
+- website/portal/admin guided pilot flow stable
+- Tolling demo kit used in a discovery or sales workflow with caveated ROI story
+- security review completed for API keys, portal chat, MCP, generated artifacts, and benchmark publication
 
 ### 180 Days
 
 - first paid pilot
 - benchmark report standardized
 - shared workspace beta
+- billing/provider adapter decision implemented or deferred with explicit rationale
+- private deployment and SSO/RBAC requirements documented for enterprise pipeline

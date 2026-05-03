@@ -502,8 +502,7 @@
     "available": true,
     "bundle_id": "be-ai-heart-cross-module-change-1777524293793",
     "generated_at": "2026-04-30T04:44:53.777Z",
-    "local_root": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-cross-module-change-1777524293793",
-    "local_manifest_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/.heart/benchmarks/evidence/be-ai-heart-cross-module-change-1777524293793/manifest.json",
+    "local_root": "[local-path]",
     "files": {
       "baseline": "baseline.json",
       "assisted": "assisted.json",

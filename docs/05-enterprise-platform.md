@@ -28,6 +28,9 @@ Use the portal for:
 
 - tenant-scoped repository readiness and sync truth
 - documents and project memory artifacts
+- synced-artifact context pack previews that route final generation back to local `heart pack`
+- AI chat command records and model/provider selection over synced artifacts
+- domain pack browsing, layer selection, conflict checks, and demo-safe artifact generation
 - benchmark evidence and ROI explanation
 - usage and billing posture for the customer org
 - team access, security audit, and org settings
@@ -83,6 +86,9 @@ Portal pages for Phase 1:
 - `Repositories`
 - `Documents`
 - `Benchmarks`
+- `Workbench`
+- `Models`
+- `Domain Packs`
 - `Usage`
 - `Billing`
 - `Team & Access`
@@ -111,6 +117,11 @@ Portal page intent:
 - `Team & Access`: members, roles, SSO status, invites, active sessions
 - `Security & Audit`: tenant-scoped audit events, session history, retention and export posture
 - `Settings`: org profile, repo policy defaults, integration state
+- `Workbench`: allowlisted portal chat and product actions over synced repo/domain artifacts
+- `Models`: provider/model visibility, masked key state, presets, token budgets, and cost hints
+- `Domain Packs`: source-backed pack browser, layer overlays, generated demo artifacts, citations, and security warnings
+
+Production security, retention, export, and deployment boundaries are tracked in [Production Threat Model, Retention, and Export Plan](./26-production-threat-model-retention.md). Enterprise UI should reflect those boundaries instead of implying raw hosted source mirrors or unsupported compliance claims.
 
 ## Admin Information Architecture
 
@@ -139,6 +150,22 @@ Admin overview should answer internal operating questions quickly:
 - 5xx and alert posture
 - at-risk accounts
 
+The founder dashboard extension also tracks:
+
+- total users
+- active workspaces and repositories
+- scans per day/week
+- context packs generated
+- MCP connections
+- benchmark runs
+- token savings reported and estimated cost savings
+- estimated MRR/ARR, churn, retention, activation, and trial-to-active conversion
+- design partner pipeline and enterprise leads
+- support issues, failed sync jobs, risky tenants/repos, API/job health, and audit/security events
+
+Financial values are estimates until a billing provider adapter is configured. The UI labels the source as synced
+artifacts, intake, audit events, telemetry, and estimated finance rather than presenting it as booked revenue.
+
 Admin page intent:
 
 - `Customers`: real account inventory with health, readiness, plan, and renewal context
@@ -147,6 +174,13 @@ Admin page intent:
 - `Sessions & Audit`: internal session registry and admin audit events
 - `Observability`: requests, metrics, alerts, and export posture from hosted APIs
 - `Billing Ops`: plan posture, entitlements, billing status, adapter-friendly mock or live contracts
+
+Payment and billing readiness:
+
+- Current portal/admin billing views are readiness and posture surfaces, not a live billing system.
+- Seats, invoices, subscriptions, entitlements, and plan state should come from a billing adapter when configured.
+- Mock-safe fallbacks are acceptable for local demos and internal testing only.
+- No portal/admin response may expose payment provider secrets, raw card data, bank data, or customer payment credentials.
 
 ## Metric Taxonomy And Source Of Truth
 
@@ -178,6 +212,8 @@ Build directly in BeHeart only what is core to product trust and tenant operatio
 - admin customer health and support queues
 - session, audit, and observability visibility
 - entitlement and plan posture contracts
+- model-provider settings and masked key state
+- domain-pack generated artifact contracts
 
 Buy or integrate for the rest behind adapter seams:
 
@@ -187,6 +223,44 @@ Buy or integrate for the rest behind adapter seams:
 - deeper reporting: internal admin plus optional BI tooling
 
 Provider adapters must support mock-safe operation without live credentials. UI payloads must never expose secrets, raw access tokens, or client secrets.
+Local dummy sign-in is allowed only behind `BE_AI_HEART_ENABLE_LOCAL_DEMO_AUTH=1`; provider payloads may expose demo account links in that mode, but production auth surfaces must rely on configured hosted providers and scoped sessions.
+
+## Portal Chat And Model Governance
+
+Portal chat is a governed product surface, not a browser shell.
+
+Allowed portal behavior:
+
+- read synced repository, document, diagram, benchmark, and domain-pack artifacts
+- create command records for allowlisted product actions
+- return cited result cards, status, next actions, and confirmation-required states
+- show selected provider/model/preset/token budget/cost hints
+
+Disallowed by default:
+
+- arbitrary shell execution
+- raw local file reads from unsynced paths
+- raw source mirror access
+- provider key display
+- money-changing, account-changing, or destructive actions without a future explicit approval/control story
+
+Enterprise model administration remains planned. The current implementation supports provider-neutral settings, local CLI
+keys, server environment keys, encrypted portal BYOK where configured, and masked UI/API state.
+
+## Deployment And Operations Readiness
+
+Current supported posture:
+
+- local CLI and MCP
+- standalone hosted API for guided portal/admin workflows
+- Next.js website, portal, and admin surfaces
+- SQLite for local/demo service storage
+- Postgres adapter path for hosted storage
+- admin observability, request metrics, sessions/audit views, and export scaffolding
+
+Before broad enterprise deployment, the product needs explicit hardening for SSO/SAML, RBAC route review, billing
+provider integration, tenant-isolation tests, backup/restore, retention/deletion operations, private deployment, secret
+management, and operational runbooks.
 
 ## Non-Negotiable Enterprise Rules
 

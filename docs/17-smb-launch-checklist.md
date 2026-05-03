@@ -10,6 +10,14 @@ Use it as a pass/fail gate before:
 - paid beta
 - self-serve team onboarding
 
+## Current Design Partner Pilot Path
+
+1. Pick one active repository and two real delivery tasks that require code, docs, and review.
+2. Run `heart init`, `heart doctor`, `heart scan`, `heart pack "your task"`, and `heart benchmark run --all` locally.
+3. Review the generated benchmark report and evidence bundle, separating observed, estimated, and mixed results.
+4. Sync only sanitized summaries to portal/admin surfaces when the customer explicitly wants hosted visibility.
+5. Use the security overview before any regulated-data or production customer pilot.
+
 ## Status Scale
 
 - `PASS`: good enough to rely on for the next stage

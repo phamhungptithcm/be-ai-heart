@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { WebsiteInsightRail } from "../../../components/WebsiteInsightRail.jsx";
 import { WebsiteServicesVisual } from "../../../components/WebsiteServicesVisual.jsx";
 import { WebsiteShell, WebsiteSection } from "../../../components/WebsiteShell.jsx";
 import { createWebsiteMetadata } from "../../../src/metadata.js";
@@ -40,25 +39,28 @@ export default async function ServiceDetailPage({ params }) {
     notFound();
   }
 
+  const actions =
+    service.slug === "tolling-demo-kit"
+      ? [
+          { label: "Tolling kit", href: "/domain-demo-kits/tolling-management", primary: true },
+          { label: "All Services", href: "/services" },
+          { label: "Book demo", href: "/book-demo" },
+        ]
+      : [
+          { label: "Try CLI", href: "/docs/v1/getting-started", primary: true },
+          { label: "All Services", href: "/services" },
+          { label: "Book demo", href: "/book-demo" },
+        ];
+
   return (
     <WebsiteShell
       eyebrow={service.hero_eyebrow}
       title={service.hero_title}
       description={service.hero_description}
-      actions={[
-        { label: "Start Trial", href: "/start-trial", primary: true },
-        { label: "All Services", href: "/services" },
-        { label: "Run Benchmark", href: "/benchmark" },
-      ]}
-      nav={["home", "services", "benchmark", "pricing", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
+      actions={actions}
+      nav={["home", "product", "services", "cli-mcp", "benchmark", "pricing", "security", "docs", "sign-in", "book-demo"]}
       accent="teal"
-      aside={
-        <WebsiteServicesVisual
-          activeSlug={service.slug}
-          title={service.title}
-          description={service.subtitle}
-        />
-      }
+      aside={<WebsiteServicesVisual activeSlug={service.slug} title={service.title} description={service.subtitle} />}
     >
       <section className="website-proof-strip" aria-label={`${service.title} proof`}>
         {service.proof.map((item) => (
@@ -71,8 +73,8 @@ export default async function ServiceDetailPage({ params }) {
       </section>
 
       <WebsiteSection
-        eyebrow="What it does"
-        title={`${service.title} turns one painful AI failure mode into a readable operating capability.`}
+        eyebrow="Outputs"
+        title={`What teams get from ${service.title}.`}
         description={service.summary}
       >
         <div className="website-detail-grid">
@@ -86,12 +88,12 @@ export default async function ServiceDetailPage({ params }) {
       </WebsiteSection>
 
       <WebsiteSection
-        eyebrow="Operating path"
-        title={`How teams use ${service.title} in practice.`}
-        description="The strongest service pages should read like a workflow, not a list of abstract benefits."
+        eyebrow="Workflow"
+        title="How it fits into daily delivery."
+        description="Start from the repo, then sync safe summaries and evidence when the team needs visibility."
       >
         <div className="website-signal-lane">
-          {service.workflow.map((step) => (
+          {service.workflow.slice(0, 3).map((step) => (
             <article key={step.step}>
               <span>{step.step}</span>
               <h3>{step.title}</h3>
@@ -102,50 +104,36 @@ export default async function ServiceDetailPage({ params }) {
       </WebsiteSection>
 
       <WebsiteSection
-        eyebrow="Buyer and team impact"
-        title="Why this service changes rollout quality."
-        description="Engineering value and buyer readability should both improve when the service is doing its job."
+        eyebrow="Enterprise fit"
+        title="Why this belongs in the rollout."
+        description="Use this lens for buyer conversations, design partner pilots, and internal prioritization."
       >
         <div className="website-split-grid">
-          {service.outcomes.map((outcome) => (
-            <article key={outcome.title}>
-              <span>{service.category}</span>
-              <h3>{outcome.title}</h3>
-              <p>{outcome.body}</p>
+          {service.metrics.map((metric) => (
+            <article key={metric.label}>
+              <span>{metric.label}</span>
+              <h3>{metric.value}</h3>
+              <p>{metric.detail}</p>
             </article>
           ))}
         </div>
       </WebsiteSection>
 
-      <WebsiteSection
-        eyebrow="Service lens"
-        title={`How ${service.title} reads to operators, buyers, and reviewers.`}
-        description="The service should feel concrete enough for engineers and clear enough for the buyer conversation."
-      >
-        <WebsiteInsightRail
-          eyebrow={service.category}
-          title={`${service.title} at a glance`}
-          description={service.subtitle}
-          metrics={service.metrics}
-          bars={service.bars}
-          notes={service.notes}
-        />
-      </WebsiteSection>
-
       <section className="website-cta-band">
         <div>
           <p className="website-section-eyebrow">Next step</p>
-          <h2>See how this service fits into the full BeHeart operating layer.</h2>
-          <p>
-            The service pages are intentionally narrow. The value compounds when code, docs, policy, delivery surfaces,
-            and benchmark proof reinforce each other.
-          </p>
+          <h2>Fit this service into one repo pilot.</h2>
+          <p>Start with local artifacts, then sync only the summaries, context previews, and evidence the team can trust.</p>
         </div>
-        <div className="website-actions">
-          <Link className="primary" href="/services">
-            All Services
+        <div className="website-cta-grid">
+          <Link className="primary" href="/docs/v1/getting-started">
+            Try CLI
           </Link>
-          <Link href="/book-demo">Book Demo</Link>
+          {service.slug === "tolling-demo-kit" ? (
+            <Link href="/domain-demo-kits/tolling-management">Tolling kit</Link>
+          ) : null}
+          <Link href="/services">All Services</Link>
+          <Link href="/book-demo">Book demo</Link>
         </div>
       </section>
     </WebsiteShell>

@@ -9,13 +9,9 @@ const KPI_LABELS = Object.freeze([
   ["repos_onboarded", "Repos onboarded"],
   ["memory_ready_repositories", "Memory-ready repos"],
   ["stale_repositories", "Stale repos"],
-  ["latest_sync_freshness", "Latest sync freshness"],
   ["benchmark_backed_repositories", "Benchmark-backed repos"],
-  ["avg_token_savings_pct", "Avg token savings"],
-  ["avg_review_cleanup_reduction_pct", "Avg review cleanup reduction"],
   ["estimated_monthly_savings_usd", "Estimated monthly savings"],
   ["open_critical_alerts", "Open critical alerts"],
-  ["plan_entitlement_status", "Plan status"],
 ]);
 
 export function PortalOverviewEnterpriseClient() {
@@ -26,8 +22,8 @@ export function PortalOverviewEnterpriseClient() {
       <PortalStateBlock
         tone="loading"
         eyebrow="Overview"
-        title="Loading tenant command center"
-        description="BeHeart is assembling workspace health, ROI proof, governance pressure, and onboarding posture for this customer."
+        title="Loading workspace"
+        description="Fetching synced repo, benchmark, and governance state."
       />
     );
   }
@@ -82,8 +78,8 @@ export function PortalOverviewEnterpriseClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>KPI row</span>
-            <h3>Customer operating signals that matter after login</h3>
-            <p>These numbers should tell a platform lead whether BeHeart is current, governed, benchmarked, and ready for broader AI rollout.</p>
+            <h3>Workspace health</h3>
+            <p>Current memory, proof, and risk in one scan.</p>
           </div>
           <div className="portal-enterprise-panel-actions">
             <Link href="/usage" className="portal-button-link portal-button-link-primary">
@@ -110,29 +106,36 @@ export function PortalOverviewEnterpriseClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Action center</span>
-              <h3>What needs attention next</h3>
-              <p>Portal users should not guess what to do next. The action center should surface tenant-scoped work that unblocks adoption, trust, and ROI proof.</p>
+              <h3>Next best action</h3>
             </div>
           </div>
           <div className="portal-action-list">
-            {actionItems.map((item) => (
-              <article key={item.item_id} className="portal-action-item">
-                <div className="portal-action-copy">
-                  <span className={`portal-action-severity portal-action-severity-${item.severity}`}>{item.severity}</span>
-                  <strong>{item.title}</strong>
-                  <p>{item.summary}</p>
-                </div>
-                <div className="portal-action-meta">
-                  <b>
-                    {item.count}
-                    {item.unit ?? ""}
-                  </b>
-                  <Link href={item.href} className="portal-table-link">
-                    Open
-                  </Link>
-                </div>
-              </article>
-            ))}
+            {actionItems.length > 0 ? (
+              actionItems.map((item) => (
+                <article key={item.item_id} className="portal-action-item">
+                  <div className="portal-action-copy">
+                    <span className={`portal-action-severity portal-action-severity-${item.severity}`}>{item.severity}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.summary}</p>
+                  </div>
+                  <div className="portal-action-meta">
+                    <b>
+                      {item.count}
+                      {item.unit ?? ""}
+                    </b>
+                    <Link href={item.href} className="portal-table-link">
+                      Open
+                    </Link>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="portal-state-block">
+                <span className="portal-state-eyebrow">No actions</span>
+                <strong>No immediate workspace action is queued.</strong>
+                <p>Run `heart doctor`, publish a repository profile, or add benchmark evidence when the next repo changes.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -140,8 +143,7 @@ export function PortalOverviewEnterpriseClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Benchmark posture</span>
-              <h3>Proof that expansion can be defended</h3>
-              <p>Rollout should stay grounded in published evidence, not optimism. This block keeps the commercial story close to delivery truth.</p>
+              <h3>ROI proof</h3>
             </div>
           </div>
           <div className="portal-summary-list">
@@ -162,9 +164,9 @@ export function PortalOverviewEnterpriseClient() {
               <strong>${overview.benchmark_overview?.estimated_monthly_savings_usd ?? 0}</strong>
             </article>
           </div>
-          <div className="portal-inline-banner">
+          <div className="portal-inline-banner portal-inline-banner-compact">
             <strong>Source</strong>
-            <p>Benchmark savings are benchmark-derived. Usage and sync pressure are live operational signals from the hosted portal lane.</p>
+            <p>Benchmark savings are evidence artifacts. Usage is live telemetry.</p>
           </div>
         </section>
       </div>
@@ -174,8 +176,7 @@ export function PortalOverviewEnterpriseClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>First login</span>
-              <h3>Guide the customer to a working first deployment slice</h3>
-              <p>New tenants should not see an empty dashboard and guess. The onboarding lane should be short, concrete, and directly tied to activation.</p>
+              <h3>Start here</h3>
             </div>
           </div>
           <div className="portal-onboarding-list">
@@ -183,6 +184,7 @@ export function PortalOverviewEnterpriseClient() {
               <article key={step.step_id}>
                 <strong>{step.label}</strong>
                 <p>{step.description}</p>
+                {step.command ? <code>{step.command}</code> : null}
                 <Link href={step.href} className="portal-table-link">
                   Open
                 </Link>
@@ -196,8 +198,7 @@ export function PortalOverviewEnterpriseClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Workspace highlights</span>
-            <h3>Which repositories are current, benchmarked, and safe to expand</h3>
-            <p>This table should stay easy to scan for engineering leads and buyers who need to know what is stale, what is blocked, and what is ready.</p>
+            <h3>Repo readiness</h3>
           </div>
           <div className="portal-enterprise-panel-actions">
             <Link href="/repositories" className="portal-button-link">
@@ -219,24 +220,32 @@ export function PortalOverviewEnterpriseClient() {
               </tr>
             </thead>
             <tbody>
-              {highlights.map((highlight) => (
-                <tr key={highlight.workspace_slug}>
-                  <td className="portal-table-primary">
-                    <strong>{highlight.repo}</strong>
-                    <small>{highlight.workspace_slug}</small>
+              {highlights.length > 0 ? (
+                highlights.map((highlight) => (
+                  <tr key={highlight.workspace_slug}>
+                    <td className="portal-table-primary">
+                      <strong>{highlight.repo}</strong>
+                      <small>{highlight.workspace_slug}</small>
+                    </td>
+                    <td>
+                      <span className="portal-table-badge" data-tone={highlight.status === "ready" ? "positive" : "neutral"}>
+                        {highlight.status.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td>{highlight.readiness_status?.replace(/_/g, " ") ?? "unknown"}</td>
+                    <td>{highlight.sync_truth ?? "unknown"}</td>
+                    <td>{highlight.benchmark_report_count}</td>
+                    <td>{highlight.queued_submission_count}</td>
+                    <td>{formatTimestamp(highlight.latest_sync_at)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="portal-table-empty">
+                    No repositories are synced yet. Start with `heart init`, `heart scan`, and `heart diagram sync`.
                   </td>
-                  <td>
-                    <span className="portal-table-badge" data-tone={highlight.status === "ready" ? "positive" : "neutral"}>
-                      {highlight.status.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td>{highlight.readiness_status?.replace(/_/g, " ") ?? "unknown"}</td>
-                  <td>{highlight.sync_truth ?? "unknown"}</td>
-                  <td>{highlight.benchmark_report_count}</td>
-                  <td>{highlight.queued_submission_count}</td>
-                  <td>{formatTimestamp(highlight.latest_sync_at)}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

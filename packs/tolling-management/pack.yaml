@@ -1,0 +1,61 @@
+schema_version: 1
+pack_id: tolling-management
+name: Tolling Management System
+pack_type: industry_domain
+status: draft
+retrieved_at: "2026-05-02"
+base_pack_only: true
+customer_overlay_supported: true
+transportation_bridge:
+  included: true
+  scope:
+    - roadside_dispatch
+    - fleet_or_rental_vehicle_handling
+    - trip_movement_context
+  excluded:
+    - shipment_planning
+    - carrier_procurement
+    - freight_settlement
+primary_use_cases:
+  - back_office
+  - road_side
+  - trip_posting
+  - image_review
+  - customer_support
+  - ai_agent_support
+  - cloud_cost_optimization
+recommended_context_budget:
+  minimal_tokens: 1200
+  standard_tokens: 3500
+  deep_tokens: 7000
+documents:
+  domain: domain.md
+  workflows: workflows.md
+  entities: entities.yaml
+  business_rules: business-rules.md
+  agent_roles: agent-roles.md
+  image_review: ai-image-review.md
+  trip_posting: trip-posting.md
+  back_office: back-office-ops.md
+  roadside: roadside-ops.md
+  customer_support: customer-support.md
+  security_privacy: security-privacy.md
+  ui_ux: ui-ux-patterns.md
+  cloud_cost: cloud-cost-playbook.md
+  benchmarks: benchmark-scenarios.json
+  sources: source-notes.md
+sensitivity_defaults:
+  redact_by_default:
+    - license_plate
+    - plate_image
+    - vehicle_owner
+    - address
+    - account_balance
+    - payment_status
+    - trip_history
+    - support_transcript
+  never_include:
+    - card_number
+    - bank_account_number
+    - raw_secret
+    - production_endpoint_secret

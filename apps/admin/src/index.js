@@ -66,6 +66,22 @@ export async function renderAdminRepositorySupportPage(slug, rootDir) {
   );
 
   const diagramSection = renderSection("Customer-Synced Diagrams", renderDiagramCards(profile.diagrams));
+  const contextPackSupportSection = renderSection(
+    "Context Pack Support Signals",
+    renderSimpleRows([
+      { title: "Preview command", body: 'heart pack "add SSO login audit logging"', meta: "local-first" },
+      {
+        title: "Published inputs",
+        body: `${profile.overview.file_count} files, ${profile.overview.symbol_count} symbols, ${profile.documents.document_count} documents`,
+        meta: "profile",
+      },
+      {
+        title: "Support boundary",
+        body: "Admin can inspect whether enough metadata exists for a preview, but the final pack should be compiled in the customer repository.",
+        meta: "trust",
+      },
+    ]),
+  );
   const adminActions = renderSection(
     "Admin Responsibilities",
     renderSimpleRows([
@@ -84,7 +100,7 @@ export async function renderAdminRepositorySupportPage(slug, rootDir) {
       { label: "Revenue", href: "/admin/revenue" },
       { label: "Ops Health", href: "/admin/ops-health" },
     ],
-    body: `<div class="stack">${hero}${supportLayout}${diagramSection}${adminActions}</div>`,
+    body: `<div class="stack">${hero}${supportLayout}${diagramSection}${contextPackSupportSection}${adminActions}</div>`,
     accent: "#9a3412",
   });
 }

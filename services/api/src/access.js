@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { resolveActorAccess } from "../../../packages/shared-schema/src/enterprise.js";
 import { ensureCustomer } from "./customer-registry.js";
+import { buildDocumentStatusSummary } from "./document-status.js";
 import { isLocalDemoAuthEnabled } from "./local-demo.js";
 import {
   getServiceStoragePaths,
@@ -327,6 +328,7 @@ export async function loadAccessibleDocumentsView({ serviceStorageRoot, surface,
     return {
       repositories: [],
       submissions: [],
+      status_summary: buildDocumentStatusSummary([], []),
     };
   }
 
@@ -342,13 +344,17 @@ export async function loadAccessibleDocumentsView({ serviceStorageRoot, surface,
     submissions: [],
   });
 
+  const repositories = (repositoryIndex.repositories ?? []).filter((repository) =>
+    allowedWorkspaceSlugs.has(repository.workspace_slug ?? repository.profile_slug),
+  );
+  const submissions = (submissionIndex.submissions ?? []).filter((submission) =>
+    allowedWorkspaceSlugs.has(submission.profile_slug),
+  );
+
   return {
-    repositories: (repositoryIndex.repositories ?? []).filter((repository) =>
-      allowedWorkspaceSlugs.has(repository.workspace_slug ?? repository.profile_slug),
-    ),
-    submissions: (submissionIndex.submissions ?? []).filter((submission) =>
-      allowedWorkspaceSlugs.has(submission.profile_slug),
-    ),
+    repositories,
+    submissions,
+    status_summary: buildDocumentStatusSummary(repositories, submissions),
   };
 }
 

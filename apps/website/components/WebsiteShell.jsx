@@ -79,6 +79,9 @@ export function WebsiteShell({
               </div>
             </div>
             <div className="website-footer-links">
+              <Link href="/product">Product</Link>
+              <Link href="/how-it-works">How it works</Link>
+              <Link href="/cli-mcp">CLI/MCP</Link>
               <Link href="/services">Services</Link>
               <Link href="/benchmark">Benchmark</Link>
               <Link href="/pricing">Pricing</Link>

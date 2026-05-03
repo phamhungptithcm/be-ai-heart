@@ -31,7 +31,7 @@ export default function PortalSignInPage() {
           </article>
           <article>
             <span>Scope</span>
-            <h3>Portal only sees tenant-approved data</h3>
+            <h3>Tenant-scoped data</h3>
             <p>Repository profiles, docs, and benchmark artifacts should match the workspace the user is allowed to inspect.</p>
           </article>
           <article>

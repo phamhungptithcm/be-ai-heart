@@ -1,9 +1,22 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { handleOpenAiCompatibleProxyRoute } from "./llm-proxy.js";
 import { writeWebDocumentSubmission } from "../../../packages/document-sync/src/index.js";
+import {
+  detectPackLayerConflicts,
+  getDomainPack,
+  getPackBuildOptions,
+  listDomainPacks,
+  listGeneratedPackArtifacts,
+  listPackLayers,
+  loadAgencyOverlay,
+  readGeneratedPackArtifact,
+  syncGeneratedPackArtifact,
+  validateDomainPack,
+  writePackArtifact,
+} from "../../../packages/core/src/index.js";
 import {
   ADMIN_PERMISSIONS,
   PORTAL_PERMISSIONS,
@@ -64,7 +77,38 @@ import {
   writeRepositoryProfileForActor,
 } from "./index.js";
 import { consumeRequestRateLimit } from "./rate-limit.js";
+import {
+  redactSensitiveString,
+  redactUrlSearch,
+} from "./redaction.js";
 import { buildRepositoryServicesView } from "./repository-services.js";
+import { resolveLlmProxySecurity, resolveRuntimeEnvironment } from "./runtime-config.js";
+import {
+  buildChatCommandRecord,
+  buildContextPackIndexContract,
+  buildDiagramContract,
+  buildGraphSummaryContract,
+  buildRepositorySyncStatusContract,
+  containsRawModelSecret,
+  addProviderKey,
+  createChatSessionRecord,
+  createRepositoryContextPack,
+  deleteChatSession,
+  deleteProviderKey,
+  executePortalAgentTool,
+  listRepositoryContextPacks,
+  listChatAllowedTools,
+  listChatSessions,
+  loadChatCommandRecord,
+  loadChatSession,
+  loadModelSettings,
+  refreshProviderModels,
+  sendPortalChatMessage,
+  streamPortalChatMessage,
+  testProviderKey,
+  updateModelSettings,
+  writeChatCommandRecord,
+} from "./portal-contracts.js";
 
 const DEFAULT_REQUEST_LIMITS = Object.freeze({
   session: 16 * 1024,
@@ -75,6 +119,11 @@ const DEFAULT_REQUEST_LIMITS = Object.freeze({
   documentWrite: 2 * 1024 * 1024,
   documentSubmission: 128 * 1024,
   benchmarkWrite: 2 * 1024 * 1024,
+  chatCommand: 128 * 1024,
+  contextPack: 512 * 1024,
+  domainPack: 512 * 1024,
+  modelSettings: 128 * 1024,
+  apiKey: 16 * 1024,
   llmProxy: 8 * 1024 * 1024,
 });
 const DEFAULT_RATE_LIMITS = Object.freeze({
@@ -82,6 +131,7 @@ const DEFAULT_RATE_LIMITS = Object.freeze({
   "auth-authorize": { windowMs: 60 * 1000, max: 30 },
   "auth-callback": { windowMs: 60 * 1000, max: 30 },
   "session-provider": { windowMs: 60 * 1000, max: 20 },
+  "portal-api-keys": { windowMs: 60 * 1000, max: 20 },
   "public-intake": { windowMs: 10 * 60 * 1000, max: 5 },
   "llm-proxy": { windowMs: 60 * 1000, max: 600 },
 });
@@ -95,6 +145,7 @@ export async function handleServiceHttpRequest(request, options = {}) {
   const requestUrl = new URL(request.url);
   const route = matchRoute(requestUrl.pathname);
   const startedAtMs = Date.now();
+  const traceId = resolveTraceId(request);
   let response;
 
   try {
@@ -195,6 +246,9 @@ export async function handleServiceHttpRequest(request, options = {}) {
           case "portal-settings":
             response = await handlePortalSettingsRoute(request, config);
             break;
+          case "portal-api-keys":
+            response = await handlePortalApiKeysRoute(request, config);
+            break;
           case "portal-sessions":
             response = await handlePortalSessionsRoute(request, config);
             break;
@@ -228,6 +282,27 @@ export async function handleServiceHttpRequest(request, options = {}) {
           case "repository-detail":
             response = await handleRepositoryDetailRoute(request, config, route.surface, route.slug);
             break;
+          case "repository-sync":
+            response = await handleRepositorySyncRoute(request, config, route.surface, route.slug);
+            break;
+          case "repository-graph-summary":
+            response = await handleRepositoryGraphSummaryRoute(request, config, route.surface, route.slug);
+            break;
+          case "repository-diagrams":
+            response = await handleRepositoryDiagramsRoute(request, config, route.surface, route.slug);
+            break;
+          case "repository-context-packs":
+            response = await handleRepositoryContextPacksRoute(request, config, route.surface, route.slug);
+            break;
+          case "domain-packs":
+            response = await handleDomainPacksRoute(request, config, route.surface);
+            break;
+          case "domain-pack-detail":
+            response = await handleDomainPackDetailRoute(request, config, route.surface, route.packId);
+            break;
+          case "domain-pack-subroute":
+            response = await handleDomainPackSubroute(request, config, route.surface, route.packId, route.subroute, route.artifactId);
+            break;
           case "documents":
             response = await handleDocumentsRoute(request, config, route.surface);
             break;
@@ -245,6 +320,45 @@ export async function handleServiceHttpRequest(request, options = {}) {
             break;
           case "benchmark-run-detail":
             response = await handleBenchmarkRunDetailRoute(request, config, route.surface, route.launchId);
+            break;
+          case "chat-commands":
+            response = await handleChatCommandsRoute(request, config, route.surface);
+            break;
+          case "chat-command-detail":
+            response = await handleChatCommandDetailRoute(request, config, route.surface, route.commandId);
+            break;
+          case "chat-sessions":
+            response = await handleChatSessionsRoute(request, config, route.surface);
+            break;
+          case "chat-session-detail":
+            response = await handleChatSessionDetailRoute(request, config, route.surface, route.sessionId);
+            break;
+          case "chat-session-messages":
+            response = await handleChatSessionMessagesRoute(request, config, route.surface, route.sessionId);
+            break;
+          case "chat-session-messages-stream":
+            response = await handleChatSessionMessagesStreamRoute(request, config, route.surface, route.sessionId);
+            break;
+          case "chat-tools":
+            response = await handleChatToolsRoute(request, config, route.surface);
+            break;
+          case "models":
+            response = await handleModelsRoute(request, config, route.surface);
+            break;
+          case "model-settings":
+            response = await handleModelSettingsRoute(request, config, route.surface);
+            break;
+          case "model-provider-keys":
+            response = await handleModelProviderKeysRoute(request, config, route.surface);
+            break;
+          case "model-provider-key":
+            response = await handleModelProviderKeyRoute(request, config, route.surface, route.providerId);
+            break;
+          case "model-provider-key-test":
+            response = await handleModelProviderKeyTestRoute(request, config, route.surface, route.providerId);
+            break;
+          case "provider-models-refresh":
+            response = await handleProviderModelsRefreshRoute(request, config, route.surface, route.providerId);
             break;
           case "llm-proxy":
             response = await handleOpenAiCompatibleProxyRoute(request, config, route);
@@ -274,10 +388,11 @@ export async function handleServiceHttpRequest(request, options = {}) {
       }
     }
   } catch (error) {
-    response = errorResponse(error, "Service request failed.");
+    response = errorResponse(error, "Service request failed.", { traceId });
   }
 
-  const corsResponse = withCors(response, request, config);
+  const tracedResponse = withTraceHeader(response, traceId);
+  const corsResponse = withCors(tracedResponse, request, config);
   try {
     await writeRequestTraceForResponse({
       config,
@@ -286,6 +401,7 @@ export async function handleServiceHttpRequest(request, options = {}) {
       route,
       response: corsResponse,
       startedAtMs,
+      traceId,
     });
   } catch {
     // Keep hosted traffic available even if request telemetry storage is degraded.
@@ -304,6 +420,7 @@ export function resolveHttpConfig(options = {}) {
     process.env.BE_AI_HEART_MONOREPO_ROOT ??
     defaultMonorepoRoot;
 
+  const runtime = resolveRuntimeEnvironment(process.env);
   return {
     monorepoRoot,
     serviceStorageRoot: resolveServiceStorageRoot({
@@ -360,6 +477,12 @@ export function resolveHttpConfig(options = {}) {
           60,
       ),
     },
+    runtime,
+    llmProxy: {
+      ...resolveLlmProxySecurity(process.env),
+      ...(options.llmProxy ?? {}),
+    },
+    fetchImpl: options.fetchImpl ?? globalThis.fetch,
     localDemoAuth:
       typeof options.localDemoAuth === "boolean"
         ? options.localDemoAuth
@@ -389,6 +512,10 @@ export function resolveHttpConfig(options = {}) {
           process.env.BE_AI_HEART_CSRF_HEADER_NAME ??
           "x-be-ai-heart-csrf",
       ),
+      allowQuerySession:
+        typeof options.sessionSecurity?.allowQuerySession === "boolean"
+          ? options.sessionSecurity.allowQuerySession
+          : !runtime.production,
     },
   };
 }
@@ -399,17 +526,58 @@ function handleAuthProvidersRoute(requestUrl, config) {
     surface,
     returnTo: requestUrl.searchParams.get("return_to"),
   });
-
-  return jsonResponse({
-    ...listConfiguredAuthProviders({
-      apiBaseUrl: config.apiBaseUrl,
+  const configuredAuth = listConfiguredAuthProviders({
+    apiBaseUrl: config.apiBaseUrl,
+    surface,
+    returnTo,
+  });
+  const providers = [
+    ...configuredAuth.providers,
+    ...buildLocalDemoAuthProviders({
+      enabled: config.localDemoAuth,
       surface,
       returnTo,
     }),
+  ];
+
+  return jsonResponse({
+    ...configuredAuth,
+    providers,
+    local_demo_auth_enabled: Boolean(config.localDemoAuth),
     ...buildDefaultPortalAuthLinks({
       apiBaseUrl: config.apiBaseUrl,
     }),
   });
+}
+
+function buildLocalDemoAuthProviders({ enabled, surface = "portal", returnTo } = {}) {
+  if (!enabled) {
+    return [];
+  }
+
+  const safeSurface = String(surface ?? "portal").trim() === "admin" ? "admin" : "portal";
+  const demoToken =
+    safeSurface === "admin"
+      ? process.env.BE_AI_HEART_DEFAULT_ADMIN_SESSION || "admin-owner-session"
+      : process.env.BE_AI_HEART_DEFAULT_PORTAL_SESSION || "portal-demo-session";
+  const authorizeUrl = new URL(returnTo);
+  authorizeUrl.searchParams.set("session_token", demoToken);
+  authorizeUrl.searchParams.set("auth_provider", "local-demo");
+  authorizeUrl.searchParams.set("surface", safeSurface);
+
+  return [
+    {
+      id: safeSurface === "admin" ? "local-admin-demo" : "local-portal-demo",
+      label: safeSurface === "admin" ? "Local admin demo" : "Local portal demo",
+      description:
+        safeSurface === "admin"
+          ? "Open the founder/admin control plane with the local owner dummy session."
+          : "Open the customer portal with the local tenant dummy session.",
+      kind: "local-demo",
+      authorize_url: authorizeUrl.toString(),
+      action_label: safeSurface === "admin" ? "Use dummy admin account" : "Use dummy portal account",
+    },
+  ];
 }
 
 async function handleAuthorizeRoute(requestUrl, config, providerId) {
@@ -452,6 +620,7 @@ async function handleSessionRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -667,6 +836,89 @@ async function handlePortalSettingsRoute(request, config) {
     localDemoAuth: config.localDemoAuth,
   });
   return jsonResponse(payload);
+}
+
+async function handlePortalApiKeysRoute(request, config) {
+  if (request.method === "GET") {
+    const authContext = await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.settingsRead);
+    const sessions = await listWorkspaceSessions({
+      serviceStorageRoot: config.serviceStorageRoot,
+      surface: "portal",
+      customerSlug: authContext.customer_slug,
+      includeRevoked: false,
+      limit: 100,
+      offset: 0,
+    });
+    return jsonResponse({
+      schema_version: 1,
+      api_keys: sessions
+        .filter((session) => session.metadata?.source === "portal-api-key")
+        .filter((session) => !session.customer_slug || session.customer_slug === authContext.customer_slug)
+        .map(toClientApiKeyRecord),
+    });
+  }
+
+  if (request.method === "POST") {
+    const authContext = await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.settingsWrite);
+    if (authContext.session?.metadata?.source === "portal-api-key") {
+      throw createHttpError(403, "CLI API keys cannot create additional API keys.");
+    }
+    enforceStateChangingRequestSecurity({
+      request,
+      authContext,
+      config,
+    });
+    const payload = await readJson(request, {
+      maxBytes: config.requestLimits.apiKey,
+    });
+    const label = sanitizeApiKeyLabel(payload.label);
+    const expiresAt = resolveApiKeyExpiresAt(payload.expires_in_days);
+    const session = await issueWorkspaceSession({
+      serviceStorageRoot: config.serviceStorageRoot,
+      actorSlug: authContext.actor.actor_slug,
+      surface: "portal",
+      workspaceSlug: payload.workspace_slug ?? authContext.workspace_slug,
+      customerSlug: authContext.customer_slug,
+      expiresAt,
+      localDemoAuth: config.localDemoAuth,
+      metadata: {
+        source: "portal-api-key",
+        label,
+        created_for: "cli",
+      },
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "auth.api_key_issued",
+        outcome: "success",
+        surface: "portal",
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: session.workspace_slug,
+        customer_slug: session.customer_slug,
+        customer_id: session.customer_id,
+        target_type: "api_key",
+        target_id: session.session_id,
+        metadata: {
+          label,
+          expires_at: session.expires_at,
+        },
+      },
+    });
+
+    return jsonResponse(
+      {
+        schema_version: 1,
+        api_key: session.session_token,
+        key: toClientApiKeyRecord(session),
+        command: "heart login --api-key=<api-key>",
+        self_hosted_command: `heart login --url ${config.apiBaseUrl} --api-key=<api-key>`,
+      },
+      { status: 201 },
+    );
+  }
+
+  return methodNotAllowed(["GET", "POST"]);
 }
 
 async function handlePortalSessionsRoute(request, config) {
@@ -936,6 +1188,7 @@ async function handleWorkspacesRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1012,6 +1265,7 @@ async function handleRepositoriesRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1072,12 +1326,397 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
   }
 
   const requestUrl = new URL(request.url);
+  const payload = await loadRepositoryContractData({
+    request,
+    config,
+    surface,
+    slug,
+    graphMode: requestUrl.searchParams.get("graph_mode") ?? "focused",
+  });
+  if (!payload) {
+    return jsonResponse({ error: "Repository view not found." }, { status: 404 });
+  }
+
+  return jsonResponse({
+    ...payload.repositoryView,
+    runtime_signals: payload.runtimeSignals,
+    repository_services: payload.repositoryServices,
+  });
+}
+
+async function handleRepositorySyncRoute(request, config, surface, slug) {
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  const payload = await loadRepositoryContractData({
+    request,
+    config,
+    surface,
+    slug,
+    graphMode: "focused",
+  });
+  if (!payload) {
+    return jsonResponse({ error: "Repository sync status not found." }, { status: 404 });
+  }
+
+  const contextPacks = await listRepositoryContextPacks({
+    serviceStorageRoot: config.serviceStorageRoot,
+    profileSlug: payload.repositoryView.profile?.profile_slug ?? slug,
+  });
+
+  return jsonResponse(
+    buildRepositorySyncStatusContract({
+      profile: payload.repositoryView.profile,
+      documents: payload.repositoryView.documents,
+      benchmarkHistory: payload.repositoryView.benchmark_history,
+      workspace: payload.repositoryView.workspace,
+      repositoryServices: payload.repositoryServices,
+      contextPacks,
+    }),
+  );
+}
+
+async function handleRepositoryGraphSummaryRoute(request, config, surface, slug) {
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  const requestUrl = new URL(request.url);
+  const payload = await loadRepositoryContractData({
+    request,
+    config,
+    surface,
+    slug,
+    graphMode: requestUrl.searchParams.get("graph_mode") ?? "focused",
+  });
+  if (!payload) {
+    return jsonResponse({ error: "Repository graph summary not found." }, { status: 404 });
+  }
+
+  return jsonResponse(
+    buildGraphSummaryContract({
+      repositoryView: payload.repositoryView,
+      repositoryServices: payload.repositoryServices,
+    }),
+  );
+}
+
+async function handleRepositoryDiagramsRoute(request, config, surface, slug) {
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  const payload = await loadRepositoryContractData({
+    request,
+    config,
+    surface,
+    slug,
+    graphMode: "focused",
+  });
+  if (!payload) {
+    return jsonResponse({ error: "Repository diagrams not found." }, { status: 404 });
+  }
+
+  return jsonResponse(
+    buildDiagramContract({
+      repositoryView: payload.repositoryView,
+      repositoryServices: payload.repositoryServices,
+    }),
+  );
+}
+
+async function handleRepositoryContextPacksRoute(request, config, surface, slug) {
+  const payload = await loadRepositoryContractData({
+    request,
+    config,
+    surface,
+    slug,
+    graphMode: "focused",
+  });
+  if (!payload) {
+    return jsonResponse({ error: "Repository context packs not found." }, { status: 404 });
+  }
+
+  if (request.method === "GET") {
+    const packs = await listRepositoryContextPacks({
+      serviceStorageRoot: config.serviceStorageRoot,
+      profileSlug: payload.repositoryView.profile?.profile_slug ?? slug,
+    });
+    return jsonResponse(
+      buildContextPackIndexContract({
+        profile: payload.repositoryView.profile,
+        repositoryServices: payload.repositoryServices,
+        packs,
+      }),
+    );
+  }
+
+  if (request.method === "POST") {
+    if (!payload.authContext.actor) {
+      return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
+    }
+    enforceStateChangingRequestSecurity({
+      request,
+      authContext: payload.authContext,
+      config,
+    });
+    const body = await readJson(request, {
+      maxBytes: config.requestLimits.contextPack,
+    });
+    const pack = await createRepositoryContextPack({
+      serviceStorageRoot: config.serviceStorageRoot,
+      profile: payload.repositoryView.profile,
+      repositoryServices: payload.repositoryServices,
+      request: body,
+      actor: payload.authContext.actor,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "context_pack.created",
+        outcome: "success",
+        surface,
+        actor_slug: payload.authContext.actor.actor_slug,
+        workspace_slug: pack.workspace_slug,
+        customer_slug: pack.customer_slug,
+        customer_id: payload.authContext.customer_id,
+        target_type: "context_pack",
+        target_id: pack.pack_id,
+        metadata: {
+          profile_slug: pack.profile_slug,
+          token_budget: pack.token_budget,
+          estimated_tokens: pack.estimated_tokens,
+        },
+      },
+    });
+    return jsonResponse(pack, { status: 201 });
+  }
+
+  return methodNotAllowed(["GET", "POST"]);
+}
+
+async function handleDomainPacksRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Domain packs are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.contextPacksRead);
+  const packs = await listDomainPacks({ repoRoot: config.monorepoRoot });
+  return jsonResponse({
+    schema_version: 1,
+    packs,
+    next_actions: [
+      "Select Tolling Management.",
+      "Choose an output type and overlay.",
+      "Generate a demo-safe artifact.",
+    ],
+  });
+}
+
+async function handleDomainPackDetailRoute(request, config, surface, packId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Domain packs are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.contextPacksRead);
+  return jsonResponse(await getDomainPack(packId, { repoRoot: config.monorepoRoot }));
+}
+
+async function handleDomainPackSubroute(request, config, surface, packId, subroute, artifactId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Domain packs are only available in the customer portal." }, { status: 404 });
+  }
+
+  const readOnly = ["layers", "overlays", "build-options", "artifacts"].includes(subroute);
+  const permission = readOnly ? PORTAL_PERMISSIONS.contextPacksRead : PORTAL_PERMISSIONS.contextPacksWrite;
+  const authContext = await requirePortalAuthContext(request, config, permission);
+  const artifactRoot = resolveDomainPackArtifactRoot(config, authContext);
+
+  if (subroute === "layers") {
+    if (request.method !== "GET") {
+      return methodNotAllowed(["GET"]);
+    }
+    return jsonResponse({
+      schema_version: 1,
+      pack_id: packId,
+      layers: await listPackLayers(packId, { repoRoot: config.monorepoRoot }),
+    });
+  }
+
+  if (subroute === "overlays") {
+    if (request.method !== "GET") {
+      return methodNotAllowed(["GET"]);
+    }
+    const options = getPackBuildOptions(packId);
+    return jsonResponse({
+      schema_version: 1,
+      pack_id: packId,
+      overlays: options.agency_overlays,
+      customer_overlay: options.customer_overlay,
+    });
+  }
+
+  if (subroute === "build-options") {
+    if (request.method !== "GET") {
+      return methodNotAllowed(["GET"]);
+    }
+    return jsonResponse(getPackBuildOptions(packId));
+  }
+
+  if (subroute === "validate") {
+    if (request.method !== "POST") {
+      return methodNotAllowed(["POST"]);
+    }
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    return jsonResponse(await validateDomainPack(packId, { repoRoot: config.monorepoRoot }));
+  }
+
+  if (subroute === "conflicts") {
+    if (request.method !== "POST") {
+      return methodNotAllowed(["POST"]);
+    }
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const body = await readJson(request, { maxBytes: config.requestLimits.domainPack });
+    const conflicts = await detectPackLayerConflicts({
+      pack_id: packId,
+      regional_layer: body.regional_layer,
+      agency_overlay: body.agency_overlay,
+      customer_requirements: body.customer_requirements,
+      customer_overlay: body.customer_overlay,
+    }, { repoRoot: config.monorepoRoot });
+    return jsonResponse({
+      schema_version: 1,
+      pack_id: packId,
+      status: conflicts.length > 0 ? "conflicts_found" : "clear",
+      conflicts,
+    });
+  }
+
+  if (subroute === "generate") {
+    if (request.method !== "POST") {
+      return methodNotAllowed(["POST"]);
+    }
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const body = await readJson(request, { maxBytes: config.requestLimits.domainPack });
+    const result = await writePackArtifact({
+      repoRoot: artifactRoot,
+      sourceRepoRoot: config.monorepoRoot,
+      packId,
+      outputType: body.output ?? body.output_type ?? "domain-pack",
+      regionalLayer: body.regional_layer,
+      agencyOverlay: body.agency_overlay,
+      customerRequirements: body.customer_requirements ?? "",
+      customerOverlay: body.customer_overlay,
+      tokenBudget: body.token_budget,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "domain_pack_artifact.generated",
+        outcome: "success",
+        surface,
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: resolveAuthWorkspaceSlug(authContext),
+        customer_slug: authContext.customer_slug,
+        customer_id: authContext.customer_id,
+        target_type: "domain_pack_artifact",
+        target_id: result.artifact_id,
+        metadata: {
+          pack_id: packId,
+          output_type: result.manifest.output_type,
+          regional_layer: body.regional_layer ?? "",
+          agency_overlay: body.agency_overlay ?? "",
+        },
+      },
+    });
+    return jsonResponse(result, { status: 201 });
+  }
+
+  if (subroute === "artifacts") {
+    if (artifactId) {
+      if (request.method !== "GET") {
+        return methodNotAllowed(["GET"]);
+      }
+      const artifact = await readGeneratedPackArtifact({
+        repoRoot: artifactRoot,
+        packId,
+        artifactId,
+      });
+      if (!artifact) {
+        return jsonResponse({ error: "Pack artifact not found." }, { status: 404 });
+      }
+      return jsonResponse(artifact);
+    }
+    if (request.method !== "GET") {
+      return methodNotAllowed(["GET"]);
+    }
+    return jsonResponse({
+      schema_version: 1,
+      pack_id: packId,
+      artifacts: await listGeneratedPackArtifacts({ repoRoot: artifactRoot, packId }),
+    });
+  }
+
+  if (subroute === "sync") {
+    if (request.method !== "POST") {
+      return methodNotAllowed(["POST"]);
+    }
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const body = await readJson(request, { maxBytes: config.requestLimits.domainPack });
+    return jsonResponse(await syncGeneratedPackArtifact({
+      repoRoot: artifactRoot,
+      packId,
+      artifactId: body.artifact_id,
+    }));
+  }
+
+  return jsonResponse({ error: "Domain pack route not found." }, { status: 404 });
+}
+
+function resolveDomainPackArtifactRoot(config, authContext) {
+  const workspaceSlug = sanitizeSlug(resolveAuthWorkspaceSlug(authContext) || "workspace");
+  return path.join(config.serviceStorageRoot, "domain-packs", workspaceSlug);
+}
+
+function resolveAuthWorkspaceSlug(authContext) {
+  return authContext?.workspace_slug ?? authContext?.workspaces?.[0]?.workspace_slug ?? "";
+}
+
+function isSessionInAuthScope(session, authContext) {
+  if (authContext?.actor?.access_mode === "all") {
+    return true;
+  }
+  const allowedWorkspaceSlugs = new Set(
+    (authContext.workspaces ?? []).map((workspace) => sanitizeSlug(workspace.workspace_slug)),
+  );
+  const sessionWorkspaceSlug = sanitizeSlug(resolveAuthWorkspaceSlug(authContext));
+  if (sessionWorkspaceSlug) {
+    allowedWorkspaceSlugs.add(sessionWorkspaceSlug);
+  }
+  return !session.workspace_slug || allowedWorkspaceSlugs.has(sanitizeSlug(session.workspace_slug));
+}
+
+async function loadRepositoryContractData({
+  request,
+  config,
+  surface,
+  slug,
+  graphMode = "focused",
+} = {}) {
   const authContext = await resolveRequestAuthContext({
     serviceStorageRoot: config.serviceStorageRoot,
     surface,
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   const payload = await loadAccessibleRepositoryView({
     serviceStorageRoot: config.serviceStorageRoot,
@@ -1085,10 +1724,10 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
     actorSlug: authContext.actor_slug,
     localDemoAuth: config.localDemoAuth,
     profileSlug: slug,
-    graphMode: requestUrl.searchParams.get("graph_mode") ?? "focused",
+    graphMode,
   });
   if (!payload) {
-    return jsonResponse({ error: "Repository view not found." }, { status: 404 });
+    return null;
   }
 
   const runtimeSignals =
@@ -1110,11 +1749,12 @@ async function handleRepositoryDetailRoute(request, config, surface, slug) {
     runtimeSignals,
   });
 
-  return jsonResponse({
-    ...payload,
-    runtime_signals: runtimeSignals,
-    repository_services: repositoryServices,
-  });
+  return {
+    authContext,
+    repositoryView: payload,
+    runtimeSignals,
+    repositoryServices,
+  };
 }
 
 async function loadRepositoryRuntimeSignals({
@@ -1183,6 +1823,7 @@ async function handleDocumentsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1248,6 +1889,7 @@ async function handleDocumentSubmissionsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -1310,6 +1952,7 @@ async function handleBenchmarksRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1371,6 +2014,7 @@ async function handleBenchmarkRunsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (!authContext.actor) {
@@ -1461,6 +2105,7 @@ async function handleBenchmarkDetailRoute(request, config, surface, reportId) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   const report = await loadAccessibleBenchmarkReport({
     serviceStorageRoot: config.serviceStorageRoot,
@@ -1487,6 +2132,7 @@ async function handleBenchmarkRunDetailRoute(request, config, surface, launchId)
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -1511,6 +2157,551 @@ async function handleBenchmarkRunDetailRoute(request, config, surface, launchId)
   }
 
   return jsonResponse(detail);
+}
+
+async function handleChatCommandsRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat commands are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  enforceStateChangingRequestSecurity({
+    request,
+    authContext,
+    config,
+  });
+  const body = await readJson(request, {
+    maxBytes: config.requestLimits.chatCommand,
+  });
+  const command = buildChatCommandRecord({
+    request: body,
+    actor: authContext.actor,
+    workspaces: authContext.workspaces,
+  });
+  const allowedWorkspaceSlugs = new Set(
+    (authContext.workspaces ?? []).map((workspace) => sanitizeSlug(workspace.workspace_slug)),
+  );
+  const sessionWorkspaceSlug = sanitizeSlug(resolveAuthWorkspaceSlug(authContext));
+  if (sessionWorkspaceSlug) {
+    allowedWorkspaceSlugs.add(sessionWorkspaceSlug);
+  }
+  if (command.workspace_slug && !allowedWorkspaceSlugs.has(command.workspace_slug)) {
+    return jsonResponse({ error: "Workspace is outside the current session scope." }, { status: 403 });
+  }
+
+  await writeChatCommandRecord({
+    serviceStorageRoot: config.serviceStorageRoot,
+    command,
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "chat.command_submitted",
+      outcome: command.status === "denied" ? "blocked" : "success",
+      surface,
+      actor_slug: authContext.actor.actor_slug,
+      workspace_slug: command.workspace_slug,
+      customer_slug: authContext.customer_slug,
+      customer_id: authContext.customer_id,
+      target_type: "chat_command",
+      target_id: command.command_id,
+      metadata: {
+        intent: command.intent,
+        safety_level: command.safety.level,
+        status: command.status,
+      },
+    },
+  });
+
+  return jsonResponse(command, { status: command.status === "denied" ? 202 : 201 });
+}
+
+async function handleChatCommandDetailRoute(request, config, surface, commandId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat commands are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  const command = await loadChatCommandRecord({
+    serviceStorageRoot: config.serviceStorageRoot,
+    commandId,
+  });
+  if (!command) {
+    return jsonResponse({ error: "Chat command not found." }, { status: 404 });
+  }
+  const allowedWorkspaceSlugs = new Set(
+    (authContext.workspaces ?? []).map((workspace) => sanitizeSlug(workspace.workspace_slug)),
+  );
+  const sessionWorkspaceSlug = sanitizeSlug(resolveAuthWorkspaceSlug(authContext));
+  if (sessionWorkspaceSlug) {
+    allowedWorkspaceSlugs.add(sessionWorkspaceSlug);
+  }
+  if (command.workspace_slug && !allowedWorkspaceSlugs.has(command.workspace_slug)) {
+    return jsonResponse({ error: "Chat command not found." }, { status: 404 });
+  }
+
+  return jsonResponse(command);
+}
+
+async function handleModelsRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model settings are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "GET") {
+    return methodNotAllowed(["GET"]);
+  }
+
+  await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.settingsRead);
+  return jsonResponse(await loadModelSettings({ serviceStorageRoot: config.serviceStorageRoot }));
+}
+
+async function handleModelSettingsRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model settings are only available in the customer portal." }, { status: 404 });
+  }
+
+  if (request.method === "GET") {
+    await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.settingsRead);
+    return jsonResponse(await loadModelSettings({ serviceStorageRoot: config.serviceStorageRoot }));
+  }
+
+  if (request.method === "POST") {
+    const authContext = await requirePortalAuthContext(
+      request,
+      config,
+      PORTAL_PERMISSIONS.settingsWrite,
+    );
+    enforceStateChangingRequestSecurity({
+      request,
+      authContext,
+      config,
+    });
+    const body = await readJson(request, {
+      maxBytes: config.requestLimits.modelSettings,
+    });
+    if (containsRawModelSecret(body)) {
+      return jsonResponse(
+        {
+          error:
+            "Raw model provider secrets are not accepted by this endpoint. Configure secrets server-side and store only masked provider state.",
+        },
+        { status: 400 },
+      );
+    }
+    const settings = await updateModelSettings({
+      serviceStorageRoot: config.serviceStorageRoot,
+      payload: body,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "model_settings.updated",
+        outcome: "success",
+        surface,
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: authContext.workspace_slug,
+        customer_slug: authContext.customer_slug,
+        customer_id: authContext.customer_id,
+        target_type: "model_settings",
+        target_id: authContext.workspace_slug || "workspace",
+        metadata: {
+          provider_count: settings.providers.length,
+          preset_count: settings.presets.length,
+        },
+      },
+    });
+    return jsonResponse(settings);
+  }
+
+  return methodNotAllowed(["GET", "POST"]);
+}
+
+async function handleModelProviderKeyRoute(request, config, surface, providerId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model provider keys are only available in the customer portal." }, { status: 404 });
+  }
+
+  if (request.method === "DELETE") {
+    const authContext = await requirePortalAuthContext(
+      request,
+      config,
+      PORTAL_PERMISSIONS.settingsWrite,
+    );
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const result = await deleteProviderKey({
+      serviceStorageRoot: config.serviceStorageRoot,
+      providerId,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "model_provider_key.deleted",
+        outcome: "success",
+        surface,
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: authContext.workspace_slug,
+        customer_slug: authContext.customer_slug,
+        customer_id: authContext.customer_id,
+        target_type: "model_provider",
+        target_id: result.provider_id,
+      },
+    });
+    return jsonResponse(result);
+  }
+
+  return methodNotAllowed(["DELETE"]);
+}
+
+async function handleModelProviderKeysRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model provider keys are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.settingsWrite,
+  );
+  enforceStateChangingRequestSecurity({ request, authContext, config });
+  const body = await readJson(request, { maxBytes: config.requestLimits.apiKey });
+  const result = await addProviderKey({
+    serviceStorageRoot: config.serviceStorageRoot,
+    payload: body,
+    actor: authContext.actor,
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "model_provider_key.added",
+      outcome: "success",
+      surface,
+      actor_slug: authContext.actor.actor_slug,
+      workspace_slug: authContext.workspace_slug,
+      customer_slug: authContext.customer_slug,
+      customer_id: authContext.customer_id,
+      target_type: "model_provider",
+      target_id: result.provider_id,
+      metadata: {
+        key_status: result.key_status,
+      },
+    },
+  });
+  return jsonResponse(result, { status: 201 });
+}
+
+async function handleModelProviderKeyTestRoute(request, config, surface, providerId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model provider keys are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.settingsRead,
+  );
+  enforceStateChangingRequestSecurity({ request, authContext, config });
+  const result = await testProviderKey({
+    serviceStorageRoot: config.serviceStorageRoot,
+    providerId,
+    fetchImpl: config.fetchImpl,
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "model_provider_key.tested",
+      outcome: result.ok ? "success" : "blocked",
+      surface,
+      actor_slug: authContext.actor.actor_slug,
+      workspace_slug: authContext.workspace_slug,
+      customer_slug: authContext.customer_slug,
+      customer_id: authContext.customer_id,
+      target_type: "model_provider",
+      target_id: result.provider_id,
+      metadata: {
+        status: result.status,
+      },
+    },
+  });
+  return jsonResponse(result, { status: result.ok ? 200 : 400 });
+}
+
+async function handleProviderModelsRefreshRoute(request, config, surface, providerId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Model refresh is only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.settingsRead,
+  );
+  enforceStateChangingRequestSecurity({ request, authContext, config });
+  const result = await refreshProviderModels({
+    serviceStorageRoot: config.serviceStorageRoot,
+    providerId,
+    fetchImpl: config.fetchImpl,
+  });
+  return jsonResponse(result);
+}
+
+async function handleChatSessionsRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat sessions are only available in the customer portal." }, { status: 404 });
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  if (request.method === "GET") {
+    return jsonResponse(await listChatSessions({
+      serviceStorageRoot: config.serviceStorageRoot,
+      workspaceSlug: resolveAuthWorkspaceSlug(authContext),
+    }));
+  }
+  if (request.method === "POST") {
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const body = await readJson(request, { maxBytes: config.requestLimits.chatCommand });
+    const session = await createChatSessionRecord({
+      serviceStorageRoot: config.serviceStorageRoot,
+      request: body,
+      actor: authContext.actor,
+      workspaces: authContext.workspaces,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "chat.session_created",
+        outcome: "success",
+        surface,
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: session.workspace_slug,
+        customer_slug: authContext.customer_slug,
+        customer_id: authContext.customer_id,
+        target_type: "chat_session",
+        target_id: session.session_id,
+      },
+    });
+    return jsonResponse(session, { status: 201 });
+  }
+  return methodNotAllowed(["GET", "POST"]);
+}
+
+async function handleChatSessionDetailRoute(request, config, surface, sessionId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat sessions are only available in the customer portal." }, { status: 404 });
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  if (request.method === "GET") {
+    const session = await loadChatSession({ serviceStorageRoot: config.serviceStorageRoot, sessionId });
+    if (!session || !isSessionInAuthScope(session, authContext)) {
+      return jsonResponse({ error: "Chat session not found." }, { status: 404 });
+    }
+    return jsonResponse(session);
+  }
+  if (request.method === "DELETE") {
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const session = await loadChatSession({ serviceStorageRoot: config.serviceStorageRoot, sessionId });
+    if (!session || !isSessionInAuthScope(session, authContext)) {
+      return jsonResponse({ error: "Chat session not found." }, { status: 404 });
+    }
+    return jsonResponse(await deleteChatSession({ serviceStorageRoot: config.serviceStorageRoot, sessionId }));
+  }
+  return methodNotAllowed(["GET", "DELETE"]);
+}
+
+async function handleChatSessionMessagesRoute(request, config, surface, sessionId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat sessions are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  enforceStateChangingRequestSecurity({ request, authContext, config });
+  const session = await loadChatSession({ serviceStorageRoot: config.serviceStorageRoot, sessionId });
+  if (!session || !isSessionInAuthScope(session, authContext)) {
+    return jsonResponse({ error: "Chat session not found." }, { status: 404 });
+  }
+  const body = await readJson(request, { maxBytes: config.requestLimits.chatCommand });
+  const result = await sendPortalChatMessage({
+    serviceStorageRoot: config.serviceStorageRoot,
+    sessionId,
+    request: body,
+    actor: authContext.actor,
+    fetchImpl: config.fetchImpl,
+  });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "chat.message_sent",
+      outcome: "success",
+      surface,
+      actor_slug: authContext.actor.actor_slug,
+      workspace_slug: result.session.workspace_slug,
+      customer_slug: authContext.customer_slug,
+      customer_id: authContext.customer_id,
+      target_type: "chat_session",
+      target_id: result.session.session_id,
+      metadata: {
+        provider_id: result.session.provider_id,
+        model_id: result.session.model_id,
+      },
+    },
+  });
+  return jsonResponse(result, { status: 201 });
+}
+
+async function handleChatSessionMessagesStreamRoute(request, config, surface, sessionId) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat sessions are only available in the customer portal." }, { status: 404 });
+  }
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+  const authContext = await requirePortalAuthContext(
+    request,
+    config,
+    PORTAL_PERMISSIONS.repositoriesRead,
+  );
+  enforceStateChangingRequestSecurity({ request, authContext, config });
+  const session = await loadChatSession({ serviceStorageRoot: config.serviceStorageRoot, sessionId });
+  if (!session || !isSessionInAuthScope(session, authContext)) {
+    return jsonResponse({ error: "Chat session not found." }, { status: 404 });
+  }
+  const body = await readJson(request, { maxBytes: config.requestLimits.chatCommand });
+  await writeAuditEvent({
+    serviceStorageRoot: config.serviceStorageRoot,
+    event: {
+      action: "chat.message_stream_started",
+      outcome: "success",
+      surface,
+      actor_slug: authContext.actor.actor_slug,
+      workspace_slug: session.workspace_slug,
+      customer_slug: authContext.customer_slug,
+      customer_id: authContext.customer_id,
+      target_type: "chat_session",
+      target_id: session.session_id,
+      metadata: {
+        provider_id: body.provider_id ?? session.provider_id,
+        model_id: body.model_id ?? session.model_id,
+      },
+    },
+  });
+  return sseResponse(streamPortalChatMessage({
+    serviceStorageRoot: config.serviceStorageRoot,
+    sessionId,
+    request: body,
+    actor: authContext.actor,
+    fetchImpl: config.fetchImpl,
+  }));
+}
+
+function sseResponse(events) {
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of events) {
+          controller.enqueue(encoder.encode(sseEvent(event.event ?? "message", event)));
+        }
+      } catch (error) {
+        controller.enqueue(encoder.encode(sseEvent("run_failed", {
+          schema_version: 1,
+          event: "run_failed",
+          error: {
+            message: error?.message ?? "Chat stream failed.",
+            status: error?.status ?? 500,
+          },
+        })));
+      } finally {
+        controller.close();
+      }
+    },
+  }), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Content-Type-Options": "nosniff",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+async function handleChatToolsRoute(request, config, surface) {
+  if (surface !== "portal") {
+    return jsonResponse({ error: "Chat tools are only available in the customer portal." }, { status: 404 });
+  }
+  await requirePortalAuthContext(request, config, PORTAL_PERMISSIONS.repositoriesRead);
+  if (request.method === "GET") {
+    return jsonResponse(listChatAllowedTools());
+  }
+  if (request.method === "POST") {
+    const authContext = await requirePortalAuthContext(
+      request,
+      config,
+      PORTAL_PERMISSIONS.repositoriesRead,
+    );
+    enforceStateChangingRequestSecurity({ request, authContext, config });
+    const body = await readJson(request, { maxBytes: config.requestLimits.chatCommand });
+    const result = await executePortalAgentTool({
+      serviceStorageRoot: config.serviceStorageRoot,
+      monorepoRoot: config.monorepoRoot,
+      actor: authContext.actor,
+      toolId: body.tool_id,
+      input: body.input,
+      confirmed: body.confirmed,
+    });
+    await writeAuditEvent({
+      serviceStorageRoot: config.serviceStorageRoot,
+      event: {
+        action: "chat.tool_requested",
+        outcome: result.status === "denied" ? "blocked" : "success",
+        surface,
+        actor_slug: authContext.actor.actor_slug,
+        workspace_slug: authContext.workspace_slug,
+        customer_slug: authContext.customer_slug,
+        customer_id: authContext.customer_id,
+        target_type: "agent_tool",
+        target_id: result.tool_id,
+        metadata: {
+          status: result.status,
+          safety_level: result.safety_level,
+        },
+      },
+    });
+    return jsonResponse(result, { status: result.status === "denied" ? 403 : 200 });
+  }
+  return methodNotAllowed(["GET", "POST"]);
 }
 
 async function handleAdminAuditEventsRoute(request, config) {
@@ -1859,6 +3050,9 @@ function matchRoute(pathname) {
   if (effectivePath === "/api/settings" && surface === "portal") {
     return { kind: "portal-settings", surface };
   }
+  if (effectivePath === "/api/api-keys" && surface === "portal") {
+    return { kind: "portal-api-keys", surface };
+  }
   if (effectivePath === "/api/sessions" && surface === "portal") {
     return { kind: "portal-sessions", surface };
   }
@@ -1915,6 +3109,144 @@ function matchRoute(pathname) {
   }
   if (effectivePath === "/api/benchmarks/runs") {
     return { kind: "benchmark-runs", surface };
+  }
+  if (effectivePath === "/api/chat/commands") {
+    return { kind: "chat-commands", surface };
+  }
+  if (effectivePath === "/api/chat/sessions") {
+    return { kind: "chat-sessions", surface };
+  }
+  if (effectivePath === "/api/chat/tools") {
+    return { kind: "chat-tools", surface };
+  }
+  if (effectivePath === "/api/domain-packs") {
+    return { kind: "domain-packs", surface };
+  }
+  if (effectivePath === "/api/models") {
+    return { kind: "models", surface };
+  }
+  if (effectivePath === "/api/model-settings") {
+    return { kind: "model-settings", surface };
+  }
+  if (effectivePath === "/api/model-provider-keys") {
+    return { kind: "model-provider-keys", surface };
+  }
+
+  const repositorySyncMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)\/sync$/);
+  if (repositorySyncMatch) {
+    return {
+      kind: "repository-sync",
+      surface,
+      slug: repositorySyncMatch[1],
+    };
+  }
+  const repositoryGraphSummaryMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)\/graph\/summary$/);
+  if (repositoryGraphSummaryMatch) {
+    return {
+      kind: "repository-graph-summary",
+      surface,
+      slug: repositoryGraphSummaryMatch[1],
+    };
+  }
+  const repositoryDiagramsMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)\/diagrams$/);
+  if (repositoryDiagramsMatch) {
+    return {
+      kind: "repository-diagrams",
+      surface,
+      slug: repositoryDiagramsMatch[1],
+    };
+  }
+  const repositoryContextPacksMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)\/context-packs$/);
+  if (repositoryContextPacksMatch) {
+    return {
+      kind: "repository-context-packs",
+      surface,
+      slug: repositoryContextPacksMatch[1],
+    };
+  }
+  const chatCommandMatch = effectivePath.match(/^\/api\/chat\/commands\/([^/]+)$/);
+  if (chatCommandMatch) {
+    return {
+      kind: "chat-command-detail",
+      surface,
+      commandId: chatCommandMatch[1],
+    };
+  }
+  const chatSessionMessagesMatch = effectivePath.match(/^\/api\/chat\/sessions\/([^/]+)\/messages$/);
+  if (chatSessionMessagesMatch) {
+    return {
+      kind: "chat-session-messages",
+      surface,
+      sessionId: chatSessionMessagesMatch[1],
+    };
+  }
+  const chatSessionMessagesStreamMatch = effectivePath.match(/^\/api\/chat\/sessions\/([^/]+)\/messages\/stream$/);
+  if (chatSessionMessagesStreamMatch) {
+    return {
+      kind: "chat-session-messages-stream",
+      surface,
+      sessionId: chatSessionMessagesStreamMatch[1],
+    };
+  }
+  const chatSessionMatch = effectivePath.match(/^\/api\/chat\/sessions\/([^/]+)$/);
+  if (chatSessionMatch) {
+    return {
+      kind: "chat-session-detail",
+      surface,
+      sessionId: chatSessionMatch[1],
+    };
+  }
+  const providerModelsRefreshMatch = effectivePath.match(/^\/api\/models\/providers\/([^/]+)\/refresh$/);
+  if (providerModelsRefreshMatch) {
+    return {
+      kind: "provider-models-refresh",
+      surface,
+      providerId: providerModelsRefreshMatch[1],
+    };
+  }
+  const providerKeyTestMatch = effectivePath.match(/^\/api\/model-provider-keys\/([^/]+)\/test$/);
+  if (providerKeyTestMatch) {
+    return {
+      kind: "model-provider-key-test",
+      surface,
+      providerId: providerKeyTestMatch[1],
+    };
+  }
+  const providerKeyMatch = effectivePath.match(/^\/api\/model-provider-keys\/([^/]+)$/);
+  if (providerKeyMatch) {
+    return {
+      kind: "model-provider-key",
+      surface,
+      providerId: providerKeyMatch[1],
+    };
+  }
+
+  const domainPackArtifactMatch = effectivePath.match(/^\/api\/domain-packs\/([^/]+)\/artifacts\/([^/]+)$/);
+  if (domainPackArtifactMatch) {
+    return {
+      kind: "domain-pack-subroute",
+      surface,
+      packId: domainPackArtifactMatch[1],
+      subroute: "artifacts",
+      artifactId: domainPackArtifactMatch[2],
+    };
+  }
+  const domainPackSubrouteMatch = effectivePath.match(/^\/api\/domain-packs\/([^/]+)\/([^/]+)$/);
+  if (domainPackSubrouteMatch) {
+    return {
+      kind: "domain-pack-subroute",
+      surface,
+      packId: domainPackSubrouteMatch[1],
+      subroute: domainPackSubrouteMatch[2],
+    };
+  }
+  const domainPackDetailMatch = effectivePath.match(/^\/api\/domain-packs\/([^/]+)$/);
+  if (domainPackDetailMatch) {
+    return {
+      kind: "domain-pack-detail",
+      surface,
+      packId: domainPackDetailMatch[1],
+    };
   }
 
   const repositoryMatch = effectivePath.match(/^\/api\/repositories\/([^/]+)$/);
@@ -2097,6 +3429,10 @@ function jsonResponse(payload, init = {}) {
   });
 }
 
+function sseEvent(event, data) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
 function methodNotAllowed(methods) {
   return jsonResponse(
     {
@@ -2111,13 +3447,29 @@ function methodNotAllowed(methods) {
   );
 }
 
-function errorResponse(error, fallbackMessage) {
+function errorResponse(error, fallbackMessage, { traceId } = {}) {
+  const status = Number(error?.statusCode ?? 500);
+  const safeMessage = status >= 500
+    ? fallbackMessage
+    : redactSensitiveString(error?.message || fallbackMessage);
   return jsonResponse(
     {
-      error: error?.message || fallbackMessage,
+      error: safeMessage,
+      error_code: String(error?.errorCode ?? error?.code ?? `HTTP_${status}`),
+      trace_id: traceId,
     },
-    { status: Number(error?.statusCode ?? 500) },
+    { status },
   );
+}
+
+function withTraceHeader(response, traceId) {
+  const nextHeaders = new Headers(response.headers);
+  nextHeaders.set("X-Be-AI-Heart-Trace-Id", traceId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: nextHeaders,
+  });
 }
 
 function withCors(response, request, config) {
@@ -2140,7 +3492,7 @@ function withCors(response, request, config) {
   );
   nextHeaders.set(
     "Access-Control-Expose-Headers",
-    "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
+    "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Be-AI-Heart-Trace-Id",
   );
   if (allowedOrigin !== "*") {
     nextHeaders.set("Access-Control-Allow-Credentials", "true");
@@ -2378,6 +3730,26 @@ function toClientSession(session, { includeToken = true } = {}) {
       };
 }
 
+function toClientApiKeyRecord(session) {
+  return {
+    key_id: session.session_id,
+    session_family_id: session.session_family_id,
+    label: session.metadata?.label ?? "CLI API key",
+    actor_slug: session.actor_slug,
+    workspace_slug: session.workspace_slug,
+    customer_slug: session.customer_slug,
+    issued_at: session.issued_at,
+    expires_at: session.expires_at,
+    last_seen_at: session.last_seen_at,
+    status: session.revoked_at
+      ? "revoked"
+      : session.expires_at && session.expires_at < new Date().toISOString()
+        ? "expired"
+        : "active",
+    api_key: "",
+  };
+}
+
 function toAdminSessionRecord(session) {
   if (!session) {
     return null;
@@ -2390,6 +3762,27 @@ function toAdminSessionRecord(session) {
   };
 }
 
+function sanitizeApiKeyLabel(value) {
+  const label = String(value ?? "CLI API key")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+  return label || "CLI API key";
+}
+
+function resolveApiKeyExpiresAt(value) {
+  const requestedDays = value === undefined || value === null || value === ""
+    ? 90
+    : Number(value);
+  if (!Number.isFinite(requestedDays) || requestedDays <= 0) {
+    throw createHttpError(400, "expires_in_days must be a positive number.");
+  }
+  const days = Math.min(Math.floor(requestedDays), 365);
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
 async function writeRequestTraceForResponse({
   config,
   serviceStorageRoot,
@@ -2397,6 +3790,7 @@ async function writeRequestTraceForResponse({
   route,
   response,
   startedAtMs,
+  traceId,
 } = {}) {
   if (!serviceStorageRoot || !request || !response) {
     return;
@@ -2411,12 +3805,14 @@ async function writeRequestTraceForResponse({
         surface,
         request,
         sessionCookieName: config?.sessionSecurity?.cookieName,
+        allowQuerySession: config?.sessionSecurity?.allowQuerySession,
       })
     : null;
 
   await writeRequestTrace({
     serviceStorageRoot,
     trace: {
+      trace_id: traceId,
       method: request.method,
       route_kind: route?.kind ?? "unknown",
       path: requestUrl.pathname,
@@ -2431,10 +3827,15 @@ async function writeRequestTraceForResponse({
         .update(resolveRateLimitClientKey(request, config), "utf8")
         .digest("hex"),
       metadata: {
-        query: requestUrl.search,
+        query: redactUrlSearch(requestUrl.search),
       },
     },
   });
+}
+
+function resolveTraceId(request) {
+  const provided = String(request.headers.get("x-be-ai-heart-trace-id") ?? "").trim();
+  return /^[a-zA-Z0-9._:-]{8,120}$/.test(provided) ? provided : randomUUID();
 }
 
 function resolveTraceSurface(route, requestUrl) {
@@ -2466,6 +3867,7 @@ async function requirePortalAuthContext(request, config, requiredPermission) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor || authContext.actor.surface !== "portal") {
     throw createHttpError(401, "Unauthenticated request.");
@@ -2482,6 +3884,7 @@ async function requireAdminAuthContext(request, config, requiredPermission) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor || authContext.actor.surface !== "admin") {
     throw createHttpError(401, "Unauthenticated request.");

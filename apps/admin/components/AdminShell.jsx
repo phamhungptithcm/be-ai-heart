@@ -87,7 +87,8 @@ export function AdminShell({
   children,
   eyebrow = "Internal Control Plane",
   shellMode = "default",
-  showToolbar = true,
+  showToolbar = false,
+  showHeaderActions = false,
 }) {
   const pathname = usePathname() ?? "/";
   const [navOpen, setNavOpen] = useState(false);
@@ -336,18 +337,20 @@ export function AdminShell({
                 <h1>{title}</h1>
                 <p>{description}</p>
               </div>
-              <div className="admin-page-header-actions">
-                {actorHasPermission(navigation.actor, "admin.customers.read") ? (
-                  <Link href="/customers" className="admin-button-link admin-button-link-primary">
-                    Review customers
-                  </Link>
-                ) : null}
-                {actorHasPermission(navigation.actor, "admin.ops_health.read") ? (
-                  <Link href="/ops-health" className="admin-button-link">
-                    Check ops health
-                  </Link>
-                ) : null}
-              </div>
+              {showHeaderActions ? (
+                <div className="admin-page-header-actions">
+                  {actorHasPermission(navigation.actor, "admin.customers.read") ? (
+                    <Link href="/customers" className="admin-button-link admin-button-link-primary">
+                      Review customers
+                    </Link>
+                  ) : null}
+                  {actorHasPermission(navigation.actor, "admin.ops_health.read") ? (
+                    <Link href="/ops-health" className="admin-button-link">
+                      Check ops health
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
 
             <div className="admin-stack">{isAccessDenied ? null : children}</div>

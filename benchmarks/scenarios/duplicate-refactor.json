@@ -3,6 +3,7 @@
   "id": "duplicate-refactor",
   "title": "Duplicate Metric Refactor",
   "category": "duplicate-work-avoidance",
+  "design_partner_type": "duplicate_refactor",
   "description": "Measures whether the workflow extends the existing benchmark engine instead of creating parallel metric and reporting paths.",
   "repo": "be-ai-heart",
   "provider": "openai",
@@ -23,6 +24,18 @@
     "Do not split benchmark output into a second package.",
     "Keep report schema evolution additive."
   ],
+  "expected_evidence": [
+    "reuse targets point at existing benchmark engine",
+    "tests extend existing benchmark contract coverage",
+    "report schema remains additive"
+  ],
+  "rubric": {
+    "must_pass": [
+      "No second benchmark pipeline",
+      "New metrics reuse existing report writer",
+      "Duplicate avoidance evidence is visible in output"
+    ]
+  },
   "evaluation": {
     "targets": {
       "max_tokens": 1700,

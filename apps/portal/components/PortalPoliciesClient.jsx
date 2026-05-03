@@ -36,8 +36,7 @@ export function PortalPoliciesClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Guardrail status</span>
-            <h3>Policy packs and current guardrail posture</h3>
-            <p>The policies page should make it obvious whether repository memory is governed well enough for reliable AI-assisted delivery.</p>
+            <h3>Guardrail health</h3>
           </div>
         </div>
         <div className="portal-kpi-grid">
@@ -53,7 +52,7 @@ export function PortalPoliciesClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Policy packs</span>
-              <h3>What guardrail bundles are active</h3>
+              <h3>Active packs</h3>
             </div>
           </div>
           <div className="portal-action-list">
@@ -73,7 +72,7 @@ export function PortalPoliciesClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Exceptions</span>
-              <h3>Temporary allowances that should not be forgotten</h3>
+              <h3>Temporary allowances</h3>
             </div>
           </div>
           <div className="portal-action-list">

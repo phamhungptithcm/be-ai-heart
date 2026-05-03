@@ -38,5 +38,5 @@
     "Prefer additive schema evolution over replacement report formats.",
     "Keep repeatable evidence bundles under .heart/benchmarks/evidence."
   ],
-  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/reuse-path-consolidation.json"
+  "path": "[repo-root]/benchmarks/datasets/reuse-path-consolidation.json"
 }

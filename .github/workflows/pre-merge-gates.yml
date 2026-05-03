@@ -56,3 +56,9 @@ jobs:
 
       - name: Basic E2E smoke
         run: npm run e2e
+
+      - name: Web surface builds
+        run: |
+          npm run website:build
+          npm run portal:build
+          npm run admin:build

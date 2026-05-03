@@ -10,11 +10,10 @@ export const metadata = createPortalMetadata({
 
 export default function PortalPoliciesPage() {
   return (
-    <PortalShell title="Policies" description="Legacy route for repository guardrails and benchmark-readiness policy visibility.">
-      <PortalSection eyebrow="Compatibility" title="Policy visibility" subtitle="Legacy route alias">
+    <PortalShell title="Policies" description="Workspace guardrails and policy warnings.">
+      <PortalSection eyebrow="Governance" title="Policy warnings">
         <PortalPoliciesClient />
       </PortalSection>
     </PortalShell>
   );
 }
-

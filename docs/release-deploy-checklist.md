@@ -36,12 +36,16 @@ Current gate coverage:
 - `npm run build`
 - `npm run test`
 - `npm run e2e`
+- website, portal, and admin Next.js builds
 
-Current `e2e` coverage is intentionally basic:
+Current `e2e` coverage is intentionally narrow:
 
-- `npm run e2e` maps to the hosted-auth smoke flow today
+- hosted-auth smoke
+- CLI command and JSON contract smoke
+- tracked release artifact safety audit
 
-This is enough to protect branch promotion until a fuller end-to-end suite exists.
+Browser-level smoke is available through `npm run smoke:web` once local or preview servers are running and `playwright`
+is installed with `npm install --no-save playwright@1.51.1`.
 
 ## Main-Only Release Workflows
 
@@ -87,8 +91,12 @@ A production release is eligible only when:
 
 - `Pre-Merge Gates` passed on the pull request into `main`
 - required production secrets and variables are configured
+- API production config starts with `BE_AI_HEART_RUNTIME_ENV=production`
+- tracked `.heart/benchmarks` artifacts pass `npm run audit:artifacts`
+- CLI command smoke passes through `npm run smoke:cli`
 - App Hosting backends already exist and are connected to the repository
 - Artifact Registry and Cloud Run are provisioned
+- web surfaces build with production `NEXT_PUBLIC_BE_AI_HEART_*` URLs
 - there are no known security blockers in the changed deployment path
 
 ## Required Platform Setup
@@ -112,6 +120,10 @@ After a `main` release, verify:
 - portal sign-in and main dashboard routes load
 - admin sign-in and main dashboard routes load
 - API root or health path responds from Cloud Run
+- API responses include `X-Be-AI-Heart-Trace-Id`
+- `/metrics` responds without sensitive labels
+- LLM proxy rejects missing `X-Be-AI-Heart-Proxy-Token` when enabled
+- billing surfaces show `paid_public_release_ready=false` unless live billing is configured
 - no deploy logs leaked credentials or sensitive content
 
 ## Rollback Notes
@@ -137,6 +149,6 @@ After a `main` release, verify:
 
 - automatic CLI release from `main`
 - worker deployment from `services/worker`
-- richer browser-level E2E coverage beyond hosted-auth smoke
+- always-on browser-level E2E coverage in pre-merge CI
 
 These are intentionally deferred to keep the first release system narrow, testable, and aligned with the current repo architecture.

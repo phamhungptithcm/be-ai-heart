@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listWebsiteServices } from "../src/services.js";
 
 const SERVICE_ITEMS = Object.freeze(
@@ -14,16 +14,19 @@ const SERVICE_ITEMS = Object.freeze(
 );
 
 const PRIMARY_LINKS = Object.freeze([
+  { href: "/product", label: "Product" },
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/cli-mcp", label: "CLI/MCP" },
   { href: "/benchmark", label: "Benchmark" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/security", label: "Security", mobileOnly: true },
   { href: "/docs", label: "Docs" },
-  { href: "/customers", label: "Customers" },
 ]);
 
 const ACTION_LINKS = Object.freeze([
   { href: "/sign-in", label: "Sign in" },
   { href: "/book-demo", label: "Book demo" },
-  { href: "/start-trial", label: "Start trial", primary: true },
+  { href: "/docs/v1/getting-started", label: "Try CLI", primary: true },
 ]);
 
 function isActivePath(pathname, href) {
@@ -38,23 +41,73 @@ export function WebsiteHeaderNav() {
   const pathname = usePathname() ?? "/";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
+  const closeTimerRef = useRef(null);
+  const servicesDropdownRef = useRef(null);
   const isServicesActive =
     pathname === "/services" || SERVICE_ITEMS.some((item) => isActivePath(pathname, item.href));
   const mobileNavId = "website-mobile-nav";
+  const servicesMenuInert = servicesOpen ? undefined : true;
+  const mobileNavInert = mobileOpen ? undefined : true;
 
   useEffect(() => {
     setMobileOpen(false);
     setServicesOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!servicesOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (!servicesDropdownRef.current?.contains(event.target)) {
+        setServicesOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [servicesOpen]);
+
+  const openServicesMenu = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    setServicesOpen(true);
+  };
+
+  const scheduleServicesClose = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      setServicesOpen(false);
+    }, 240);
+  };
+
   return (
     <div className="website-nav-shell">
       <div className="website-nav-desktop">
         <nav className="website-nav" aria-label="Primary">
           <div
+            ref={servicesDropdownRef}
             className="website-nav-dropdown"
-            onMouseEnter={() => setServicesOpen(true)}
-            onMouseLeave={() => setServicesOpen(false)}
+            onMouseEnter={openServicesMenu}
+            onMouseLeave={scheduleServicesClose}
+            onFocus={openServicesMenu}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setServicesOpen(false);
+              }
+            }}
           >
             <button
               type="button"
@@ -70,9 +123,14 @@ export function WebsiteHeaderNav() {
                 </svg>
               </span>
             </button>
-            <div className="website-nav-menu" data-open={servicesOpen}>
+            <div
+              className="website-nav-menu"
+              data-open={servicesOpen}
+              aria-hidden={!servicesOpen}
+              inert={servicesMenuInert}
+            >
               {SERVICE_ITEMS.map((item) => (
-                <Link key={item.href} href={item.href} className="website-nav-menu-link">
+                <Link key={item.href} href={item.href} className="website-nav-menu-link" data-active={isActivePath(pathname, item.href)}>
                   <strong>{item.label}</strong>
                   <span>{item.detail}</span>
                 </Link>
@@ -82,7 +140,7 @@ export function WebsiteHeaderNav() {
               </div>
             </div>
           </div>
-          {PRIMARY_LINKS.map((item) => (
+          {PRIMARY_LINKS.filter((item) => !item.mobileOnly).map((item) => (
             <Link key={item.href} href={item.href} className="website-nav-link" data-active={isActivePath(pathname, item.href)}>
               {item.label}
             </Link>
@@ -123,16 +181,22 @@ export function WebsiteHeaderNav() {
         </svg>
       </button>
 
-      <div id={mobileNavId} className="website-nav-mobile" data-open={mobileOpen}>
+      <div
+        id={mobileNavId}
+        className="website-nav-mobile"
+        data-open={mobileOpen}
+        aria-hidden={!mobileOpen}
+        inert={mobileNavInert}
+      >
         <div className="website-nav-mobile-group">
           <p>Services</p>
           {SERVICE_ITEMS.map((item) => (
-            <Link key={item.href} href={item.href} className="website-nav-mobile-link">
+            <Link key={item.href} href={item.href} className="website-nav-mobile-link" data-active={isActivePath(pathname, item.href)}>
               <strong>{item.label}</strong>
               <span>{item.detail}</span>
             </Link>
           ))}
-          <Link href="/services" className="website-nav-mobile-link">
+          <Link href="/services" className="website-nav-mobile-link" data-active={isActivePath(pathname, "/services")}>
             <strong>All Services</strong>
             <span>See the full service map and how each offering fits together.</span>
           </Link>
@@ -140,14 +204,19 @@ export function WebsiteHeaderNav() {
         <div className="website-nav-mobile-group">
           <p>Explore</p>
           {PRIMARY_LINKS.map((item) => (
-            <Link key={item.href} href={item.href} className="website-nav-mobile-link">
+            <Link key={item.href} href={item.href} className="website-nav-mobile-link" data-active={isActivePath(pathname, item.href)}>
               <strong>{item.label}</strong>
             </Link>
           ))}
         </div>
         <div className="website-nav-mobile-actions">
           {ACTION_LINKS.map((item) => (
-            <Link key={item.href} href={item.href} className={item.primary ? "primary" : ""}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={item.primary ? "primary" : ""}
+              data-active={isActivePath(pathname, item.href)}
+            >
               {item.label}
             </Link>
           ))}

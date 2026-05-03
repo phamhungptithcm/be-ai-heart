@@ -50,6 +50,55 @@ test("service auth provider registry does not expose oauth client secrets", asyn
   assert.equal(auth0.provider_config.issuer, "https://auth.example.test");
 });
 
+test("service auth provider registry exposes local demo provider only when enabled", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const workspaceRoot = path.dirname(repoRoot);
+
+  const enabledConfig = resolveHttpConfig({
+    monorepoRoot: workspaceRoot,
+    serviceStorageRoot: path.join(workspaceRoot, "services", "api", "data"),
+    portalRoot: path.join(workspaceRoot, "apps", "portal"),
+    adminRoot: path.join(workspaceRoot, "apps", "admin"),
+    apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
+  });
+  const enabledResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/auth/providers?surface=admin&return_to=http://127.0.0.1:3002/auth/complete"),
+    enabledConfig,
+  );
+  const enabledPayload = await enabledResponse.json();
+  const demoProvider = enabledPayload.providers.find(
+    (provider) => provider.id === "local-admin-demo",
+  );
+
+  assert.equal(enabledResponse.status, 200);
+  assert.equal(enabledPayload.local_demo_auth_enabled, true);
+  assert.ok(demoProvider);
+  assert.equal(demoProvider.kind, "local-demo");
+  assert.equal(new URL(demoProvider.authorize_url).searchParams.get("session_token"), "admin-owner-session");
+
+  const disabledConfig = resolveHttpConfig({
+    monorepoRoot: workspaceRoot,
+    serviceStorageRoot: path.join(workspaceRoot, "services", "api", "data"),
+    portalRoot: path.join(workspaceRoot, "apps", "portal"),
+    adminRoot: path.join(workspaceRoot, "apps", "admin"),
+    apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: false,
+  });
+  const disabledResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/auth/providers?surface=admin&return_to=http://127.0.0.1:3002/auth/complete"),
+    disabledConfig,
+  );
+  const disabledPayload = await disabledResponse.json();
+
+  assert.equal(disabledResponse.status, 200);
+  assert.equal(disabledPayload.local_demo_auth_enabled, false);
+  assert.equal(
+    disabledPayload.providers.some((provider) => provider.kind === "local-demo"),
+    false,
+  );
+});
+
 test("service auth session exchange rejects custom provider config over HTTP", async (t) => {
   const repoRoot = await createTempRepoCopy(t);
   const workspaceRoot = path.dirname(repoRoot);
@@ -396,6 +445,89 @@ test("cookie-backed write routes require an allowed origin and matching CSRF tok
   assert.equal(missingCsrfResponse.status, 403);
   assert.equal(disallowedOriginResponse.status, 403);
   assert.equal(validResponse.status, 201);
+});
+
+test("portal can create a one-time CLI API key without listing raw key material", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const workspaceRoot = path.dirname(repoRoot);
+  const config = resolveHttpConfig({
+    monorepoRoot: workspaceRoot,
+    serviceStorageRoot: path.join(workspaceRoot, "services", "api", "data"),
+    portalRoot: path.join(workspaceRoot, "apps", "portal"),
+    adminRoot: path.join(workspaceRoot, "apps", "admin"),
+    apiBaseUrl: "http://127.0.0.1:4010",
+    localDemoAuth: true,
+  });
+
+  const createResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/api-keys", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-be-ai-heart-session": "portal-demo-session",
+      },
+      body: JSON.stringify({
+        label: "MacBook CLI",
+        expires_in_days: 30,
+      }),
+    }),
+    config,
+  );
+  const createPayload = await createResponse.json();
+
+  assert.equal(createResponse.status, 201);
+  assert.match(createPayload.api_key, /^[a-f0-9]{32,}$/);
+  assert.equal(createPayload.key.api_key, "");
+  assert.equal(createPayload.key.label, "MacBook CLI");
+  assert.equal(createPayload.command, "heart login --api-key=<api-key>");
+  assert.equal(createPayload.self_hosted_command, "heart login --url http://127.0.0.1:4010 --api-key=<api-key>");
+
+  const listResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/api-keys", {
+      headers: {
+        "x-be-ai-heart-session": "portal-demo-session",
+      },
+    }),
+    config,
+  );
+  const listPayload = await listResponse.json();
+  const listRaw = JSON.stringify(listPayload);
+
+  assert.equal(listResponse.status, 200);
+  assert.ok(listPayload.api_keys.some((key) => key.key_id === createPayload.key.key_id));
+  assert.equal(listRaw.includes(createPayload.api_key), false);
+
+  const sessionResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/session", {
+      headers: {
+        "x-be-ai-heart-session": createPayload.api_key,
+      },
+    }),
+    config,
+  );
+  const sessionPayload = await sessionResponse.json();
+
+  assert.equal(sessionResponse.status, 200);
+  assert.equal(sessionPayload.actor.actor_slug, "demo-customer");
+  assert.equal(sessionPayload.session.session_token, createPayload.api_key);
+
+  const chainedCreateResponse = await handleServiceHttpRequest(
+    new Request("http://127.0.0.1:4010/api/api-keys", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-be-ai-heart-session": createPayload.api_key,
+      },
+      body: JSON.stringify({
+        label: "chained key",
+      }),
+    }),
+    config,
+  );
+  const chainedCreatePayload = await chainedCreateResponse.json();
+
+  assert.equal(chainedCreateResponse.status, 403);
+  assert.match(chainedCreatePayload.error, /cannot create additional API keys/i);
 });
 
 test("admin session registry redacts session material and requires CSRF for cookie-backed revocation", async (t) => {

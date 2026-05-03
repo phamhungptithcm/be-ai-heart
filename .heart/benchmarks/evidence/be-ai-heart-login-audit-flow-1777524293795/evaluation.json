@@ -507,6 +507,6 @@
     }
   },
   "evaluation": {
-    "scenario_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/scenarios/login-audit-flow.json"
+    "scenario_path": "[repo-root]/benchmarks/scenarios/login-audit-flow.json"
   }
 }

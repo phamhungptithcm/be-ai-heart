@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DocsExplorerClient } from "../../../../components/DocsExplorerClient.jsx";
+import { WebsiteDocsSidebar } from "../../../../components/WebsiteDocsSidebar.jsx";
 import { WebsiteShell, WebsiteSection } from "../../../../components/WebsiteShell.jsx";
 import { loadDocEntry, loadDocsCatalog } from "../../../../src/docs/index.js";
 import { createWebsiteMetadata } from "../../../../src/metadata.js";
@@ -89,19 +90,25 @@ export default async function WebsiteDocEntryPage({ params }) {
         ]}
         nav={["home", "product", "benchmark", "pricing", "security", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
         accent="teal"
+        heroVariant="docs"
         aside={<p className="website-aside-copy">Each version keeps the operator path stable while the product surface evolves.</p>}
       >
-        <WebsiteSection
-          eyebrow="Version index"
-          title="Browse the current guide set."
-          description="Use this versioned explorer when you want a stable link to onboarding, benchmark, security, or hosted platform guidance."
-        >
-          <DocsExplorerClient
-            documents={versionDocuments}
-            versions={[version]}
-            initialVersion={version}
-          />
-        </WebsiteSection>
+        <div className="website-docs-layout">
+          <WebsiteDocsSidebar documents={versionDocuments} activeHref={`/docs/${version}`} />
+          <div className="website-docs-main">
+            <WebsiteSection
+              eyebrow="Version index"
+              title="Browse the current guide set."
+              description="Use this versioned explorer when you want a stable link to onboarding, benchmark, security, or hosted platform guidance."
+            >
+              <DocsExplorerClient
+                documents={versionDocuments}
+                versions={[version]}
+                initialVersion={version}
+              />
+            </WebsiteSection>
+          </div>
+        </div>
       </WebsiteShell>
     );
   }
@@ -131,22 +138,14 @@ export default async function WebsiteDocEntryPage({ params }) {
       ]}
       nav={["home", "product", "benchmark", "pricing", "security", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
       accent="teal"
+      heroVariant="docs"
       aside={
         <div className="website-doc-sidebar">
           <p className="website-aside-copy">
             {document.headings.length
-              ? "Jump to the parts that matter for rollout, benchmark proof, and governance."
+              ? "Use the guide, copy the commands, and keep rollout decisions tied to reviewed artifacts."
               : "This guide is intentionally short and operational."}
           </p>
-          {document.headings.length ? (
-            <div className="website-doc-toc">
-              {document.headings.map((heading) => (
-                <a key={heading.slug} href={`#${heading.slug}`}>
-                  {heading.title}
-                </a>
-              ))}
-            </div>
-          ) : null}
         </div>
       }
     >
@@ -159,12 +158,26 @@ export default async function WebsiteDocEntryPage({ params }) {
           <strong>{document.metadata.title}</strong>
         </div>
 
-        <div className="website-doc-article">
+        <div className="website-doc-article website-doc-article-with-sidebar">
+          <WebsiteDocsSidebar
+            documents={catalog.documents.filter((entry) => entry.version === version)}
+            activeHref={document.href}
+          />
           <article className="website-prose">
             <Content components={MDX_COMPONENTS} />
           </article>
 
           <aside className="website-doc-related">
+            {document.headings.length ? (
+              <div className="website-doc-toc website-doc-toc-panel">
+                <span>On this page</span>
+                {document.headings.map((heading) => (
+                  <a key={heading.slug} href={`#${heading.slug}`}>
+                    {heading.title}
+                  </a>
+                ))}
+              </div>
+            ) : null}
             <span>Related</span>
             <div className="website-doc-related-list">
               {relatedDocuments.slice(0, 4).map((entry) => (

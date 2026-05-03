@@ -1,9 +1,11 @@
 import { METRIC_SOURCE_TYPES } from "../../../packages/shared-schema/src/enterprise.js";
+import { buildBenchmarkTrendDigest } from "../../../packages/benchmark/src/trends.js";
 
 const SERVICE_ORDER = Object.freeze([
   "code_graph",
   "diagrams",
   "document_memory",
+  "context_pack_preview",
   "policy_rails",
   "benchmark_roi",
   "runtime_signals",
@@ -31,9 +33,15 @@ export function buildRepositoryServicesView({
     runtimeSignals,
   });
   const sections = {
-    code_graph: buildCodeGraphService({ codeGraph }),
+    code_graph: buildCodeGraphService({ codeGraph, profile }),
     diagrams: buildDiagramService({ diagrams }),
     document_memory: buildDocumentMemoryService({ profile, documents, documentItems }),
+    context_pack_preview: buildContextPackPreviewService({
+      profile,
+      documents,
+      documentItems,
+      codeGraph,
+    }),
     policy_rails: buildPolicyRailsService({ profile, workspace }),
     benchmark_roi: buildBenchmarkRoiService({ benchmarkReports, benchmarkSummary }),
     runtime_signals: buildRuntimeSignalsService({ runtimeSignals }),
@@ -60,20 +68,28 @@ export function buildRepositoryServicesView({
   };
 }
 
-function buildCodeGraphService({ codeGraph } = {}) {
-  const view = codeGraph?.view ?? null;
+function buildCodeGraphService({ codeGraph, profile } = {}) {
+  const view =
+    codeGraph?.view ??
+    buildDiagramDerivedCodeGraphView({
+      diagrams: profile?.diagrams,
+      mode: codeGraph?.requested_mode,
+    });
   const availableModes = Array.isArray(codeGraph?.available_modes)
     ? codeGraph.available_modes
     : ["focused"];
+  const isDiagramDerived = Boolean(view?.is_diagram_derived);
 
   return {
     key: "code_graph",
     title: "Code Graph",
-    subtitle: "Classes, functions, files, and dependency paths that let teams understand the repo without reloading full context.",
+    subtitle: "Files, symbols, domains, and relationships from the latest synced repo artifacts.",
     source_type: METRIC_SOURCE_TYPES.repoArtifact,
     state: view ? "ready" : "missing",
     note: view
-      ? view.mode === "full"
+      ? isDiagramDerived
+        ? "Graph artifact is not published yet. This low-confidence view is derived from the synced Mermaid symbol graph."
+        : view.mode === "full"
         ? "Full graph is loaded. Use it when the focused lane is no longer enough."
         : "Focused graph is loaded first so customers can inspect the highest-signal subgraph before expanding."
       : "Run a fresh repository sync to publish the visual graph snapshot for this workspace.",
@@ -87,6 +103,168 @@ function buildCodeGraphService({ codeGraph } = {}) {
     default_mode: codeGraph?.default_mode ?? "focused",
     view,
   };
+}
+
+function buildDiagramDerivedCodeGraphView({ diagrams, mode = "focused" } = {}) {
+  const sourceDiagram = (Array.isArray(diagrams) ? diagrams : []).find(
+    (diagram) => String(diagram.type ?? "").includes("symbol") && diagram.content,
+  ) ?? (Array.isArray(diagrams) ? diagrams : []).find((diagram) => diagram.content);
+
+  if (!sourceDiagram?.content) {
+    return null;
+  }
+
+  const nodeMap = new Map();
+  const edgeCandidates = [];
+  const nodePattern = /^\s*([A-Za-z0-9_]+)\["([^"]+)"\]/;
+  const edgePattern = /^\s*([A-Za-z0-9_]+)\s*(?:-->|-.+?->)\s*([A-Za-z0-9_]+)/;
+
+  for (const line of String(sourceDiagram.content).split(/\r?\n/)) {
+    const nodeMatch = line.match(nodePattern);
+    if (nodeMatch) {
+      nodeMap.set(nodeMatch[1], normalizeDerivedGraphNode(nodeMatch[1], nodeMatch[2]));
+      continue;
+    }
+
+    const edgeMatch = line.match(edgePattern);
+    if (edgeMatch) {
+      edgeCandidates.push({
+        id: `${edgeMatch[1]}-${edgeMatch[2]}-${edgeCandidates.length}`,
+        from: edgeMatch[1],
+        to: edgeMatch[2],
+      });
+    }
+  }
+
+  const allNodes = [...nodeMap.values()];
+  if (allNodes.length === 0) {
+    return null;
+  }
+
+  const selectedLimit = String(mode) === "full" ? 90 : 42;
+  const selectedNodes = allNodes.slice(0, selectedLimit);
+  const selectedIds = new Set(selectedNodes.map((node) => node.id));
+  const selectedEdges = edgeCandidates
+    .filter((edge) => selectedIds.has(edge.from) && selectedIds.has(edge.to))
+    .slice(0, selectedLimit * 2)
+    .map((edge) => ({
+      ...edge,
+      type_key: "diagram_edge",
+      type_label: "synced",
+      color: "rgba(44, 84, 255, 0.64)",
+    }));
+  const degreeByNode = new Map();
+  for (const edge of selectedEdges) {
+    degreeByNode.set(edge.from, Number(degreeByNode.get(edge.from) ?? 0) + 1);
+    degreeByNode.set(edge.to, Number(degreeByNode.get(edge.to) ?? 0) + 1);
+  }
+
+  const layout = createDerivedGraphLayout(selectedNodes.length);
+  const nodes = selectedNodes.map((node, index) => {
+    const position = layout.positions[index] ?? { x: 120, y: 120 };
+    return {
+      ...node,
+      position,
+      degree: Number(degreeByNode.get(node.id) ?? 0),
+      radius: node.type_key === "repository" ? 24 : node.type_key === "domain" ? 20 : 16,
+    };
+  });
+
+  return {
+    schema_version: 1,
+    mode: String(mode) === "full" ? "full" : "focused",
+    source_type: "diagram_derived",
+    confidence_label: "low",
+    inference_mode: "diagram-derived-fallback",
+    is_diagram_derived: true,
+    is_truncated: selectedNodes.length < allNodes.length,
+    node_count: nodes.length,
+    edge_count: selectedEdges.length,
+    total_node_count: allNodes.length,
+    total_edge_count: edgeCandidates.length,
+    node_type_counts: countBy(nodes, "type_key"),
+    edge_type_counts: countBy(selectedEdges, "type_key"),
+    total_node_type_counts: countBy(allNodes, "type_key"),
+    total_edge_type_counts: { diagram_edge: edgeCandidates.length },
+    layout: {
+      algorithm: "diagram-derived-radial",
+      width: layout.width,
+      height: layout.height,
+    },
+    nodes,
+    edges: selectedEdges,
+  };
+}
+
+function normalizeDerivedGraphNode(id, label) {
+  const safeLabel = String(label ?? id);
+  const type = inferDerivedNodeType(safeLabel);
+  const displayLabel = safeLabel.replace(/^(Repo|File|Domain|Docs|function|const|class|interface|enum):\s*/i, "");
+
+  return {
+    id,
+    label: truncate(displayLabel, 48),
+    type_key: type.key,
+    type_label: type.label,
+    secondary_label: safeLabel.startsWith("File:") ? displayLabel : "",
+    path: safeLabel.startsWith("File:") ? displayLabel : "",
+    search_text: `${safeLabel} ${displayLabel}`.toLowerCase(),
+    color: type.color,
+    degree: 0,
+    meta: {
+      source: "synced Mermaid symbol graph",
+    },
+  };
+}
+
+function inferDerivedNodeType(label) {
+  if (/^Repo:/i.test(label)) {
+    return { key: "repository", label: "repository", color: "#2c54ff" };
+  }
+  if (/^Domain:/i.test(label)) {
+    return { key: "domain", label: "domain", color: "#16a34a" };
+  }
+  if (/^File:/i.test(label)) {
+    return { key: "file", label: "file", color: "#7c3aed" };
+  }
+  if (/^(function|const):/i.test(label)) {
+    return { key: "symbol", label: "symbol", color: "#0ea5e9" };
+  }
+  if (/^(class|interface|enum):/i.test(label)) {
+    return { key: "type", label: "type", color: "#f97316" };
+  }
+  if (/^Docs:/i.test(label)) {
+    return { key: "document", label: "document", color: "#64748b" };
+  }
+  return { key: "node", label: "node", color: "#64748b" };
+}
+
+function createDerivedGraphLayout(count) {
+  const columns = count > 36 ? 7 : count > 18 ? 6 : 5;
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const cellWidth = 160;
+  const cellHeight = 118;
+  const width = Math.max(760, columns * cellWidth + 120);
+  const height = Math.max(520, rows * cellHeight + 140);
+  const positions = Array.from({ length: count }, (_, index) => ({
+    x: 80 + (index % columns) * cellWidth,
+    y: 90 + Math.floor(index / columns) * cellHeight,
+  }));
+
+  return { width, height, positions };
+}
+
+function countBy(items, key) {
+  return items.reduce((counts, item) => {
+    const value = String(item?.[key] ?? "unknown");
+    counts[value] = Number(counts[value] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function truncate(value, limit) {
+  const safeValue = String(value ?? "");
+  return safeValue.length > limit ? `${safeValue.slice(0, limit - 3)}...` : safeValue;
 }
 
 function buildDiagramService({ diagrams } = {}) {
@@ -151,6 +329,103 @@ function buildDocumentMemoryService({ profile, documents, documentItems } = {}) 
   };
 }
 
+function buildContextPackPreviewService({
+  profile,
+  documents,
+  documentItems,
+  codeGraph,
+} = {}) {
+  const view = codeGraph?.view ?? {};
+  const nodes = Array.isArray(view.nodes) ? view.nodes : [];
+  const fileItems = buildContextPreviewFiles(nodes);
+  const symbolItems = buildContextPreviewSymbols(nodes);
+  const docItems = buildContextPreviewDocuments(documentItems);
+  const warningCount = Number(profile?.overview?.policy_warnings ?? 0);
+  const citations = [
+    ...fileItems.slice(0, 3).map((file) => ({
+      type: "graph",
+      label: file.path,
+      reason: "High-signal file from the synced focused code graph.",
+    })),
+    ...docItems.slice(0, 3).map((document) => ({
+      type: "document",
+      label: document.title,
+      reason: document.restricted
+        ? "Restricted document metadata is visible; raw content stays out of the preview."
+        : "Synced project document can explain business or technical intent.",
+    })),
+    warningCount > 0
+      ? {
+          type: "policy",
+          label: `${warningCount} policy warning(s)`,
+          reason: "Policy warnings should be reviewed before giving this task to an agent.",
+        }
+      : {
+          type: "policy",
+          label: "No active policy warnings",
+          reason: "The current repository profile has no published policy warnings.",
+        },
+  ].filter(Boolean);
+  const tokenBudget = 1200;
+  const estimatedTokens = Math.min(
+    tokenBudget,
+    fileItems.length * 90 + symbolItems.length * 36 + docItems.length * 110 + citations.length * 32,
+  );
+  const risks = buildContextPreviewRisks({
+    profile,
+    documents,
+    fileItems,
+    docItems,
+    warningCount,
+  });
+
+  return {
+    key: "context_pack_preview",
+    title: "Context Pack Preview",
+    subtitle: "A hosted preview of what a task-specific Heart pack would contain, built only from synced artifacts.",
+    source_type: METRIC_SOURCE_TYPES.repoArtifact,
+    state: fileItems.length > 0 || docItems.length > 0 ? "ready" : "missing",
+    note:
+      "This preview does not execute against the customer repository. Generate the final pack locally with the CLI so ignore rules, policy, and fresh graph state are applied.",
+    metrics: [
+      metric("Files", fileItems.length),
+      metric("Docs", docItems.length),
+      metric("Citations", citations.length),
+      metric("Budget", `${tokenBudget} tokens`),
+    ],
+    sample_task: "add SSO login audit logging",
+    cli_command: "heart pack \"add SSO login audit logging\"",
+    mcp_tool: "context_pack",
+    model_presets: [
+      { id: "balanced", label: "Balanced coding model", token_budget: tokenBudget },
+      { id: "low-cost", label: "Low-cost review model", token_budget: 900 },
+      { id: "deep-context", label: "Deep context model", token_budget: 1800 },
+    ],
+    command_examples: [
+      "/pack \"add SSO login audit logging\"",
+      "/docs \"SSO requirements\"",
+      "/impact src/auth/login.ts",
+    ],
+    preview: {
+      schema_version: 1,
+      task: "add SSO login audit logging",
+      token_budget: tokenBudget,
+      estimated_tokens: estimatedTokens,
+      confidence_label: fileItems.length > 0 && docItems.length > 0 ? "medium" : "low",
+      files: fileItems.slice(0, 6),
+      symbols: symbolItems.slice(0, 6),
+      documents: docItems.slice(0, 5),
+      citations: citations.slice(0, 8),
+      risks,
+      next_actions: [
+        "Run heart pack locally for the exact task before handing context to an AI agent.",
+        "Run heart policy check if the preview includes policy warnings.",
+        "Run heart docs sync-web when business requirements changed in the portal.",
+      ],
+    },
+  };
+}
+
 function buildPolicyRailsService({ profile, workspace } = {}) {
   const warningCount = Number(profile?.overview?.policy_warnings ?? 0);
   const cacheStatus = String(profile?.cache?.status ?? "unknown");
@@ -183,10 +458,11 @@ function buildPolicyRailsService({ profile, workspace } = {}) {
 }
 
 function buildBenchmarkRoiService({ benchmarkReports, benchmarkSummary } = {}) {
+  const trendDigest = buildBenchmarkTrendDigest(benchmarkReports);
   return {
     key: "benchmark_roi",
     title: "Benchmark ROI",
-    subtitle: "Benchmark-backed token, cleanup, memory, and cost deltas tied to this repository.",
+    subtitle: "Benchmark-backed token, cleanup, memory, cost, and evidence-quality deltas tied to this repository.",
     source_type: METRIC_SOURCE_TYPES.benchmarkArtifact,
     state: benchmarkSummary.report_count > 0 ? "ready" : "missing",
     note:
@@ -197,9 +473,10 @@ function buildBenchmarkRoiService({ benchmarkReports, benchmarkSummary } = {}) {
       metric("Reports", benchmarkSummary.report_count),
       metric("Token save", `${benchmarkSummary.avg_token_savings_pct}%`),
       metric("Measurement", benchmarkSummary.latest_measurement_mode || "estimated"),
-      metric("Confidence", benchmarkSummary.latest_confidence_label || "low"),
+      metric("Evidence", trendDigest.summary.evidence_quality_label),
     ],
     summary: benchmarkSummary,
+    trend_digest: trendDigest,
     reports: benchmarkReports.slice(0, 6),
   };
 }
@@ -410,4 +687,94 @@ function formatSourceLabel(value) {
     return "Mixed";
   }
   return safeValue.replace(/[_-]+/g, " ");
+}
+
+function buildContextPreviewFiles(nodes = []) {
+  const seen = new Set();
+  return nodes
+    .filter((node) => node?.path)
+    .sort((left, right) => Number(right.degree ?? 0) - Number(left.degree ?? 0))
+    .flatMap((node) => {
+      const filePath = sanitizeArtifactPath(node.path);
+      if (!filePath || seen.has(filePath)) {
+        return [];
+      }
+
+      seen.add(filePath);
+      return [{
+        path: filePath,
+        label: node.type_key === "file" ? node.label : node.secondary_label || node.label,
+        reason: node.degree > 0
+          ? `${node.degree} visible graph connection(s)`
+          : "Included in the synced focused graph",
+      }];
+    });
+}
+
+function buildContextPreviewSymbols(nodes = []) {
+  const seen = new Set();
+  return nodes
+    .filter((node) => node?.path && node?.type_key !== "file")
+    .sort((left, right) => Number(right.degree ?? 0) - Number(left.degree ?? 0))
+    .flatMap((node) => {
+      const symbolKey = `${node.label}:${node.path}`;
+      if (seen.has(symbolKey)) {
+        return [];
+      }
+
+      seen.add(symbolKey);
+      return [{
+        name: String(node.label ?? "symbol").slice(0, 120),
+        type: String(node.type_label ?? node.type_key ?? "symbol").slice(0, 80),
+        path: sanitizeArtifactPath(node.path),
+      }];
+    });
+}
+
+function buildContextPreviewDocuments(documentItems = []) {
+  return documentItems.map((document) => ({
+    title: String(document.title ?? document.path ?? "Untitled document").slice(0, 140),
+    category: String(document.category ?? "general").slice(0, 80),
+    path: sanitizeArtifactPath(document.path),
+    restricted: Boolean(document.restricted),
+    summary: sanitizePreviewText(document.summary || "No summary available."),
+  }));
+}
+
+function buildContextPreviewRisks({
+  profile,
+  documents,
+  fileItems,
+  docItems,
+  warningCount,
+} = {}) {
+  const risks = [];
+  if (fileItems.length === 0) {
+    risks.push("No focused code graph files are published for this repository.");
+  }
+  if (docItems.length === 0 && Number(documents?.totals?.document_count ?? profile?.documents?.document_count ?? 0) === 0) {
+    risks.push("No synced requirements or design documents are available for this repository.");
+  }
+  if (warningCount > 0) {
+    risks.push("Policy warnings are present and should be checked before agent handoff.");
+  }
+  if (String(profile?.cache?.status ?? "").toLowerCase() === "stale") {
+    risks.push("The repository profile is stale; rescan before trusting the preview.");
+  }
+  return risks.length > 0 ? risks : ["No immediate preview risk is published for this repository."];
+}
+
+function sanitizeArtifactPath(value) {
+  const pathValue = String(value ?? "").replace(/\\/g, "/");
+  if (!pathValue || pathValue.startsWith("/") || /^[A-Za-z]:\//.test(pathValue)) {
+    return "";
+  }
+  return pathValue.split("/").filter(Boolean).join("/").slice(0, 180);
+}
+
+function sanitizePreviewText(value) {
+  return String(value ?? "")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
+    .replace(/\b(?:token|secret|password|api[_-]?key)\s*[:=]\s*\S+/gi, "[redacted-secret]")
+    .slice(0, 220);
 }

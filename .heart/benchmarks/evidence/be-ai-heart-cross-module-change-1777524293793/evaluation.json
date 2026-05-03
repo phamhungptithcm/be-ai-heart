@@ -484,6 +484,6 @@
     }
   },
   "evaluation": {
-    "scenario_path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/scenarios/cross-module-change.json"
+    "scenario_path": "[repo-root]/benchmarks/scenarios/cross-module-change.json"
   }
 }

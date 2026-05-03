@@ -23,12 +23,26 @@ test("MCP tool registry exposes expected tools", () => {
     "symbol_lookup",
     "dependency_explain",
     "context_pack",
+    "domain_pack_list",
+    "domain_pack_get",
+    "domain_pack_layers",
+    "domain_pack_build_options",
+    "domain_pack_generate",
+    "domain_pack_validate",
+    "domain_pack_conflicts",
+    "domain_pack_context",
+    "domain_pack_benchmark_scenarios",
+    "stack_preset_list",
+    "domain_project_plan",
+    "domain_project_generate",
     "impact_analysis",
     "document_search",
     "docs_search",
     "policy_check",
+    "benchmark_summary",
   ]);
   assert.equal(registry[3].inputSchema.properties.token_budget.type, "integer");
+  assert.equal(registry[8].inputSchema.properties.output.enum.includes("sales-demo-kit"), true);
 });
 
 test("MCP tool registry respects enabled tool allowlist", () => {
@@ -40,6 +54,108 @@ test("MCP tool registry respects enabled tool allowlist", () => {
     registry.map((tool) => tool.name),
     ["project_overview", "document_search", "docs_search"],
   );
+});
+
+test("MCP domain pack tools expose compact tolling contracts", async (t) => {
+  const fixtureRepo = await createTempRepoCopy(t);
+  const scanResult = await scanSourceTree(fixtureRepo);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+
+  const list = await handleToolCall({
+    name: "domain_pack_list",
+    graph,
+    scanResult,
+    repoRoot: fixtureRepo,
+  });
+  assert.ok(list.packs.some((pack) => pack.pack_id === "tolling-management"));
+
+  const generated = await handleToolCall({
+    name: "domain_pack_generate",
+    args: {
+      pack_id: "tolling-management",
+      output: "sales-demo-kit",
+      regional_layer: "texas",
+      agency_overlay: "hctra-example",
+      token_budget: 4000,
+    },
+    graph,
+    scanResult,
+    repoRoot: fixtureRepo,
+  });
+  assert.equal(generated.status, "generated");
+  assert.equal(generated.manifest.output_type, "sales-demo-kit");
+  assert.ok(generated.manifest.source_citations.length >= 1);
+  assert.ok(generated.security_warnings.some((warning) => /No real PII/i.test(warning)));
+  assert.equal(generated.generated_files.every((file) => !file.includes(process.env.HOME ?? "___")), true);
+
+  const context = await handleToolCall({
+    name: "domain_pack_context",
+    args: {
+      pack_id: "tolling-management",
+      regional_layer: "texas",
+      agency_overlay: "hctra-example",
+      token_budget: 1200,
+    },
+    graph,
+    scanResult,
+    repoRoot: fixtureRepo,
+  });
+  assert.equal(context.pack_id, "tolling-management");
+  assert.ok(context.context_items.every((item) => item.layer));
+  assert.ok(context.citations.length >= 1);
+});
+
+test("MCP benchmark summary reports local ROI evidence without paths", async (t) => {
+  const fixtureRepo = await createTempRepoCopy(t);
+  const benchmarkRoot = path.join(fixtureRepo, ".heart", "benchmarks");
+
+  await fs.mkdir(benchmarkRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(benchmarkRoot, "login-audit-report.json"),
+    `${JSON.stringify(
+      {
+        report_id: "login-audit-report",
+        scenario: "login-audit-flow",
+        provider: "openai",
+        model: "gpt-5.4",
+        generated_at: "2026-05-03T00:00:00.000Z",
+        metrics: {
+          token_savings_pct: 40,
+          time_savings_pct: 20,
+          composite_roi_score: 55,
+        },
+        evidence_bundle: {
+          available: true,
+          bundle_id: "login-audit-report",
+          artifact_list: [{ role: "baseline" }, { role: "assisted" }],
+          provenance_summary: {
+            measurement_mode: "estimated",
+            confidence_label: "low",
+            observed_coverage_pct: 0,
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const scanResult = await scanSourceTree(fixtureRepo);
+  const graph = buildProjectGraph(scanResult, { repoName: "sample-repo" });
+  const result = handleToolCall({
+    name: "benchmark_summary",
+    graph,
+    scanResult,
+    repoRoot: fixtureRepo,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.report_count, 1);
+  assert.equal(result.latest_report.report_id, "login-audit-report");
+  assert.equal(result.latest_report.measurement_mode, "estimated");
+  assert.equal(result.aggregate_metrics.avg_token_savings_pct, 40);
+  assert.equal(result.latest_report.path, undefined);
 });
 
 test("MCP context pack tool returns focused output", async () => {

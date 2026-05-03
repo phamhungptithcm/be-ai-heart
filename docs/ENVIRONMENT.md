@@ -86,6 +86,42 @@ Each Next.js surface now includes a minimal `apphosting.yaml`:
 
 Before the first production rollout, configure backend-specific environment variables for:
 
+### API
+
+Required for production API startup:
+
+- `BE_AI_HEART_RUNTIME_ENV=production`
+- `BE_AI_HEART_API_BASE_URL`
+- `BE_AI_HEART_WEBSITE_BASE_URL`
+- `BE_AI_HEART_PORTAL_BASE_URL`
+- `BE_AI_HEART_ADMIN_BASE_URL`
+- `BE_AI_HEART_SERVICE_STORAGE_BACKEND=postgres`
+- `BE_AI_HEART_POSTGRES_URL`
+- `BE_AI_HEART_PORTAL_SECRET_KEY`
+- `BE_AI_HEART_LLM_PROXY_SHARED_SECRET`
+- `BE_AI_HEART_LLM_PROXY_ALLOWED_ORIGINS`
+- one hosted OIDC provider: `BE_AI_HEART_AUTH0_*`, `BE_AI_HEART_CLERK_*`, or generic `BE_AI_HEART_OIDC_*`
+
+Production startup fails closed when:
+
+- public base URLs are missing, loopback, or non-HTTPS
+- local demo auth is enabled
+- default demo session variables are set
+- Postgres is not configured
+- portal secret storage is missing
+- the LLM proxy is enabled without a shared secret and upstream allowlist
+- live billing is requested without a Stripe secret
+
+Optional API controls:
+
+- `BE_AI_HEART_ENABLE_LLM_PROXY=0` disables the production LLM proxy gate
+- `BE_AI_HEART_BILLING_MODE=live` or `BE_AI_HEART_REQUIRE_LIVE_BILLING=1` requires Stripe billing configuration
+- `BE_AI_HEART_OBSERVABILITY_EXPORT_URL`
+- `BE_AI_HEART_OBSERVABILITY_EXPORT_AUTH_TOKEN`
+- `BE_AI_HEART_RATE_LIMIT_NAMESPACE`
+- `BE_AI_HEART_API_DEFAULT_PAGE_LIMIT`
+- `BE_AI_HEART_API_MAX_PAGE_LIMIT`
+
 ### Website
 
 - `NEXT_PUBLIC_BE_AI_HEART_API_BASE_URL`

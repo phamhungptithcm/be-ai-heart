@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { listWebsiteServices } from "../src/services.js";
 
-export function WebsiteServicesVisual({ activeSlug = "", title = "Service map", description = "Six concrete services turn project memory into a usable AI operating layer." }) {
+export function WebsiteServicesVisual({
+  activeSlug = "",
+  title = "Service map",
+  description = "Latest BeHeart services connect project memory, agent workflows, portal visibility, domain packs, proof, and enterprise readiness.",
+}) {
   const services = listWebsiteServices();
 
   return (
@@ -24,12 +28,13 @@ export function WebsiteServicesVisual({ activeSlug = "", title = "Service map", 
             <div className="website-services-visual-card-top">
               <strong>{service.title}</strong>
               <span className="website-services-visual-tag">
-                {service.slug === activeSlug ? "Current service" : service.trustTag}
+                {service.slug === activeSlug ? "Current" : service.trustTag}
               </span>
             </div>
             <p className="website-services-visual-descriptor">{service.descriptor}</p>
             <div className="website-services-visual-card-meta">
               <small>{service.category}</small>
+              <small>{service.status}</small>
             </div>
             <span className="website-services-visual-card-link" aria-hidden="true">
               Open service

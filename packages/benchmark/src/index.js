@@ -1,3 +1,4 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -20,8 +21,10 @@ import {
   renderScenarioReportMarkdown,
   renderSuiteReportMarkdown,
 } from "./framework.js";
+import { validatePublishedArtifactSafety } from "./artifact-safety.js";
 
 export { buildBenchmarkTrendDigest } from "./trends.js";
+export { validatePublishedArtifactSafety };
 export { mergeObservedRunIntoBenchmarkInput } from "./framework.js";
 
 export function compareBenchmarkRuns(baselineInput, assistedInput, metadata = {}) {
@@ -277,6 +280,8 @@ export async function writeBenchmarkEvidenceBundle(
     scanProvenance: safeScanProvenance,
     readiness: safeReadiness,
   });
+  const safeScenario = sanitizeEvidenceArtifact(scenario, repoRoot);
+  const safeDataset = sanitizeEvidenceArtifact(dataset, repoRoot);
   const manifest = {
     schema_version: 2,
     bundle_id: report.report_id,
@@ -318,10 +323,10 @@ export async function writeBenchmarkEvidenceBundle(
     fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8"),
   ];
   if (scenarioPath) {
-    writes.push(fs.writeFile(scenarioPath, `${JSON.stringify(scenario, null, 2)}\n`, "utf8"));
+    writes.push(fs.writeFile(scenarioPath, `${JSON.stringify(safeScenario, null, 2)}\n`, "utf8"));
   }
   if (datasetPath) {
-    writes.push(fs.writeFile(datasetPath, `${JSON.stringify(dataset, null, 2)}\n`, "utf8"));
+    writes.push(fs.writeFile(datasetPath, `${JSON.stringify(safeDataset, null, 2)}\n`, "utf8"));
   }
 
   await Promise.all(writes);
@@ -330,8 +335,7 @@ export async function writeBenchmarkEvidenceBundle(
     available: true,
     bundle_id: report.report_id,
     generated_at: report.generated_at,
-    local_root: evidenceRoot,
-    local_manifest_path: manifestPath,
+    local_root: normalizePath(path.relative(repoRoot, evidenceRoot)),
     files: manifest.files,
     baseline_summary: manifest.baseline_summary,
     assisted_summary: manifest.assisted_summary,
@@ -358,6 +362,10 @@ export async function publishBenchmarkReport({
   serviceStorageRoot,
 } = {}) {
   const safeReport = createWebBenchmarkReport(report);
+  const safety = validatePublishedArtifactSafety(safeReport);
+  if (safety.status !== "safe") {
+    throw new Error(`Refusing to publish unsafe benchmark artifact (${safety.finding_count} finding(s)).`);
+  }
   const storageRoot = resolveServiceStorageRoot({
     serviceStorageRoot,
     repoRoot,
@@ -393,6 +401,64 @@ export function prepareBenchmarkReportArtifact(report) {
   return createWebBenchmarkReport(report);
 }
 
+export function createBenchmarkSummary(repoRoot, options = {}) {
+  const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : 5;
+  const benchmarkRoot = path.join(repoRoot, ".heart", "benchmarks");
+  const reports = [];
+
+  let entries = [];
+  try {
+    entries = fsSync.readdirSync(benchmarkRoot, { withFileTypes: true });
+  } catch {
+    return {
+      schema_version: 1,
+      status: "needs_evidence",
+      report_count: 0,
+      latest_report: null,
+      measurement_modes: {},
+      aggregate_metrics: {},
+      reports: [],
+      next_actions: ["Run heart benchmark run --all"],
+    };
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      continue;
+    }
+
+    const reportPath = path.join(benchmarkRoot, entry.name);
+    try {
+      const stats = fsSync.statSync(reportPath);
+      const report = JSON.parse(fsSync.readFileSync(reportPath, "utf8"));
+      reports.push(summarizeBenchmarkReport(report, stats.mtimeMs));
+    } catch {
+      continue;
+    }
+  }
+
+  reports.sort((left, right) => right.updated_at_ms - left.updated_at_ms || left.report_id.localeCompare(right.report_id));
+  const visibleReports = reports.slice(0, limit);
+  const measurementModes = countBy(reports.map((report) => report.measurement_mode || "unknown"));
+
+  return {
+    schema_version: 1,
+    status: reports.length > 0 ? "ready" : "needs_evidence",
+    report_count: reports.length,
+    latest_report: visibleReports[0] ? omitBenchmarkInternalFields(visibleReports[0]) : null,
+    measurement_modes: measurementModes,
+    aggregate_metrics: summarizeBenchmarkMetrics(reports),
+    reports: visibleReports.map(omitBenchmarkInternalFields),
+    next_actions: reports.length > 0
+      ? ["Run heart benchmark run --all to refresh evidence", "Review .heart/benchmarks evidence bundles"]
+      : ["Run heart benchmark run --all"],
+  };
+}
+
+function omitBenchmarkInternalFields({ updated_at_ms, ...report }) {
+  return report;
+}
+
 export async function loadBenchmarkReport(filePath) {
   return JSON.parse(await fs.readFile(filePath, "utf8"));
 }
@@ -409,12 +475,76 @@ export async function listBenchmarkScenarios(repoRoot) {
   return listBenchmarkScenarioManifests(repoRoot);
 }
 
+export async function listDesignPartnerScenarios(repoRoot = process.cwd()) {
+  const scenarios = await listBenchmarkScenarios(repoRoot);
+  const catalog = scenarios.map((scenario) => {
+    const type = normalizeDesignPartnerType(scenario);
+    return {
+      id: scenario.id,
+      title: scenario.title,
+      type,
+      category: scenario.category,
+      dataset_id: scenario.dataset_id,
+      task: String(scenario.task?.statement ?? scenario.task?.prompt ?? ""),
+      expected_document_count: scenario.expected_documents.length,
+      expected_evidence_count: scenario.expected_evidence.length,
+      reuse_target_count: scenario.reuse_targets.length,
+      has_rubric: Boolean(scenario.rubric || scenario.evaluation?.rubric_dimensions),
+      command: `heart benchmark run ${scenario.id}`,
+    };
+  });
+  const coveredTypes = [...new Set(catalog.map((scenario) => scenario.type).filter(Boolean))].sort();
+  const missingTypes = REQUIRED_DESIGN_PARTNER_TYPES
+    .map((entry) => entry.type)
+    .filter((type) => !coveredTypes.includes(type));
+
+  return {
+    schema_version: 1,
+    status: missingTypes.length === 0 ? "ready" : "incomplete",
+    scenario_count: catalog.length,
+    required_types: REQUIRED_DESIGN_PARTNER_TYPES,
+    covered_types: coveredTypes,
+    missing_types: missingTypes,
+    scenarios: catalog,
+  };
+}
+
 function percentReduction(before, after) {
   if (before === 0) {
     return 0;
   }
 
   return Math.round(((before - after) / before) * 100);
+}
+
+const REQUIRED_DESIGN_PARTNER_TYPES = Object.freeze([
+  { type: "bug_fix", label: "Bug fix" },
+  { type: "feature_addition", label: "Feature addition" },
+  { type: "duplicate_refactor", label: "Duplicate refactor" },
+  { type: "cross_module", label: "Cross-module change" },
+  { type: "document_required", label: "Document-required task" },
+]);
+
+function normalizeDesignPartnerType(scenario = {}) {
+  const explicit = String(scenario.design_partner_type ?? "").trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const category = String(scenario.category ?? "").toLowerCase();
+  if (category.includes("bug") || category.includes("regression")) {
+    return "bug_fix";
+  }
+  if (category.includes("duplicate")) {
+    return "duplicate_refactor";
+  }
+  if (category.includes("architecture") || category.includes("cross")) {
+    return "cross_module";
+  }
+  if (category.includes("document")) {
+    return "document_required";
+  }
+  return "feature_addition";
 }
 
 function normalizeRunMetrics(input = {}) {
@@ -446,6 +576,80 @@ function roundNumber(value, precision = 2) {
 
 function compactObject(value = {}) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null));
+}
+
+function summarizeBenchmarkReport(report = {}, updatedAtMs = 0) {
+  const evidenceBundle = report.evidence_bundle ?? {};
+  const provenanceSummary = evidenceBundle.provenance_summary ?? report.provenance?.summary ?? {};
+  const measurementMode =
+    report.provenance?.summary?.measurement_mode ??
+    evidenceBundle.measurement_mode ??
+    provenanceSummary.measurement_mode ??
+    report.baseline?.measurement?.mode ??
+    report.assisted?.measurement?.mode ??
+    "";
+
+  return {
+    report_id: String(report.report_id ?? ""),
+    scenario: String(report.scenario ?? ""),
+    generated_at: String(report.generated_at ?? ""),
+    provider: String(report.provider ?? ""),
+    model: String(report.model ?? ""),
+    measurement_mode: String(measurementMode || "unknown"),
+    confidence_label: String(provenanceSummary.confidence_label ?? ""),
+    metrics: compactObject({
+      token_savings_pct: finiteNumberOrNull(report.metrics?.token_savings_pct),
+      time_savings_pct: finiteNumberOrNull(report.metrics?.time_savings_pct),
+      token_cost_savings_usd: finiteNumberOrNull(report.metrics?.token_cost_savings_usd),
+      context_retention_gain_pct: finiteNumberOrNull(report.metrics?.context_retention_gain_pct),
+      duplicate_avoidance_gain_pct: finiteNumberOrNull(report.metrics?.duplicate_avoidance_gain_pct),
+      code_quality_gain_pct: finiteNumberOrNull(report.metrics?.code_quality_gain_pct),
+      composite_roi_score: finiteNumberOrNull(report.metrics?.composite_roi_score),
+    }),
+    evidence: {
+      bundle_available: Boolean(evidenceBundle.available),
+      bundle_id: String(evidenceBundle.bundle_id ?? ""),
+      artifact_count: Array.isArray(evidenceBundle.artifact_list)
+        ? evidenceBundle.artifact_list.length
+        : Object.keys(evidenceBundle.files ?? {}).length,
+      observed_coverage_pct: finiteNumberOrNull(provenanceSummary.observed_coverage_pct) ?? 0,
+    },
+    updated_at_ms: updatedAtMs,
+  };
+}
+
+function summarizeBenchmarkMetrics(reports = []) {
+  const metricNames = [
+    "token_savings_pct",
+    "time_savings_pct",
+    "token_cost_savings_usd",
+    "context_retention_gain_pct",
+    "duplicate_avoidance_gain_pct",
+    "code_quality_gain_pct",
+    "composite_roi_score",
+  ];
+  const summary = {};
+
+  for (const metricName of metricNames) {
+    const values = reports
+      .map((report) => report.metrics?.[metricName])
+      .filter((value) => Number.isFinite(Number(value)))
+      .map(Number);
+    if (values.length === 0) {
+      continue;
+    }
+    summary[`avg_${metricName}`] = roundNumber(values.reduce((total, value) => total + value, 0) / values.length, 2);
+  }
+
+  return summary;
+}
+
+function countBy(values = []) {
+  return values.reduce((counts, value) => {
+    const key = String(value || "unknown");
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
 }
 
 function summarizeScenarioManifest(scenario = null) {
@@ -567,6 +771,26 @@ function sanitizePathList(paths = []) {
     : [];
 }
 
+function sanitizeEvidenceArtifact(value, repoRoot = "") {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeEvidenceArtifact(entry, repoRoot));
+  }
+  if (!value || typeof value !== "object") {
+    return typeof value === "string" ? sanitizeProvenancePath(value, repoRoot) : value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "local_manifest_path")
+      .map(([key, entry]) => [
+        key,
+        key === "local_root"
+          ? sanitizeProvenancePath(entry, repoRoot)
+          : sanitizeEvidenceArtifact(entry, repoRoot),
+      ]),
+  );
+}
+
 function sanitizeProvenancePath(candidatePath, repoRoot = "") {
   if (typeof candidatePath !== "string" || candidatePath.trim() === "") {
     return "";
@@ -598,6 +822,11 @@ function normalizePath(filePath) {
 function numberOrZero(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function finiteNumberOrNull(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 async function resolveBenchmarkDestinations(repoRoot, { portalRoot, adminRoot } = {}) {

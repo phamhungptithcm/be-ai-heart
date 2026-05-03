@@ -145,7 +145,7 @@ export function PortalBenchmarkReportClient({ reportId }) {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Decision summary</span>
-              <h3>Why this benchmark matters to rollout</h3>
+              <h3>Rollout reason</h3>
               <p>{report.manager_summary}</p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function PortalBenchmarkReportClient({ reportId }) {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Evidence readiness</span>
-              <h3>How trustworthy the assisted run evidence is</h3>
+              <h3>Evidence trust</h3>
             </div>
           </div>
           <div className="portal-readiness-list">
@@ -183,7 +183,7 @@ export function PortalBenchmarkReportClient({ reportId }) {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Evidence bundle</span>
-            <h3>Sanitized evidence that supports the published ROI claim</h3>
+            <h3>ROI evidence</h3>
             <p>Published benchmark proof stays sanitized on the portal while still showing whether the assisted run carried enough retrieval evidence.</p>
           </div>
         </div>
@@ -265,7 +265,7 @@ export function PortalBenchmarkReportClient({ reportId }) {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Run narrative</span>
-            <h3>Baseline versus BeHeart-assisted execution</h3>
+            <h3>Baseline vs assisted</h3>
             <p>{report.technical_summary}</p>
           </div>
         </div>

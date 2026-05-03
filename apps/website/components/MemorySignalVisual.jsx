@@ -2,8 +2,8 @@ export function MemorySignalVisual() {
   return (
     <div className="memory-visual">
       <div className="memory-visual-head">
-        <span>local-first</span>
-        <span>CLI + MCP + portal</span>
+        <span>Repo memory loop</span>
+        <span>CLI + portal + MCP</span>
       </div>
 
       <div className="memory-stage">
@@ -13,24 +13,24 @@ export function MemorySignalVisual() {
 
         <div className="memory-core">
           <p>project heart</p>
-          <strong>context that keeps AI aligned</strong>
+          <strong>durable memory for AI work</strong>
         </div>
 
         <div className="memory-node memory-node-code">
-          <span>Code Graph</span>
-          <strong>6.5k symbols</strong>
+          <span>Repo Graph</span>
+          <strong>symbols and impact paths</strong>
         </div>
         <div className="memory-node memory-node-docs">
-          <span>Document Memory</span>
-          <strong>Requirements + ADRs</strong>
+          <span>Docs and Specs</span>
+          <strong>requirements and decisions</strong>
         </div>
         <div className="memory-node memory-node-policy">
-          <span>Policy Rails</span>
-          <strong>Reuse and boundaries</strong>
+          <span>Context Packs</span>
+          <strong>reuse, risks, citations</strong>
         </div>
         <div className="memory-node memory-node-roi">
           <span>Benchmark ROI</span>
-          <strong>token, time, cleanup</strong>
+          <strong>evidence-labeled reports</strong>
         </div>
       </div>
 
@@ -42,13 +42,13 @@ export function MemorySignalVisual() {
         </div>
         <div className="memory-terminal-lines">
           <p>
-            <span>$</span> heart scan --incremental
+            <span>$</span> heart scan
           </p>
           <p>
-            <span>$</span> heart pack "add billing audit trail"
+            <span>$</span> heart chat --context repo "plan safe rollout"
           </p>
           <p>
-            <span>$</span> heart benchmark run scenarios/login-audit-flow.json
+            <span>$</span> heart packs build tolling-management --output sales-demo-kit
           </p>
         </div>
       </div>

@@ -11,10 +11,23 @@ export const KNOWN_MCP_TOOL_NAMES = Object.freeze([
   "symbol_lookup",
   "dependency_explain",
   "context_pack",
+  "domain_pack_list",
+  "domain_pack_get",
+  "domain_pack_layers",
+  "domain_pack_build_options",
+  "domain_pack_generate",
+  "domain_pack_validate",
+  "domain_pack_conflicts",
+  "domain_pack_context",
+  "domain_pack_benchmark_scenarios",
+  "stack_preset_list",
+  "domain_project_plan",
+  "domain_project_generate",
   "impact_analysis",
   "document_search",
   "docs_search",
   "policy_check",
+  "benchmark_summary",
 ]);
 
 const MCP_TOOL_ALIASES = Object.freeze({

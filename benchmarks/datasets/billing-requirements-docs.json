@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "billing-requirements-docs",
+  "title": "Billing Requirements Document Dataset",
+  "repo_strategy": "current-repo",
+  "summary": "Benchmark slice for changes where product, pricing, and governance documents must be present before implementation context is considered good enough.",
+  "source_paths": [
+    "apps/portal",
+    "apps/admin",
+    "services/api/src",
+    "packages/document-ingest/src",
+    "packages/context-compiler/src"
+  ],
+  "documents": [
+    {
+      "path": "docs/02-prd.md",
+      "title": "Product Requirements Document",
+      "reason": "Defines product scope and target buyer needs."
+    },
+    {
+      "path": "docs/07-go-to-market-pricing.md",
+      "title": "Go-to-Market Pricing",
+      "reason": "Billing and ROI copy must stay aligned with pricing intent."
+    },
+    {
+      "path": "docs/05-enterprise-platform.md",
+      "title": "Enterprise Platform",
+      "reason": "Portal, admin, RBAC, and billing boundaries are described here."
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "apps/portal/components/PortalBillingSnapshotClient.jsx",
+      "title": "Portal billing snapshot",
+      "reason": "Customer-facing billing UI should be extended instead of duplicated."
+    },
+    {
+      "path": "apps/admin/components/AdminBillingOpsClient.jsx",
+      "title": "Admin billing operations",
+      "reason": "Internal billing posture belongs in admin, not portal."
+    },
+    {
+      "path": "services/api/src/customer-portal.js",
+      "title": "Tenant-scoped portal contracts",
+      "reason": "Billing and docs status must remain tenant-scoped."
+    }
+  ],
+  "policy_targets": [
+    "Do not expose billing secrets or payment tokens in UI payloads.",
+    "Keep portal and admin billing responsibilities separate.",
+    "Do not make unsupported ROI or compliance claims."
+  ]
+}
