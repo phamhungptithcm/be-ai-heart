@@ -12,6 +12,7 @@ The framework exists to answer six questions:
 - does it improve architecture and code quality
 - does it reduce delivery friction and review cleanup
 - can the result be rerun from the CLI with versioned evidence
+- can domain packs and sales/demo artifacts reduce repeated domain explanation without hiding uncertainty
 
 ## Benchmark Modes
 
@@ -81,25 +82,65 @@ Evidence bundle manifests use schema version 2 and include local-first traceabil
 - `repo_snapshot` with schema/config/policy hashes and compact counts, not local absolute paths
 - deterministic `artifact_list` entries for baseline, assisted, evaluation, scenario, and dataset evidence files
 
+Published benchmark reports are checked with `validatePublishedArtifactSafety` before they are written to hosted or surface storage. The validator flags sensitive field names, absolute local paths, and secret-like values, and returned findings redact the matched value. Raw local evidence bundles can remain local-first; hosted surfaces should receive only sanitized reports and manifests.
+
+## ROI Trend Digest
+
+`buildBenchmarkTrendDigest` summarizes benchmark history for portal, admin, repository detail, and compact agent-facing evidence surfaces.
+
+Trend output includes:
+
+- latest and average token savings
+- latest and average token-cost savings
+- latest and average memory-refresh reduction
+- latest and average composite ROI score
+- latest and average evidence-quality score
+- observed, mixed, and estimated report counts
+- evidence bundle availability count
+- top repository and top scenario by coverage and evidence quality
+
+Evidence-quality scoring is not a compliance claim or scientific confidence score. It is a product-facing triage signal based on measurement mode, confidence label, observed coverage, sample size, and whether a sanitized evidence bundle is available. Buyer-facing copy must still cite the underlying benchmark report.
+
 ## Scenario Design
 
 Each scenario manifest must define:
 
 - `id`, `title`, `category`, and `description`
+- `design_partner_type` for the pilot catalog: `bug_fix`, `feature_addition`, `duplicate_refactor`, `cross_module`, or `document_required`
 - linked `dataset_id` or dataset path
 - task statement and optional follow-up prompts
 - expected document references
 - expected reuse targets
 - architecture rules that must remain true
+- expected evidence and a short rubric for design-partner review
 - scoring targets for tokens, time, memory refreshes, duplicates, policy violations, and review edits
 - baseline run evidence
 - assisted run evidence
 
 Current scenario categories in this repo:
 
+- `bug-fix`
 - `document-aware-follow-up`
 - `duplicate-work-avoidance`
 - `architecture-constrained-change`
+- `document-required-change`
+- `domain-pack-assisted-change`
+
+The design-partner pilot catalog must cover five task types:
+
+- bug fix: `cache-stale-bug-fix`
+- feature addition: `login-audit-flow`
+- duplicate refactor: `duplicate-refactor`
+- cross-module change: `cross-module-change`
+- document-required task: `billing-doc-required`
+
+Current domain-pack scenario:
+
+- Tolling Management: `tolling-trip-posting-dedupe`
+
+Domain-pack benchmark scenarios must state which evidence came from source-backed pack files, which evidence came from
+the current repo, and which evidence is generated hypothesis. A sales demo kit can support a benchmark scenario, but it
+does not prove production performance until an observed benchmark run exists.
 
 ## Dataset Design
 
@@ -217,6 +258,13 @@ Public delta metrics stored in the report:
 - `duplicate_avoidance_gain_pct`
 - `code_quality_gain_pct`
 - `overall_score_gain_pct`
+
+ROI language rules:
+
+- `observed` reports may say what the run measured.
+- `estimated` reports may describe directional hypotheses only.
+- Domain-pack and sales-demo-kit scenarios may claim faster access to domain context only when the benchmark artifacts show the context source and rubric.
+- Public sales copy must not present fixture values, fake demo data, or single-scenario results as general customer ROI.
 
 ## Scoring Weights
 
@@ -369,3 +417,36 @@ Use it to:
 - support pricing discussions
 - create technical case studies
 - show that `be-ai-heart` improves both cost and trust
+- demonstrate how a domain pack changes context quality for vertical workflows
+
+## Domain Pack And Sales Demo Kit Scenarios
+
+Domain-pack benchmarks should test whether source-backed reusable domain memory helps agents avoid repeated discovery and
+unsafe assumptions.
+
+Tolling scenarios should validate:
+
+- trip posting and dedupe remain idempotent before money movement
+- payment and ledger flows avoid raw card data and require audit
+- support responses direct users to official payment channels and avoid suspicious links
+- regional/agency/customer overlay conflicts are surfaced instead of silently merged
+- generated demo kit artifacts stay fake-data-only and source-cited
+
+Sales demo kit benchmarks should measure preparation and requirement coverage, not production runtime claims:
+
+| Scenario type | Valid measurement | Invalid claim |
+| --- | --- | --- |
+| Time to demo | Time and token cost to produce source-cited demo artifacts | Production implementation speed |
+| Requirement coverage | Rubric coverage against pack/source checklist | Legal or agency compliance |
+| Prototype quality | Completeness of fake-data UI/story artifacts | Runtime reliability |
+| Proposal starter | Assumptions, risks, integrations, and security notes present | Procurement-ready final response |
+
+## Portal ROI Display Rules
+
+The portal benchmark and ROI dashboard should display evidence without overstating it:
+
+- show observed and estimated values separately
+- show baseline vs assisted comparisons only when benchmark artifacts exist
+- show token savings, cost savings, time savings, duplicate-work reduction, context retention, architecture compliance, and review cleanup reduction as designed measurement categories when evidence is missing
+- keep report IDs, generated timestamps, model/provider, scenario, and evidence bundle state visible
+- feed founder/admin metrics from benchmark artifacts and label financial rollups as estimates until billing integration is live

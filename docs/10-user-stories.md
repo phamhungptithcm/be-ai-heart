@@ -1,5 +1,32 @@
 # User Stories and Acceptance Criteria
 
+## Current Planning Source
+
+This file keeps the compact user-story baseline. Current status, enterprise-startup repositioning, and the complete function/API inventory live in:
+
+- [Enterprise Startup Replan and Function Inventory](./23-enterprise-startup-replan.md)
+- [Decision Log](./DECISIONS.md)
+- [Planning Changelog](./CHANGELOG-PLANNING.md)
+
+## Story Status Snapshot
+
+| Area | Status | Current note |
+|---|---|---|
+| Local CLI foundation | Done | Core commands, first-run doctor checklist, deterministic JSON output, and the TTY workbench work; public release messaging can still improve. |
+| Durable repo memory | Done | Graph v2, cache provenance, readiness, docs, policies, and context links exist. |
+| Context pack and MCP | Done | Context pack v2, MCP tools, allowlists, and benchmark summary evidence work. |
+| Docs/spec sync | Done/Partial | Document memory exists; planning change requests now have a schema, validator, markdown renderer, docs, and template; a generated accepted-request registry remains future. |
+| CLI developer experience | Done/Partial | Connect, JSON contracts, first-run checklist, interactive slash/natural command entry, provider selection, and one-shot chat work; richer tool orchestration remains planned. |
+| CLI IDE / AI workbench | Done/Partial | TTY workbench shows repo memory, docs/spec, benchmark, model, provider-key, context, and allowlisted-tool state; full autonomous edit workflows are not in scope. |
+| Web UI/portal/admin | Partial | Surfaces build; website trial CTA, portal onboarding, connect empty states, and workbench now point at the same `heart sync setup` activation path; repository profiles include context pack preview with model presets and command box. |
+| Portal AI chat and models | Done/Partial | Portal has chat sessions, SSE stream endpoint, context-pack attachment metadata, model settings, provider-key masking/encrypted storage paths, and allowlisted action classification; deeper tool orchestration remains planned. |
+| Domain packs/Tolling | Done/Partial | Tolling Management pack and Sales MVP Demo Kit source artifacts exist with CLI/MCP/API/portal integration; customer-specific overlays and production runtime integrations remain future. |
+| Benchmark and ROI proof | Done/Partial | Evidence bundle v2, observed capture, MCP benchmark summary, five-type pilot catalog, and evidence-quality trend digest exist; field-calibrated customer scenarios remain next. |
+| Governance/security/enterprise | Done/Partial | Tenant/auth/session/audit basics exist; benchmark artifact safety is enforced before publish, model keys are masked, portal chat is allowlisted, and the security packet includes production threat model, retention, export, payment, and deployment boundaries. |
+| Billing/payment readiness | Partial/Future | Portal/admin billing posture and entitlement contracts exist; live payment/subscription provider integration remains planned. |
+| Team workspace future | Partial/Future | Hosted surfaces exist; shared graph and multi-repo memory are future. |
+| Customer adoption/design partner flow | Done/Partial | Website, pricing, and SMB checklist now include local-first pilot, evidence gates, and buyer caveats; founder/operator pipeline polish remains. |
+
 ## Epic 1: Repository Understanding
 
 ### Story 1.0
@@ -12,6 +39,30 @@ Acceptance criteria:
 - installing the package exposes the `heart` binary outside the monorepo
 - the packaged CLI works from a tarball install without depending on sibling workspace source files
 - `heart connect install --dry-run` from an installed package points MCP configs at the installed CLI path
+
+### Story 1.0b
+
+As an engineer, I want `heart login` to open the BeHeart portal and finish authentication automatically so that sync
+does not require copying API URLs into the terminal.
+
+Acceptance criteria:
+
+- `heart login` opens the hosted portal from an interactive terminal and waits for a short-lived loopback callback
+- the callback includes a state token and only accepts localhost loopback URLs
+- `heart login --api-key <key>` and `heart login --api-key=<key>` save a portal-created one-time key
+- `--url` remains available only as a local or self-hosted API override
+- saved credentials are redacted from output and stored with user-only file permissions
+
+### Story 1.0c
+
+As an engineer, I want a single sync setup command after login so that the portal has the first repo profile, docs, and starter context pack without memorizing multiple sync commands.
+
+Acceptance criteria:
+
+- `heart sync setup` uses saved login credentials unless `--url` and `--session` are passed
+- the command publishes repository profile, document artifact, and a starter hosted context-pack record
+- output includes profile, documents, context pack, and next actions
+- secrets and raw local source are not published
 
 ### Story 1.1
 
@@ -64,6 +115,41 @@ Acceptance criteria:
 - `heart scan` completes on a supported repo
 - graph artifact is persisted
 - scan summary reports file count, symbol count, and parser warnings
+
+## Epic 1A: CLI AI Workbench and Models
+
+### Story 1A.1
+
+As an engineer, I want `heart` to open an interactive AI coding workbench so that repo memory, model selection, and next actions are visible in one local loop.
+
+Acceptance criteria:
+
+- `heart` opens the workbench only in an interactive TTY
+- non-TTY, CI, `--json`, direct commands, and MCP stdio stay decoration-free
+- workbench status includes repo, path, memory, config, policy, scan, parser, docs/spec, MCP, benchmark, model, provider keys, context, tools, and warnings
+- slash and natural commands bridge to the same direct CLI command contracts
+
+### Story 1A.2
+
+As an engineer, I want to select model providers and keys locally so that BeHeart can use my approved model without hiding credential risk.
+
+Acceptance criteria:
+
+- `heart models providers`, `list`, `add-key`, `test`, `select`, and `remove-key` work with deterministic JSON output
+- provider model lists use live discovery when a key exists and fallback manifests otherwise
+- CLI output masks keys and stores local credentials with user-only file permissions
+- provider environment variables are supported as key sources
+
+### Story 1A.3
+
+As an engineer, I want one-shot AI chat with repo or domain context so that I can ask planning questions without leaving the local flow.
+
+Acceptance criteria:
+
+- `heart chat --context repo <prompt>` sends one provider-backed request when a prompt is supplied
+- `heart chat --pack tolling-management <prompt>` attaches domain-pack context
+- `heart chat --json` returns assistant message, usage, cost, and context attachment metadata
+- missing API keys produce a clear next command and do not leak secrets
 
 ## Epic 2: Stable Context for AI
 
@@ -157,6 +243,17 @@ Acceptance criteria:
 - benchmark scenarios are versioned
 - report export is shareable with customers
 
+### Story 4.3
+
+As a sales engineer, I want domain-pack scenarios so that benchmark discussions can include vertical workflows without unsupported ROI claims.
+
+Acceptance criteria:
+
+- Tolling benchmark scenarios are versioned under `benchmarks/` or the pack
+- reports identify pack, repo, provider/model, measurement mode, and evidence bundle status
+- demo-kit and domain-pack metrics are labeled as observed, estimated, or hypothesis
+- fake/demo data is not presented as production customer evidence
+
 ## Epic 5: Team and Enterprise Controls
 
 ### Story 5.1
@@ -198,3 +295,86 @@ Acceptance criteria:
 
 - active subscriptions are visible
 - benchmark-driven expansion opportunities can be tracked
+
+## Epic 7: Web Product Surfaces and Sync Visibility
+
+### Story 7.1
+
+As an engineer, I want the portal repository page to show CLI sync status, graph health, docs freshness, context packs,
+benchmarks, diagrams, and policy warnings so that I can tell whether the web view reflects the latest local repo state.
+
+Acceptance criteria:
+
+- repo overview includes scan status, last CLI sync, graph health, docs/spec freshness, context pack history, benchmark evidence, policy warnings, diagrams, and next recommended action
+- stale or missing artifacts render empty/error states with a clear next action
+- portal data comes from typed backend contracts, not component-owned mock data
+
+### Story 7.2
+
+As a portal user, I want a chat workbench with repo/model/mode/budget controls so that I can ask for product actions
+without giving the web app arbitrary shell access.
+
+Acceptance criteria:
+
+- supported commands map to allowlisted backend actions
+- risky or side-effecting actions require confirmation
+- result cards include status, cited files/docs, and next actions
+- model settings keep provider secrets masked
+
+### Story 7.3
+
+As the founder, I want a private dashboard for product, finance, retention, enterprise, support, and security signals so
+that operating risk and demand are visible from one internal view.
+
+Acceptance criteria:
+
+- founder metrics include usage, scans, context packs, MCP connections, benchmarks, reported savings, estimated finance, retention, pipeline, support, failed jobs, risky accounts, health, and audit/security events
+- estimated finance is labeled as estimated until billing integration is configured
+- metrics come from synced artifacts, intake, telemetry, audit, and benchmark records
+
+## Epic 8: Domain Packs and Tolling Demo Kit
+
+### Story 8.1
+
+As an engineer or sales engineer, I want to browse source-backed domain packs so that AI tasks can start with reusable industry context.
+
+Acceptance criteria:
+
+- `heart packs list/show/layers/validate/conflicts` expose pack metadata, layers, citations, warnings, and conflicts
+- MCP exposes `domain_pack_*` tools through the configured allowlist
+- portal domain-pack pages show layers, build options, artifacts, source notes, benchmarks, and security warnings
+
+### Story 8.2
+
+As a founder or sales engineer, I want to generate the Tolling Sales MVP Demo Kit so that discovery and demos can use credible, fake-data-only assets.
+
+Acceptance criteria:
+
+- `heart packs build tolling-management --output sales-demo-kit` writes a manifest and generated files under `.heart/packs/`
+- generated output includes citations, security warnings, selected layers, conflicts, and next actions
+- no generated artifact contains real PII, real plates, plate images, real trip history, raw payment data, production endpoints, or secrets
+- the kit labels ROI as hypothesis unless an observed benchmark report exists
+
+## Epic 9: Payment, Security, and Deployment Readiness
+
+### Story 9.1
+
+As a security owner, I want model provider keys, MCP tools, portal chat, generated artifacts, and benchmark reports governed so that AI context does not leak sensitive data.
+
+Acceptance criteria:
+
+- CLI and portal model keys are masked and stored only through approved credential paths
+- portal chat rejects arbitrary shell-like input and requires confirmation for risky side effects
+- MCP allowlists constrain `tools/list` and `tools/call`
+- benchmark publication refuses unsafe paths, secret-like values, and sensitive fields
+- domain-pack generated artifacts use fake data and source citations
+
+### Story 9.2
+
+As an enterprise buyer, I want billing and deployment posture separated from production claims so that procurement can evaluate risk honestly.
+
+Acceptance criteria:
+
+- portal/admin billing views identify adapter-backed versus mock/estimated data
+- no docs claim live payment processing, PCI compliance, SOC 2, ISO 27001, HIPAA, FedRAMP, or general private deployment availability
+- production deployment docs list SSO/RBAC, backup/restore, retention/export, billing adapter, tenant isolation, observability, and secret-management gaps
