@@ -1,0 +1,42 @@
+---
+title: Production Threat Model and Retention
+description: Current security boundaries, retention expectations, export paths, and limits for production rollout.
+order: 55
+category: security
+keywords:
+  - threat model
+  - retention
+  - export
+  - security
+---
+
+# Production Threat Model and Retention
+
+BeHeart is local-first by default. Hosted sync should publish sanitized summaries and manifests, not raw source, raw prompts, raw patches, credentials, or full private documents.
+
+## Current boundaries
+
+- Local CLI and MCP own raw repo memory.
+- Portal reads tenant-scoped repository, document, benchmark, and usage summaries.
+- Admin reads internal support, audit, sessions, revenue, and observability summaries.
+- Raw benchmark evidence stays local unless explicitly sanitized.
+- Formal compliance certifications are not currently claimed.
+
+## Retention expectations
+
+Local `.heart` artifacts are controlled by the repo owner. Hosted repository profiles, document summaries, benchmark reports, sessions, audit events, and observability metrics need plan-specific retention defaults before production expansion.
+
+## Export expectations
+
+Workspace exports should be tenant-scoped, list included data classes, record the requester, and state whether each artifact was redacted. Raw local-only benchmark evidence should stay out of hosted exports by default.
+
+## Production hardening still required
+
+- centralized route authorization review
+- shared sanitizer for graph, context, document, benchmark, and support artifacts
+- SSO/SAML hardening
+- retention and deletion workflow
+- private deployment decision
+- audit export runbook
+
+Read the source security packet in `docs/26-production-threat-model-retention.md`.
