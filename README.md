@@ -25,6 +25,28 @@ If this project speaks to a problem your team feels every week, star the repo so
 | What works now? | Local CLI/workbench, model selection, one-shot AI chat, MCP server, graph/document memory, context packs, domain packs, benchmark reports, and initial website/portal/admin surfaces. |
 | What is planned next? | Deeper shared team memory, saved pack history, richer portal chat execution, enterprise model admin, billing adapters, SSO/RBAC hardening, private deployment paths, and customer-calibrated ROI evidence. |
 
+## Release Scope
+
+Current version: `0.1.0`.
+
+Release posture:
+
+- ready target: local CLI, local MCP, local benchmark evidence, and guided private pilot workflows
+- not a paid public SaaS release until live billing, deployment, and production ops gates are complete
+- portal/admin billing views are posture surfaces; checkout and subscription mutations stay disabled unless live billing is explicitly configured
+- benchmark and ROI claims must cite observed or estimated evidence labels
+- production API startup fails closed when required security, storage, auth, LLM proxy, or URL config is missing
+
+Useful release checks:
+
+```bash
+npm run check
+npm run e2e
+npm run website:build
+npm run portal:build
+npm run admin:build
+```
+
 ## Start Here
 
 - **New visitor:** read [Why This Exists](#why-this-exists), then [What BeHeart Does](#what-beheart-does).
