@@ -620,6 +620,7 @@ async function handleSessionRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1187,6 +1188,7 @@ async function handleWorkspacesRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1263,6 +1265,7 @@ async function handleRepositoriesRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1713,6 +1716,7 @@ async function loadRepositoryContractData({
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   const payload = await loadAccessibleRepositoryView({
     serviceStorageRoot: config.serviceStorageRoot,
@@ -1819,6 +1823,7 @@ async function handleDocumentsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -1884,6 +1889,7 @@ async function handleDocumentSubmissionsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -1946,6 +1952,7 @@ async function handleBenchmarksRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (request.method === "GET") {
@@ -2007,6 +2014,7 @@ async function handleBenchmarkRunsRoute(request, config, surface) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
 
   if (!authContext.actor) {
@@ -2097,6 +2105,7 @@ async function handleBenchmarkDetailRoute(request, config, surface, reportId) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   const report = await loadAccessibleBenchmarkReport({
     serviceStorageRoot: config.serviceStorageRoot,
@@ -2123,6 +2132,7 @@ async function handleBenchmarkRunDetailRoute(request, config, surface, launchId)
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor) {
     return jsonResponse({ error: "Unauthenticated request." }, { status: 401 });
@@ -3795,6 +3805,7 @@ async function writeRequestTraceForResponse({
         surface,
         request,
         sessionCookieName: config?.sessionSecurity?.cookieName,
+        allowQuerySession: config?.sessionSecurity?.allowQuerySession,
       })
     : null;
 
@@ -3856,6 +3867,7 @@ async function requirePortalAuthContext(request, config, requiredPermission) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor || authContext.actor.surface !== "portal") {
     throw createHttpError(401, "Unauthenticated request.");
@@ -3872,6 +3884,7 @@ async function requireAdminAuthContext(request, config, requiredPermission) {
     request,
     sessionCookieName: config.sessionSecurity.cookieName,
     localDemoAuth: config.localDemoAuth,
+    allowQuerySession: config.sessionSecurity.allowQuerySession,
   });
   if (!authContext.actor || authContext.actor.surface !== "admin") {
     throw createHttpError(401, "Unauthenticated request.");
