@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { MermaidDiagram } from "./MermaidDiagram.jsx";
 import { PortalCodeGraphExplorer } from "./PortalCodeGraphExplorer.jsx";
+import { PortalDiagramViewer } from "./PortalDiagramViewer.jsx";
 import { PortalStateBlock } from "./PortalStateBlock.jsx";
 
 const SERVICE_TABS = Object.freeze([
   "code_graph",
   "diagrams",
   "document_memory",
+  "context_pack_preview",
   "policy_rails",
   "benchmark_roi",
   "runtime_signals",
@@ -25,9 +26,13 @@ export function PortalRepositoryServicesWorkspace({
   graphError = "",
 } = {}) {
   const [activeTab, setActiveTab] = useState("code_graph");
+  const [previewTask, setPreviewTask] = useState(
+    repositoryServices?.context_pack_preview?.sample_task ?? "add SSO login audit logging",
+  );
 
   useEffect(() => {
     setActiveTab("code_graph");
+    setPreviewTask(repositoryServices?.context_pack_preview?.sample_task ?? "add SSO login audit logging");
   }, [profile?.profile_slug]);
 
   const summary = repositoryServices?.summary ?? {};
@@ -35,17 +40,17 @@ export function PortalRepositoryServicesWorkspace({
 
   return (
     <div className="portal-enterprise-stack">
-      <div className="portal-enterprise-split">
+      <div className="portal-repo-focus-row">
         <section className="portal-enterprise-panel">
           <div className="portal-enterprise-panel-head">
             <div>
-              <span>Action center</span>
-              <h3>What this repository still needs before broader rollout</h3>
-              <p>BeHeart should make it obvious whether this repository is ready for broader AI usage, not just visually impressive.</p>
+              <span>Next action</span>
+              <h3>{summary.action_center?.[0]?.label ?? "Review synced memory"}</h3>
+              <p>{summary.action_center?.[0]?.note ?? "Open the graph, docs, diagrams, or benchmark view from the tabs below."}</p>
             </div>
           </div>
-          <div className="portal-readiness-list">
-            {(summary.action_center ?? []).map((action) => (
+          <div className="portal-readiness-list portal-readiness-list-compact">
+            {(summary.action_center ?? []).slice(0, 3).map((action) => (
               <article key={action.label} className="portal-readiness-row">
                 <div className="portal-readiness-copy">
                   <strong>{action.label}</strong>
@@ -66,9 +71,9 @@ export function PortalRepositoryServicesWorkspace({
         <section className="portal-enterprise-panel">
           <div className="portal-enterprise-panel-head">
             <div>
-              <span>Services lane</span>
-              <h3>Every imported repository exposes the BeHeart services it is actually using</h3>
-              <p>These cards stay repository-scoped so customers can inspect code graph, diagrams, policy rails, documents, runtime, and ROI from one place.</p>
+              <span>Repo views</span>
+              <h3>Pick one artifact view</h3>
+              <p>Each view is generated from the latest synced repo memory.</p>
             </div>
           </div>
           <div className="portal-repository-services-grid">
@@ -101,12 +106,12 @@ export function PortalRepositoryServicesWorkspace({
         </section>
       </div>
 
-      <section className="portal-enterprise-panel">
+      <section className="portal-enterprise-panel portal-artifact-focus-panel">
         <div className="portal-enterprise-panel-head">
           <div>
-            <span>Repository services</span>
+            <span>{formatStateLabel(activeSection?.state)}</span>
             <h3>{activeSection?.title}</h3>
-            <p>{activeSection?.subtitle}</p>
+            {activeSection?.subtitle ? <p>{activeSection.subtitle}</p> : null}
           </div>
         </div>
 
@@ -131,7 +136,7 @@ export function PortalRepositoryServicesWorkspace({
           })}
         </div>
 
-        {activeSection?.note ? (
+        {activeSection?.note && activeTab !== "code_graph" && activeTab !== "diagrams" ? (
           <div className="portal-inline-banner">
             <strong>{formatSourceLabel(activeSection.source_type)}</strong>
             <p>{activeSection.note}</p>
@@ -149,22 +154,7 @@ export function PortalRepositoryServicesWorkspace({
         ) : null}
 
         {activeTab === "diagrams" ? (
-          <div className="portal-diagram-grid">
-            {(repositoryServices?.diagrams?.items ?? []).map((diagram) => (
-              <article key={diagram.type} className="portal-card">
-                <div className="portal-card-head">
-                  <div>
-                    <strong>{diagram.title}</strong>
-                    <p>{diagram.summary}</p>
-                    <p>{`Inference: ${diagram.inference_mode} | Confidence: ${diagram.confidence} | Trust: ${diagram.trust?.label ?? "n/a"} | Scope: ${diagram.scope?.focus ?? "unknown"}`}</p>
-                    <p>{diagram.validation?.warning_count ? `${diagram.validation.warning_count} validation warning(s)` : "Validation passed."}</p>
-                  </div>
-                  <span>{diagram.type}</span>
-                </div>
-                <MermaidDiagram chart={diagram.content} />
-              </article>
-            ))}
-          </div>
+          <PortalDiagramViewer diagrams={repositoryServices?.diagrams?.items ?? []} emptyActionHref={`/repositories/${profile.profile_slug}/sync`} />
         ) : null}
 
         {activeTab === "document_memory" ? (
@@ -207,6 +197,14 @@ export function PortalRepositoryServicesWorkspace({
               actions={[{ href: "/documents", label: "Open documents", primary: true }]}
             />
           )
+        ) : null}
+
+        {activeTab === "context_pack_preview" ? (
+          <ContextPackPreviewPanel
+            service={repositoryServices?.context_pack_preview}
+            task={previewTask}
+            onTaskChange={setPreviewTask}
+          />
         ) : null}
 
         {activeTab === "policy_rails" ? (
@@ -367,6 +365,182 @@ export function PortalRepositoryServicesWorkspace({
   );
 }
 
+function ContextPackPreviewPanel({ service, task, onTaskChange }) {
+  const preview = service?.preview ?? {};
+  const command = `heart pack "${escapeCommandTask(task || service?.sample_task || "your task")}"`;
+  const modelPresets = service?.model_presets?.length
+    ? service.model_presets
+    : [{ id: "balanced", label: "Balanced coding model", token_budget: preview.token_budget ?? 1200 }];
+  const [selectedModel, setSelectedModel] = useState(modelPresets[0]?.id ?? "balanced");
+  const [commandText, setCommandText] = useState(`/pack "${escapeCommandTask(task || service?.sample_task || "your task")}"`);
+
+  useEffect(() => {
+    setSelectedModel(modelPresets[0]?.id ?? "balanced");
+  }, [service?.sample_task]);
+
+  useEffect(() => {
+    setCommandText(`/pack "${escapeCommandTask(task || service?.sample_task || "your task")}"`);
+  }, [task, service?.sample_task]);
+
+  if (!preview.files?.length && !preview.documents?.length) {
+    return (
+      <PortalStateBlock
+        tone="neutral"
+        eyebrow="Context pack preview"
+        title="No synced artifacts are ready for a context preview"
+        description="Publish a fresh repository profile with graph and document artifacts, then use the local CLI to compile the final task pack."
+        actions={[{ href: "/repositories", label: "Open repositories", primary: true }]}
+      />
+    );
+  }
+
+  return (
+    <div className="portal-enterprise-stack">
+      <div className="portal-graph-toolbar">
+        <div>
+          <span className="portal-service-toolbar-label">Preview task</span>
+          <h4>Context handoff before agent work</h4>
+          <p>This hosted view uses synced artifacts only. The final pack should still be generated locally against the current repo state.</p>
+        </div>
+        <label className="portal-graph-search">
+          <span>Task</span>
+          <input
+            type="text"
+            value={task}
+            onChange={(event) => onTaskChange?.(event.target.value)}
+            placeholder="add SSO login audit logging"
+          />
+        </label>
+      </div>
+
+      <div className="portal-inline-banner">
+        <strong>CLI handoff</strong>
+        <p><code>{command}</code></p>
+      </div>
+
+      <section className="portal-command-panel">
+        <header className="portal-command-head">
+          <div>
+            <span>Agent workbench preview</span>
+            <h4>Model handoff</h4>
+            <p>This portal command box is a preview surface only. Run commands locally or through the configured MCP client.</p>
+          </div>
+        </header>
+        <div className="portal-command-grid">
+          <label className="portal-field">
+            <span>Model preset</span>
+            <select className="portal-input" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
+              {modelPresets.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label} · {model.token_budget} tokens
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="portal-field">
+            <span>Command box</span>
+            <textarea
+              className="portal-textarea portal-textarea-sm"
+              value={commandText}
+              onChange={(event) => setCommandText(event.target.value)}
+              rows={3}
+              aria-label="Preview local Heart command"
+            />
+          </label>
+        </div>
+        <div className="portal-command-actions">
+          {(service?.command_examples ?? []).map((example) => (
+            <button key={example} type="button" className="portal-button-link" onClick={() => setCommandText(example)}>
+              {example}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="portal-summary-list">
+        <article>
+          <span>Token budget</span>
+          <strong>{preview.token_budget ?? 0}</strong>
+          <p>{preview.estimated_tokens ?? 0} estimated preview tokens from synced metadata.</p>
+        </article>
+        <article>
+          <span>Files</span>
+          <strong>{preview.files?.length ?? 0}</strong>
+          <p>Candidate files come from the focused code graph.</p>
+        </article>
+        <article>
+          <span>Documents</span>
+          <strong>{preview.documents?.length ?? 0}</strong>
+          <p>Restricted documents stay metadata-only in this portal view.</p>
+        </article>
+        <article>
+          <span>Confidence</span>
+          <strong>{preview.confidence_label ?? "low"}</strong>
+          <p>Preview confidence is not a substitute for running the local pack compiler.</p>
+        </article>
+      </div>
+
+      <div className="portal-enterprise-split">
+        <section className="portal-card">
+          <div className="portal-card-head">
+            <div>
+              <strong>Files and symbols</strong>
+              <p>Likely code context for the task, based on published graph artifacts.</p>
+            </div>
+            <span>{service?.mcp_tool ?? "context_pack"}</span>
+          </div>
+          <div className="portal-readiness-list">
+            {(preview.files ?? []).map((file) => (
+              <article key={file.path} className="portal-readiness-row">
+                <div className="portal-readiness-copy">
+                  <strong>{file.path}</strong>
+                  <span>{file.reason}</span>
+                </div>
+              </article>
+            ))}
+            {(preview.symbols ?? []).slice(0, 4).map((symbol) => (
+              <article key={`${symbol.name}:${symbol.path}`} className="portal-readiness-row">
+                <div className="portal-readiness-copy">
+                  <strong>{symbol.name}</strong>
+                  <span>{symbol.type} in {symbol.path}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="portal-card">
+          <div className="portal-card-head">
+            <div>
+              <strong>Docs, citations, and risks</strong>
+              <p>Business and governance context that should travel with the task.</p>
+            </div>
+            <span>{preview.citations?.length ?? 0} citations</span>
+          </div>
+          <div className="portal-readiness-list">
+            {(preview.documents ?? []).map((document) => (
+              <article key={document.path || document.title} className="portal-readiness-row">
+                <div className="portal-readiness-copy">
+                  <strong>{document.title}</strong>
+                  <span>{document.category} · {document.restricted ? "restricted metadata" : document.summary}</span>
+                </div>
+              </article>
+            ))}
+            {(preview.risks ?? []).map((risk) => (
+              <article key={risk} className="portal-readiness-row">
+                <div className="portal-readiness-copy">
+                  <strong>Risk</strong>
+                  <span>{risk}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function formatStateLabel(value) {
   const safeValue = String(value ?? "unknown");
   return safeValue.replace(/[_-]+/g, " ");
@@ -391,4 +565,8 @@ function formatSourceLabel(value) {
 
 function formatDateTime(value) {
   return String(value ?? "").slice(0, 16).replace("T", " ");
+}
+
+function escapeCommandTask(value) {
+  return String(value ?? "").replace(/["\\]/g, "").trim() || "your task";
 }

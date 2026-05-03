@@ -36,7 +36,7 @@ export function PortalSecurityAuditClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Security summary</span>
-            <h3>Auditability, sessions, and provider posture</h3>
+            <h3>Audit posture</h3>
             <p>Security should show login events, role changes, revocations, uploads, and export activity without leaking internal admin data.</p>
           </div>
         </div>

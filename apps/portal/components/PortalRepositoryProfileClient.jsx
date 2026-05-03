@@ -108,7 +108,6 @@ export function PortalRepositoryProfileClient({ slug }) {
   const profile = payload.profile;
   const repositoryServices = payload.repository_services ?? {};
   const summary = repositoryServices.summary ?? {};
-  const benchmarkSummary = summary.benchmark_summary ?? {};
 
   return (
     <div className="portal-enterprise-stack">
@@ -120,30 +119,24 @@ export function PortalRepositoryProfileClient({ slug }) {
             <p>{profile.overview.summary}</p>
           </div>
           <div className="portal-enterprise-panel-actions">
-            <Link href="/repositories" className="portal-button-link">
-              All repositories
-            </Link>
             <Link
-              href={`/benchmarks?workspace=${encodeURIComponent(profile.workspace_slug ?? "")}`}
+              href={`/repositories/${profile.profile_slug}/graph`}
               className="portal-button-link portal-button-link-primary"
             >
-              Run benchmark
+              Open graph
+            </Link>
+            <Link href={`/repositories/${profile.profile_slug}/diagrams`} className="portal-button-link">
+              Diagrams
             </Link>
           </div>
         </div>
-        <div className="portal-kpi-grid">
+        <div className="portal-kpi-grid portal-kpi-grid-focus">
           <article className="portal-kpi-card"><span>Readiness</span><strong>{summary.readiness_pct ?? 0}%</strong></article>
-          <article className="portal-kpi-card"><span>Files</span><strong>{profile.overview.file_count}</strong></article>
-          <article className="portal-kpi-card"><span>Symbols</span><strong>{profile.overview.symbol_count}</strong></article>
+          <article className="portal-kpi-card"><span>Sync</span><strong>{profile.cache?.status ?? "unknown"}</strong></article>
+          <article className="portal-kpi-card"><span>Graph nodes</span><strong>{repositoryServices.code_graph?.view?.total_node_count ?? 0}</strong></article>
           <article className="portal-kpi-card"><span>Documents</span><strong>{summary.document_count ?? profile.documents.document_count}</strong></article>
-          <article className="portal-kpi-card"><span>Visible graph nodes</span><strong>{payload.code_graph?.view?.node_count ?? 0}</strong></article>
-          <article className="portal-kpi-card"><span>Mapped graph nodes</span><strong>{payload.code_graph?.view?.total_node_count ?? 0}</strong></article>
           <article className="portal-kpi-card"><span>Diagrams</span><strong>{repositoryServices.diagrams?.items?.length ?? 0}</strong></article>
-          <article className="portal-kpi-card"><span>Heart links</span><strong>{profile.heart.relationship_count}</strong></article>
           <article className="portal-kpi-card"><span>Benchmarks</span><strong>{summary.benchmark_report_count ?? 0}</strong></article>
-          <article className="portal-kpi-card"><span>Avg token save</span><strong>{benchmarkSummary.avg_token_savings_pct ?? 0}%</strong></article>
-          <article className="portal-kpi-card"><span>Cleanup reduction</span><strong>{benchmarkSummary.avg_review_cleanup_reduction_pct ?? 0}%</strong></article>
-          <article className="portal-kpi-card"><span>Cache status</span><strong>{profile.cache?.status ?? "unknown"}</strong></article>
         </div>
       </section>
 

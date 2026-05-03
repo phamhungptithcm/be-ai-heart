@@ -16,16 +16,16 @@ export const metadata = createPortalMetadata({
 
 export default function PortalBenchmarksPage() {
   return (
-    <PortalShell title="Benchmarks" description="Benchmark evidence, report history, and rollout proof for the customer workspace.">
-      <PortalSection eyebrow="Launch" title="Run a benchmark from the portal" subtitle="Workspace-scoped local runner">
+    <PortalShell title="Benchmarks" description="Run and review benchmark evidence without fake precision.">
+      <PortalSection eyebrow="Launch" title="Run benchmark">
         <Suspense fallback={null}>
           <PortalBenchmarkLauncherClient />
         </Suspense>
       </PortalSection>
-      <PortalSection eyebrow="ROI snapshot" title="Benchmark snapshot" subtitle="Workspace-level proof">
+      <PortalSection eyebrow="ROI snapshot" title="Evidence snapshot">
         <PortalBenchmarkSummaryClient />
       </PortalSection>
-      <PortalSection eyebrow="Report history" title="Published report archive" subtitle="Customer-facing benchmark outputs">
+      <PortalSection eyebrow="Report history" title="Report archive">
         <PortalBenchmarkHistoryClient />
       </PortalSection>
     </PortalShell>

@@ -93,6 +93,42 @@ export async function postPortalJson(resourcePath, body, options = {}) {
   });
 }
 
+export async function postPortalEventStream(resourcePath, body, onEvent, options = {}) {
+  const response = await sendPortalFetch(resourcePath, {
+    ...options,
+    method: options.method ?? "POST",
+    body,
+    accept: "text/event-stream",
+  });
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const raw = await response.text();
+    for (const event of parseSseBuffer(raw)) {
+      onEvent?.(event);
+    }
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = drainSseBuffer(buffer);
+    buffer = parsed.remainder;
+    for (const event of parsed.events) {
+      onEvent?.(event);
+    }
+  }
+  buffer += decoder.decode();
+  for (const event of parseSseBuffer(buffer)) {
+    onEvent?.(event);
+  }
+}
+
 export function createPortalReturnToUrl(pathname = "/auth/complete") {
   return new URL(pathname, getPortalPublicBaseUrl()).toString();
 }
@@ -102,6 +138,15 @@ function buildPortalRequestUrl(resourcePath) {
 }
 
 async function sendPortalRequest(resourcePath, options = {}) {
+  const response = await sendPortalFetch(resourcePath, options);
+  if (!response?.text) {
+    return response ?? {};
+  }
+  const raw = await response.text();
+  return safeJsonParse(raw) ?? {};
+}
+
+async function sendPortalFetch(resourcePath, options = {}) {
   const sessionState = getPortalSessionState();
   const method = String(options.method ?? "GET").toUpperCase();
   const isStateChangingRequest = !["GET", "HEAD", "OPTIONS"].includes(method);
@@ -111,7 +156,7 @@ async function sendPortalRequest(resourcePath, options = {}) {
     credentials:
       options.credentials ?? (sessionState.mode === "cookie" ? "include" : "same-origin"),
     headers: {
-      Accept: "application/json",
+      Accept: options.accept ?? "application/json",
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers ?? {}),
       ...(sessionState.mode === "cookie" && isStateChangingRequest && sessionState.csrfToken
@@ -123,18 +168,18 @@ async function sendPortalRequest(resourcePath, options = {}) {
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  const raw = await response.text();
-  const payload = safeJsonParse(raw);
 
   if (!response.ok) {
     if (response.status === 404 && options.allowMissing) {
       return {};
     }
 
+    const raw = await response.text();
+    const payload = safeJsonParse(raw);
     throw new Error(payload?.error || `Failed to load ${resourcePath}.`);
   }
 
-  return payload ?? {};
+  return response;
 }
 
 function safeJsonParse(raw) {
@@ -143,6 +188,33 @@ function safeJsonParse(raw) {
   } catch {
     return {};
   }
+}
+
+function drainSseBuffer(buffer) {
+  const normalized = String(buffer ?? "").replace(/\r\n/g, "\n");
+  const boundary = normalized.lastIndexOf("\n\n");
+  if (boundary < 0) {
+    return { events: [], remainder: normalized };
+  }
+  return {
+    events: parseSseBuffer(normalized.slice(0, boundary)),
+    remainder: normalized.slice(boundary + 2),
+  };
+}
+
+function parseSseBuffer(raw) {
+  return String(raw ?? "")
+    .split(/\n\n+/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const event = block.match(/^event: (.+)$/m)?.[1] ?? "message";
+      const data = block.match(/^data: (.+)$/m)?.[1] ?? "{}";
+      return {
+        event,
+        data: safeJsonParse(data) ?? {},
+      };
+    });
 }
 
 function normalizeBaseUrl(value) {

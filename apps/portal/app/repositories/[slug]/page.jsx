@@ -19,8 +19,8 @@ export default async function RepositoryProfilePage({ params }) {
 
   return (
     <PortalShell
-      title={`${slug} repository profile`}
-      description="Customer view of synced project memory, visual diagrams, and repository-level operational context."
+      title={`${slug}`}
+      description="Repo memory health, next action, and linked artifact views."
     >
       <PortalRepositoryProfileClient slug={slug} />
     </PortalShell>

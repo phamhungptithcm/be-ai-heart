@@ -38,7 +38,7 @@ export function PortalBenchmarkSummaryClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Benchmark snapshot</span>
-            <h3>Published ROI proof should be immediately legible to both buyers and delivery leads</h3>
+            <h3>ROI proof</h3>
             <p>Benchmark reports exist to justify spend, rollout, and governance. This page should make the proof easy to scan before anyone opens a detailed report.</p>
           </div>
         </div>
@@ -95,7 +95,7 @@ export function PortalBenchmarkSummaryClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Coverage leaders</span>
-              <h3>Which repositories and scenarios carry the strongest archive</h3>
+              <h3>Strongest archive</h3>
             </div>
           </div>
           <div className="portal-summary-list">
@@ -187,7 +187,7 @@ export function PortalBenchmarkHistoryClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Coverage map</span>
-              <h3>Which scenarios are actually carrying proof today</h3>
+              <h3>Scenario proof</h3>
               <p>Scenario concentration matters. If proof only exists for one task type, the rollout story is still narrow.</p>
             </div>
           </div>
@@ -206,7 +206,7 @@ export function PortalBenchmarkHistoryClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Coverage leaders</span>
-              <h3>Which repositories and scenarios carry the strongest archive</h3>
+              <h3>Strongest archive</h3>
             </div>
           </div>
           <div className="portal-summary-list">
@@ -242,7 +242,7 @@ export function PortalBenchmarkHistoryClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Scenario table</span>
-              <h3>Scenario coverage and benchmark strength</h3>
+              <h3>Coverage strength</h3>
             </div>
           </div>
           <div className="portal-data-table-shell">
@@ -278,7 +278,7 @@ export function PortalBenchmarkHistoryClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Repository table</span>
-              <h3>Repository coverage and commercial usefulness</h3>
+              <h3>Repository coverage</h3>
             </div>
           </div>
           <div className="portal-data-table-shell">

@@ -66,6 +66,41 @@ export async function renderPortalRepositoryProfilePage(slug, rootDir) {
   );
 
   const diagramSection = renderSection("Synced Diagrams", renderDiagramCards(profile.diagrams));
+  const contextPackPreviewSection = renderSection(
+    "Context Pack Preview",
+    renderSimpleRows([
+      {
+        title: "Sample task",
+        body: "add SSO login audit logging",
+        meta: "preview",
+      },
+      {
+        title: "Local command",
+        body: 'heart pack "add SSO login audit logging"',
+        meta: "cli",
+      },
+      {
+        title: "Model preset",
+        body: "Balanced coding model, low-cost review model, or deep context model with explicit token budgets.",
+        meta: "model selector",
+      },
+      {
+        title: "Command box",
+        body: '/pack "add SSO login audit logging" stays a local-first command preview, not hosted repo execution.',
+        meta: "workbench",
+      },
+      {
+        title: "Synced inputs",
+        body: `${profile.overview.file_count} files, ${profile.overview.symbol_count} symbols, ${profile.documents.document_count} documents`,
+        meta: "repo artifact",
+      },
+      {
+        title: "Trust boundary",
+        body: "The hosted preview is built from published metadata. Generate the final pack locally so current ignore rules, policies, and graph state apply.",
+        meta: "local-first",
+      },
+    ]),
+  );
   const navigationSection = renderSection(
     "Portal Navigation Intent",
     renderSimpleRows([
@@ -84,7 +119,7 @@ export async function renderPortalRepositoryProfilePage(slug, rootDir) {
       { label: "Usage", href: "/portal/usage" },
       { label: "Billing", href: "/portal/billing" },
     ],
-    body: `<div class="stack">${hero}${repositorySummary}${diagramSection}${navigationSection}</div>`,
+    body: `<div class="stack">${hero}${repositorySummary}${diagramSection}${contextPackPreviewSection}${navigationSection}</div>`,
     accent: "#0f766e",
   });
 }

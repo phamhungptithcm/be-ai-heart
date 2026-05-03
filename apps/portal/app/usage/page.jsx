@@ -11,8 +11,8 @@ export const metadata = createPortalMetadata({
 export default function PortalUsagePage() {
   return (
     <PortalShell
-      title="Usage and savings"
-      description="Inspect tenant-scoped operational telemetry, benchmark-derived savings, and adoption depth across workspaces, repositories, users, models, and clients."
+      title="Usage"
+      description="Live usage and benchmark-backed savings in one place."
     >
       <PortalUsageAnalyticsClient />
     </PortalShell>

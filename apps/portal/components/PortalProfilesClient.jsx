@@ -159,11 +159,7 @@ export function PortalProfilesClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Repository coverage</span>
-            <h3>Memory readiness and sync truth across the tenant</h3>
-            <p>
-              Repository inventory should tell a platform lead which codebases are
-              current, benchmarked, and safe to scale with BeHeart-assisted AI.
-            </p>
+            <h3>Repo readiness</h3>
           </div>
           <div className="portal-enterprise-panel-actions">
             <Link href="/documents" className="portal-button-link">
@@ -191,24 +187,21 @@ export function PortalProfilesClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Readiness mix</span>
-              <h3>How complete the repository lane really is</h3>
+              <h3>Coverage</h3>
             </div>
           </div>
           <div className="portal-summary-list">
             <article>
               <span>Memory coverage</span>
               <strong>{summary.memory_ready_pct}% of repositories have synced docs</strong>
-              <p>Document memory is the minimum bar before AI work can claim durable project understanding.</p>
             </article>
             <article>
               <span>Benchmark coverage</span>
               <strong>{summary.benchmark_backed_pct}% of repositories have ROI evidence</strong>
-              <p>Expansion should follow measured benchmark proof, not just successful scans.</p>
             </article>
             <article>
               <span>Stability</span>
               <strong>{summary.stale_count === 0 ? "Fresh sync posture" : `${summary.stale_count} repo(s) need refresh`}</strong>
-              <p>Stale syncs weaken trust in diagrams, documents, and reuse guidance.</p>
             </article>
           </div>
         </section>
@@ -217,7 +210,7 @@ export function PortalProfilesClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Action queue</span>
-              <h3>What should the tenant fix next</h3>
+              <h3>Next fixes</h3>
             </div>
           </div>
           <div className="portal-action-list">
@@ -246,12 +239,7 @@ export function PortalProfilesClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Repository table</span>
-            <h3>Operational inventory for sync, architecture, and benchmark follow-through</h3>
-            <p>
-              This table should be dense enough for engineering leads to decide
-              where to resync, where to benchmark, and which repositories are safe
-              to expand next.
-            </p>
+            <h3>Repo inventory</h3>
           </div>
         </div>
         <div className="portal-table-toolbar">

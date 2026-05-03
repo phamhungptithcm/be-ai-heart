@@ -36,7 +36,7 @@ export function PortalBillingSnapshotClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>License snapshot</span>
-            <h3>Plan, seats, invoices, and expansion posture</h3>
+            <h3>Plan and seats</h3>
             <p>Billing should show why the current plan exists, how much room remains, and whether the rollout is earning the next commercial step.</p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function PortalBillingSnapshotClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Usage snapshot</span>
-              <h3>Commercial context tied to operational proof</h3>
+              <h3>Commercial proof</h3>
             </div>
           </div>
           <div className="portal-summary-list">
@@ -100,7 +100,7 @@ export function PortalBillingSnapshotClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Invoice history</span>
-            <h3>Stable billing contract even while provider mode is mocked</h3>
+            <h3>Billing contract</h3>
           </div>
         </div>
         <div className="portal-data-table-shell">
@@ -155,7 +155,7 @@ export function PortalBillingSnapshotClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Upgrade readiness</span>
-            <h3>When the next plan step is justified</h3>
+            <h3>Next plan step</h3>
           </div>
         </div>
         <div className="portal-summary-list">

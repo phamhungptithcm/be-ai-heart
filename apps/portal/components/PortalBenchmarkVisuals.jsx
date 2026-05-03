@@ -32,6 +32,12 @@ export function PortalBenchmarkTrendPanel({ reports = [] }) {
       average: `${digest.summary.avg_composite_roi_score} avg`,
       series: digest.series.composite_roi_score,
     },
+    {
+      label: "Evidence quality",
+      latest: `${digest.summary.latest_evidence_quality_score}`,
+      average: `${digest.summary.avg_evidence_quality_score} avg · ${digest.summary.observed_report_count} observed`,
+      series: digest.series.evidence_quality_score,
+    },
   ];
 
   return (

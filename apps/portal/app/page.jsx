@@ -11,8 +11,8 @@ export const metadata = createPortalMetadata({
 export default function PortalHomePage() {
   return (
     <PortalShell
-      title="Customer command center"
-      description="Track tenant-scoped memory readiness, action items, benchmark posture, and workspace freshness in the default customer overview."
+      title="Workspace health"
+      description="See what is synced, stale, benchmarked, and waiting for action."
       shellMode="overview"
       showToolbar={false}
     >

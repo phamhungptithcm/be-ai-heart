@@ -13,43 +13,46 @@ export function PortalCodeGraphExplorer({
   error = "",
 } = {}) {
   const definitionId = useId().replace(/:/g, "_");
-  const view = service?.view ?? null;
+  const rawView = normalizeCodeGraphView(service?.view);
   const [searchQuery, setSearchQuery] = useState("");
   const [nodeTypeFilters, setNodeTypeFilters] = useState({});
   const [edgeTypeFilters, setEdgeTypeFilters] = useState({});
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [nodePositions, setNodePositions] = useState({});
   const [dragState, setDragState] = useState(null);
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
   useEffect(() => {
-    if (!view) {
+    if (!rawView) {
       return;
     }
 
-    setNodeTypeFilters(createToggleState(view.total_node_type_counts ?? view.node_type_counts));
-    setEdgeTypeFilters(createToggleState(view.total_edge_type_counts ?? view.edge_type_counts));
-    setSelectedNodeId(pickInitialNodeId(view));
+    setNodeTypeFilters(createToggleState(rawView.total_node_type_counts ?? rawView.node_type_counts));
+    setEdgeTypeFilters(createToggleState(rawView.total_edge_type_counts ?? rawView.edge_type_counts));
+    setSelectedNodeId(pickInitialNodeId(rawView));
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setNodePositions(extractNodePositions(rawView));
   }, [
-    view?.mode,
-    view?.node_count,
-    view?.edge_count,
-    view?.total_node_count,
-    view?.total_edge_count,
+    rawView?.mode,
+    rawView?.node_count,
+    rawView?.edge_count,
+    rawView?.total_node_count,
+    rawView?.total_edge_count,
   ]);
 
-  if (!view) {
+  if (!rawView) {
     return (
       <div className="portal-service-empty">
-        <strong>Code graph snapshot is not available yet.</strong>
-        <p>Run a fresh repository sync so the customer portal can load the visual graph explorer for this workspace.</p>
+        <strong>No graph synced yet.</strong>
+        <p>Run <code>heart scan</code>, then sync the repository profile.</p>
       </div>
     );
   }
 
+  const view = applyNodePositionOverrides(rawView, nodePositions);
   const graphData = buildVisibleGraphData({
     view,
     nodeTypeFilters,
@@ -73,6 +76,7 @@ export function PortalCodeGraphExplorer({
 
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragState({
+      kind: "canvas",
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -81,8 +85,42 @@ export function PortalCodeGraphExplorer({
     });
   }
 
+  function handleNodePointerDown(event, node) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId);
+    setSelectedNodeId(node.id);
+    setDragState({
+      kind: "node",
+      pointerId: event.pointerId,
+      nodeId: node.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: node.position.x,
+      originY: node.position.y,
+    });
+  }
+
   function handleCanvasPointerMove(event) {
     if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (dragState.kind === "node") {
+      const nextX = clamp(
+        dragState.originX + (event.clientX - dragState.startX) / zoom,
+        24,
+        view.layout.width - 24,
+      );
+      const nextY = clamp(
+        dragState.originY + (event.clientY - dragState.startY) / zoom,
+        24,
+        view.layout.height - 24,
+      );
+      setNodePositions((current) => ({
+        ...current,
+        [dragState.nodeId]: { x: round(nextX, 1), y: round(nextY, 1) },
+      }));
       return;
     }
 
@@ -94,6 +132,7 @@ export function PortalCodeGraphExplorer({
 
   function handleCanvasPointerUp(event) {
     if (dragState?.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
       setDragState(null);
     }
   }
@@ -108,15 +147,44 @@ export function PortalCodeGraphExplorer({
     setZoom(round(nextZoom, 2));
   }
 
+  function resetGraphLayout() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setNodePositions(extractNodePositions(rawView));
+  }
+
+  function moveNodeWithKeyboard(event, node) {
+    const deltas = {
+      ArrowUp: { x: 0, y: -18 },
+      ArrowDown: { x: 0, y: 18 },
+      ArrowLeft: { x: -18, y: 0 },
+      ArrowRight: { x: 18, y: 0 },
+    };
+    const delta = deltas[event.key];
+    if (!delta) {
+      return;
+    }
+
+    event.preventDefault();
+    setSelectedNodeId(node.id);
+    setNodePositions((current) => {
+      const currentPosition = current[node.id] ?? node.position;
+      return {
+        ...current,
+        [node.id]: {
+          x: round(clamp(currentPosition.x + delta.x, 24, view.layout.width - 24), 1),
+          y: round(clamp(currentPosition.y + delta.y, 24, view.layout.height - 24), 1),
+        },
+      };
+    });
+  }
+
   return (
     <div className="portal-graph-workspace">
       <div className="portal-graph-toolbar">
         <div>
-          <span className="portal-service-toolbar-label">Graph controls</span>
-          <h4>Visual dependency explorer</h4>
-          <p>
-            Focused mode loads the high-signal subgraph first. Full mode is available when the customer explicitly wants the wider map.
-          </p>
+          <span className="portal-service-toolbar-label">Live graph</span>
+          <h4>Relationship viewer</h4>
         </div>
         <div className="portal-graph-toolbar-actions">
           <label className="portal-graph-search">
@@ -125,7 +193,7 @@ export function PortalCodeGraphExplorer({
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Class, function, file, path"
+              placeholder="Search file, class, function"
             />
           </label>
           <div className="portal-graph-mode-group" role="tablist" aria-label="Code graph mode">
@@ -150,10 +218,7 @@ export function PortalCodeGraphExplorer({
             <button type="button" onClick={() => setZoom((value) => round(clamp(value - 0.12, MIN_ZOOM, MAX_ZOOM), 2))}>
               −
             </button>
-            <button type="button" onClick={() => {
-              setZoom(1);
-              setPan({ x: 0, y: 0 });
-            }}>
+            <button type="button" onClick={resetGraphLayout}>
               Reset
             </button>
             <button type="button" onClick={() => setZoom((value) => round(clamp(value + 0.12, MIN_ZOOM, MAX_ZOOM), 2))}>
@@ -231,7 +296,7 @@ export function PortalCodeGraphExplorer({
               </article>
               <article>
                 <span>Layout</span>
-                <strong>{view.layout.algorithm}</strong>
+                <strong>{view.layout?.algorithm ?? "auto"}</strong>
                 <p>{view.mode === "full" ? "Wider graph lane" : "Focused starter lane"}</p>
               </article>
             </div>
@@ -241,7 +306,7 @@ export function PortalCodeGraphExplorer({
         <div className="portal-graph-canvas-shell">
           <div className="portal-graph-canvas-meta">
             <span>{loading ? "Refreshing graph…" : `Showing ${graphData.nodes.length} nodes`}</span>
-            <span>{graphData.queryMatchCount > 0 ? `${graphData.queryMatchCount} search match(es)` : "Pan, zoom, and inspect nodes"}</span>
+            <span>{graphData.queryMatchCount > 0 ? `${graphData.queryMatchCount} search match(es)` : "Drag nodes, pan, zoom"}</span>
           </div>
           <div className="portal-graph-canvas" onWheel={handleCanvasWheel}>
             <svg
@@ -305,12 +370,24 @@ export function PortalCodeGraphExplorer({
                 {graphData.nodes.map((node) => {
                   const isActive = activeNode?.id === node.id;
                   const isMatched = graphData.matchNodeIds.has(node.id);
+                  const labelVisible = isActive || isMatched || graphData.nodes.length <= 40;
+                  const isDragging = dragState?.kind === "node" && dragState.nodeId === node.id;
+                  const nodeClassName = [
+                    "portal-graph-node",
+                    isActive ? "is-active" : "",
+                    isDragging ? "is-dragging" : "",
+                  ].filter(Boolean).join(" ");
                   return (
                     <g
                       key={node.id}
                       data-graph-node="true"
-                      className={isActive ? "portal-graph-node is-active" : "portal-graph-node"}
+                      className={nodeClassName}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Move graph node ${node.label}`}
+                      onPointerDown={(event) => handleNodePointerDown(event, node)}
                       onClick={() => setSelectedNodeId(node.id)}
+                      onKeyDown={(event) => moveNodeWithKeyboard(event, node)}
                     >
                       {isActive ? (
                         <circle
@@ -330,13 +407,15 @@ export function PortalCodeGraphExplorer({
                         stroke={isMatched ? "#ffffff" : "rgba(7, 17, 15, 0.88)"}
                         strokeWidth={isMatched ? "2.4" : "1.6"}
                       />
-                      <text
-                        x={node.position.x}
-                        y={node.position.y + node.radius + 16}
-                        className={isActive ? "portal-graph-node-label is-active" : "portal-graph-node-label"}
-                      >
-                        {node.label}
-                      </text>
+                      {labelVisible ? (
+                        <text
+                          x={node.position.x}
+                          y={node.position.y + node.radius + 16}
+                          className={isActive ? "portal-graph-node-label is-active" : "portal-graph-node-label"}
+                        >
+                          {shortGraphLabel(node.label)}
+                        </text>
+                      ) : null}
                       {isActive || isMatched ? (
                         <text
                           x={node.position.x}
@@ -353,11 +432,6 @@ export function PortalCodeGraphExplorer({
             </svg>
             <div className="portal-graph-stage-note">
               <strong>{view.is_truncated ? "Focused graph lane" : "Full graph lane"}</strong>
-              <p>
-                {view.is_truncated
-                  ? "This view is intentionally narrowed to the highest-signal files, classes, and functions first."
-                  : "This lane expands the repository map for broader inspection when the user asks for it."}
-              </p>
             </div>
           </div>
         </div>
@@ -420,6 +494,103 @@ function createToggleState(counts) {
   return Object.fromEntries(
     Object.keys(counts ?? {}).map((key) => [key, true]),
   );
+}
+
+function extractNodePositions(view) {
+  return Object.fromEntries(
+    (view?.nodes ?? []).map((node) => [
+      node.id,
+      {
+        x: node.position.x,
+        y: node.position.y,
+      },
+    ]),
+  );
+}
+
+function applyNodePositionOverrides(view, nodePositions) {
+  return {
+    ...view,
+    nodes: view.nodes.map((node) => ({
+      ...node,
+      position: nodePositions[node.id] ?? node.position,
+    })),
+  };
+}
+
+function normalizeCodeGraphView(candidate) {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const rawLayout = candidate.layout;
+  if (!rawLayout || typeof rawLayout !== "object") {
+    return null;
+  }
+
+  const layout = {
+    ...rawLayout,
+    algorithm: String(rawLayout.algorithm ?? "unknown"),
+    width: normalizePositiveNumber(rawLayout.width, 960),
+    height: normalizePositiveNumber(rawLayout.height, 640),
+  };
+  const nodes = (Array.isArray(candidate.nodes) ? candidate.nodes : [])
+    .filter((node) => node && typeof node === "object" && node.id)
+    .map((node, index) => normalizeGraphNode(node, index));
+  const edges = (Array.isArray(candidate.edges) ? candidate.edges : [])
+    .filter((edge) => edge && typeof edge === "object" && edge.from && edge.to)
+    .map((edge, index) => ({
+      ...edge,
+      id: String(edge.id ?? `${edge.from}-${edge.to}-${index}`),
+      color: String(edge.color ?? "rgba(72, 242, 177, 0.72)"),
+      type_key: String(edge.type_key ?? edge.type ?? "related"),
+      type_label: String(edge.type_label ?? edge.type ?? "related"),
+    }));
+
+  return {
+    ...candidate,
+    layout,
+    nodes,
+    edges,
+    node_count: Number(candidate.node_count ?? nodes.length),
+    edge_count: Number(candidate.edge_count ?? edges.length),
+    total_node_count: Number(candidate.total_node_count ?? candidate.node_count ?? nodes.length),
+    total_edge_count: Number(candidate.total_edge_count ?? candidate.edge_count ?? edges.length),
+    node_type_counts: candidate.node_type_counts ?? {},
+    edge_type_counts: candidate.edge_type_counts ?? {},
+  };
+}
+
+function normalizeGraphNode(node, index) {
+  const position = node.position && typeof node.position === "object" ? node.position : {};
+
+  return {
+    ...node,
+    id: String(node.id),
+    label: String(node.label ?? node.id),
+    type_key: String(node.type_key ?? node.type ?? "node"),
+    type_label: String(node.type_label ?? node.type ?? "node"),
+    secondary_label: String(node.secondary_label ?? node.path ?? ""),
+    search_text: String(node.search_text ?? `${node.label ?? ""} ${node.path ?? ""}`).toLowerCase(),
+    position: {
+      x: normalizeFiniteNumber(position.x, 140 + (index % 6) * 120),
+      y: normalizeFiniteNumber(position.y, 120 + Math.floor(index / 6) * 110),
+    },
+    radius: normalizePositiveNumber(node.radius, 18),
+    color: String(node.color ?? "#48f2b1"),
+    degree: Number(node.degree ?? 0),
+    meta: node.meta && typeof node.meta === "object" ? node.meta : {},
+  };
+}
+
+function normalizePositiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeFiniteNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function buildVisibleGraphData({ view, nodeTypeFilters, edgeTypeFilters, query } = {}) {
@@ -523,4 +694,14 @@ function clamp(value, min, max) {
 function round(value, precision = 2) {
   const factor = 10 ** precision;
   return Math.round(value * factor) / factor;
+}
+
+function shortGraphLabel(value) {
+  const raw = String(value ?? "").trim();
+  const lastSegment = raw.includes("/") ? raw.split("/").filter(Boolean).at(-1) : raw;
+  if (lastSegment.length <= 22) {
+    return lastSegment;
+  }
+
+  return `${lastSegment.slice(0, 9)}...${lastSegment.slice(-9)}`;
 }
