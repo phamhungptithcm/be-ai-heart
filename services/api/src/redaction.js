@@ -1,7 +1,7 @@
 const SECRET_VALUE_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bsk_[A-Za-z0-9_-]{12,}\b/g,
-  /\b(?:api[_-]?key|secret|password|token|client[_-]?secret|id[_-]?token|access[_-]?token|refresh[_-]?token)\s*[:=]\s*["']?[^"'\s,}&]+/gi,
+  /\b(?:api[_-]?key|secret|password|session|token|client[_-]?secret|id[_-]?token|access[_-]?token|refresh[_-]?token)\s*[:=]\s*["']?[^"'\s,}&]+/gi,
   /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi,
 ];
 
