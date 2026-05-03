@@ -60,11 +60,12 @@ const PLAN_ENTITLEMENTS = Object.freeze({
 });
 
 const OVERVIEW_ONBOARDING_STEPS = Object.freeze([
-  { step_id: "connect-auth", label: "Connect auth", href: "/settings", description: "Confirm the hosted identity provider and workspace session boundary." },
-  { step_id: "install-cli", label: "Install CLI", href: "/settings", description: "Install the BeHeart CLI on the engineering workstation used for local-first scans." },
-  { step_id: "first-scan", label: "Run first scan", href: "/repositories", description: "Index the first repository and persist the project-memory snapshot." },
-  { step_id: "sync-memory", label: "Sync repo, profile, and docs", href: "/documents", description: "Publish repository profile, diagrams, and project documents into the hosted portal lane." },
-  { step_id: "publish-benchmark", label: "Publish first benchmark", href: "/benchmarks", description: "Run a benchmark scenario so the customer portal can prove ROI and readiness." },
+  { step_id: "connect-auth", label: "Open portal workspace", href: "/settings", command: "heart login", description: "Create a tenant-scoped session or one-time CLI key before syncing repository memory." },
+  { step_id: "install-cli", label: "Install CLI", href: "/connect", command: "npm install -g beheart", description: "Install the BeHeart CLI on the engineering workstation used for local-first scans." },
+  { step_id: "local-setup", label: "Initialize and scan", href: "/connect", command: "heart init && heart scan", description: "Index the first repository and persist the local project-memory snapshot." },
+  { step_id: "sync-memory", label: "Sync repo memory", href: "/repositories", command: "heart sync setup", description: "Publish profile, diagrams, docs, and a starter context pack into the hosted portal lane." },
+  { step_id: "configure-model", label: "Select model", href: "/models", command: "heart models providers", description: "Add or test a provider key, then select the model used by portal AI actions." },
+  { step_id: "start-chat", label: "Open AI workbench", href: "/workbench", command: "portal /workbench", description: "Start streaming chat with repo, docs, graph, and context pack attachments." },
 ]);
 
 export async function loadPortalAccountView({
@@ -995,6 +996,10 @@ function buildBillingSnapshot(dataset) {
     adapter_id: billingAdapter.adapter_id,
     provider_mode: billingAdapter.provider_mode,
     source_type: billingAdapter.source_type,
+    live_billing_required: billingAdapter.live_billing_required,
+    paid_public_release_ready: billingAdapter.paid_public_release_ready,
+    release_gate: billingAdapter.release_gate,
+    next_required_action: billingAdapter.next_required_action,
     customer_id: dataset.customer.customer_id,
     account: {
       customer_id: dataset.customer.customer_id,
@@ -1053,6 +1058,25 @@ function buildBillingSnapshot(dataset) {
 }
 
 function buildAuthSettings(dataset) {
+  const cliApiKeys = buildPortalSessionRows(dataset)
+    .filter((session) => {
+      const rawSession = (dataset.sessions ?? []).find((entry) => entry.session_id === session.session_id);
+      return rawSession?.metadata?.source === "portal-api-key";
+    })
+    .map((session) => {
+      const rawSession = (dataset.sessions ?? []).find((entry) => entry.session_id === session.session_id);
+      return {
+        key_id: session.session_id,
+        label: rawSession?.metadata?.label ?? "CLI API key",
+        workspace_slug: session.workspace_slug,
+        issued_at: session.issued_at,
+        expires_at: session.expires_at,
+        last_seen_at: session.last_seen_at,
+        status: session.status,
+        api_key: "",
+      };
+    });
+
   return {
     adapter_id: dataset.auth_adapter.adapter_id,
     provider_mode: dataset.auth_adapter.provider_mode,
@@ -1068,6 +1092,7 @@ function buildAuthSettings(dataset) {
     })),
     session_mode: dataset.authContext?.session_source === "cookie" ? "cookie" : "header",
     session_expires_at: dataset.authContext?.session?.expires_at ?? "",
+    cli_api_keys: cliApiKeys,
   };
 }
 

@@ -11,8 +11,8 @@ export const metadata = createPortalMetadata({
 export default function PortalDocumentsPage() {
   return (
     <PortalShell
-      title="Documents"
-      description="Customers manage business documents and requirement updates here, then sync them into repository memory with the CLI."
+      title="Docs"
+      description="Review synced specs and queue business requirement updates."
     >
       <PortalDocumentsWorkspaceClient />
     </PortalShell>

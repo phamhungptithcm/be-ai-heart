@@ -19,6 +19,10 @@ export async function handleOpenAiCompatibleProxyRoute(request, config, route) {
   if (!run) {
     return jsonResponse({ error: "Agent run not found." }, { status: 404 });
   }
+  const authFailure = validateProxyAuthorization(request, config);
+  if (authFailure) {
+    return authFailure;
+  }
 
   const requestUrl = new URL(request.url);
   const preparedRequest = await prepareProxyRequest({
@@ -27,6 +31,10 @@ export async function handleOpenAiCompatibleProxyRoute(request, config, route) {
     route,
     run,
   });
+  const upstreamFailure = validateAllowedUpstream(preparedRequest.upstream_url, config);
+  if (upstreamFailure) {
+    return upstreamFailure;
+  }
   const startedAtMs = Date.now();
 
   let upstreamResponse;
@@ -317,12 +325,61 @@ function sanitizeForwardHeaders(headers) {
   const nextHeaders = new Headers();
   headers.forEach((value, key) => {
     const normalizedKey = key.toLowerCase();
-    if (["host", "content-length", "connection"].includes(normalizedKey)) {
+    if ([
+      "host",
+      "content-length",
+      "connection",
+      "cookie",
+      "x-be-ai-heart-proxy-token",
+      "x-be-ai-heart-session",
+      "x-be-ai-heart-csrf",
+    ].includes(normalizedKey)) {
       return;
     }
     nextHeaders.set(key, value);
   });
   return nextHeaders;
+}
+
+function validateProxyAuthorization(request, config) {
+  const expected = String(config?.llmProxy?.sharedSecret ?? "").trim();
+  if (!expected) {
+    return null;
+  }
+  const received = String(request.headers.get("x-be-ai-heart-proxy-token") ?? "").trim();
+  if (received && safeEqual(received, expected)) {
+    return null;
+  }
+  return jsonResponse({
+    error: "LLM proxy authorization failed.",
+    error_code: "LLM_PROXY_UNAUTHORIZED",
+  }, { status: 401 });
+}
+
+function validateAllowedUpstream(upstreamUrl, config) {
+  const allowedOrigins = new Set((config?.llmProxy?.allowedOrigins ?? []).map((origin) => String(origin).trim()).filter(Boolean));
+  if (allowedOrigins.size === 0) {
+    return null;
+  }
+  const origin = new URL(upstreamUrl).origin;
+  if (allowedOrigins.has(origin)) {
+    return null;
+  }
+  return jsonResponse({
+    error: "LLM proxy upstream is not allowlisted.",
+    error_code: "LLM_PROXY_UPSTREAM_DENIED",
+  }, { status: 403 });
+}
+
+function safeEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    diff |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return diff === 0;
 }
 
 function cloneResponseHeaders(headers) {

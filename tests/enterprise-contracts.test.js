@@ -31,12 +31,21 @@ test("portal additive RBAC resolves canonical roles, permissions, and visible na
   assert.deepEqual(
     visible.flatMap((group) => group.items.map((item) => item.label)),
     [
-      "Overview",
+      "Home",
       "Repositories",
-      "Documents",
+      "Graph",
+      "Diagrams",
+      "Docs",
+      "Context Packs",
+      "Domain Packs",
+      "Workspaces",
+      "Workbench",
+      "Models",
+      "CLI / MCP",
       "Benchmarks",
       "Usage",
       "Billing",
+      "Policies / Governance",
       "Settings",
     ],
   );

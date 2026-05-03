@@ -1,6 +1,6 @@
 ---
 title: CLI Sync And Diagrams
-description: Understand how local scan, diagram generation, and sync publish durable project memory.
+description: Understand how local scans, generated diagrams, and reviewed sync artifacts keep portal memory current.
 order: 20
 category: operator
 keywords:
@@ -9,18 +9,53 @@ keywords:
   - sync
 ---
 
-# Run the local memory loop
+# Keep local and portal memory aligned
 
-The CLI is the fastest way to build trust because every important step is explicit.
+The CLI is the source of truth for repository memory. The portal should reflect reviewed artifacts from the repo, not pretend hosted data is current when the local scan is stale.
 
-## Scan source and documents
+## 1. Scan source and documents
 
-Use `heart scan` after meaningful repository changes so the persisted heart stays aligned with code, documents, and linked context.
+Run `heart scan` after meaningful repository changes. The scan refreshes code graph, document memory, policy posture, diagram inputs, and benchmark readiness.
 
-## Generate diagrams for review
+```bash
+heart doctor
+heart scan
+heart overview
+```
 
-You can produce symbol graph, high-level, class, and sequence-style diagrams. The point is not decoration; it is faster repo legibility for engineers, reviewers, and buyers.
+## 2. Generate diagrams for review
 
-## Sync into the portal and admin
+Diagrams are review artifacts. Use them to make repo structure easier to inspect before publishing summaries into the portal.
 
-Publishing should happen only after the local artifacts look credible. The portal is for the customer workspace; the admin surface is for owner operations and support.
+```bash
+heart diagram generate high-level
+heart diagram generate sequence
+```
+
+## 3. Sync safe summaries
+
+Sync publishes reviewed repository artifacts: profile, diagrams, docs freshness, context pack metadata, policies, and benchmark reports where supported.
+
+Raw private source should not be assumed to leave the local lane by default. Use `heart sync setup` for the first activation because it publishes profile, docs, and a starter hosted context pack together.
+
+```bash
+heart login
+heart sync setup --slug acme-billing --task "prepare first implementation"
+```
+
+## 4. Verify portal truth
+
+The portal repo page should show:
+
+- last CLI sync
+- scan status
+- graph health
+- docs/spec freshness
+- generated diagrams
+- context pack history
+- benchmark evidence
+- policy warnings
+
+If those values are stale, rerun the local loop and sync again.
+
+Portal chat uses the same synced artifacts. The workbench stream endpoint can attach repo, docs, graph, domain pack, and selected context pack metadata, but it still cannot run arbitrary shell commands from the browser.

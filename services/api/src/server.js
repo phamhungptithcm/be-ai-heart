@@ -1,7 +1,10 @@
 import http from "node:http";
 import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
 
 import { handleServiceHttpRequest, resolveHttpConfig } from "./http.js";
+import { redactSensitiveString } from "./redaction.js";
+import { assertProductionHttpConfig } from "./runtime-config.js";
 import {
   deliverPendingObservabilityExports,
   isObservabilityExportEnabled,
@@ -13,6 +16,7 @@ const OBSERVABILITY_EXPORT_INTERVAL_MS = Number(
 
 export function startServiceHost(options = {}) {
   const config = resolveHttpConfig(options);
+  assertProductionHttpConfig(config, process.env);
   const port = Number(options.port ?? process.env.PORT ?? process.env.BE_AI_HEART_API_PORT ?? 4010);
   const hostname = options.hostname ?? process.env.BE_AI_HEART_API_HOST ?? "127.0.0.1";
 
@@ -25,12 +29,18 @@ export function startServiceHost(options = {}) {
       const response = await handleServiceHttpRequest(request, config);
       await sendWebResponse(res, response);
     } catch (error) {
+      const traceId = randomUUID();
       res.statusCode = Number(error?.statusCode ?? 500);
       res.setHeader("Content-Type", "application/json");
+      res.setHeader("X-Be-AI-Heart-Trace-Id", traceId);
       res.end(
         JSON.stringify(
           {
-            error: error?.message || "Unhandled API host error.",
+            error: res.statusCode >= 500
+              ? "Unhandled API host error."
+              : redactSensitiveString(error?.message || "Unhandled API host error."),
+            error_code: String(error?.errorCode ?? error?.code ?? `HTTP_${res.statusCode}`),
+            trace_id: traceId,
           },
           null,
           2,

@@ -20,11 +20,11 @@ This creates four business-level pains:
 
 ## Solution
 
-`be-ai-heart` is a persistent context layer for AI-assisted software development.
+`be-ai-heart` is a persistent context and AI workbench layer for AI-assisted software development.
 
-It scans the repository, builds a graph of the project, continuously updates architectural knowledge, and serves task-specific context packs to AI agents through CLI and MCP.
+It scans the repository, builds a graph of the project, continuously updates architectural knowledge, and serves task-specific context packs to AI agents through CLI, the interactive CLI workbench, portal chat, and MCP.
 
-Instead of asking the model to rediscover the codebase each time, the team gives the model a durable project memory.
+Instead of asking the model to rediscover the codebase each time, the team gives the model durable project memory plus explicit provider/model choice, policy guardrails, domain context, and benchmark evidence.
 
 ## Core Product Promise
 
@@ -33,6 +33,11 @@ For software teams using AI to code, `be-ai-heart` reduces prompt waste and impr
 - Stable codebase understanding
 - Reusable project memory
 - Architecture-aware context retrieval
+- CLI AI coding workbench
+- Portal chat over synced artifacts
+- Provider-neutral model selection and BYOK
+- MCP runtime and tool allowlists
+- Source-backed domain packs and context packs
 - Safer agent workflows
 - Measurable savings through benchmark reporting
 
@@ -60,28 +65,33 @@ Secondary ICP:
 
 ## Product Strategy
 
-Phase 1:
+Current local MVP / guided pilot:
 
 - Single-repo local-first indexing
 - Local CLI
+- Interactive CLI AI workbench
+- Provider/model selection and one-shot `heart chat`
 - Local MCP server
-- Benchmark suite proving token and quality improvements
+- Context packs, docs/spec memory, policies, diagrams, and document sync
+- Tolling Management Domain Pack and Tolling Sales MVP Demo Kit artifacts
+- Benchmark suite for token, reuse, quality, and ROI evidence; no broad ROI claim without observed runs
 
-Phase 2:
+Team workspace:
 
 - Team workspace
-- Shared graph storage
-- Policy enforcement
+- Portal chat and repository workbench over synced artifacts
+- Shared graph/storage decisions
+- Team policy management
 - Usage analytics
-- Billing and licensing
+- Billing and licensing adapters
 
-Phase 3:
+Enterprise readiness:
 
 - Multi-language support
 - Multi-repo dependency graph
 - Enterprise security controls
 - On-prem deployment
-- Admin and CRM control plane
+- Admin, billing, support, observability, and CRM adapter control plane
 
 ## Business Model
 
@@ -104,6 +114,18 @@ Phase 3:
 
 - 3-5 design partners
 - MVP used weekly by internal and pilot teams
-- Benchmark report with repeatable methodology
+- Benchmark reports with repeatable methodology and clear observed/estimated labels
 - First `100k-300k USD` in annualized revenue potential
-- Clear enterprise narrative: cost reduction plus AI safety plus architecture consistency
+- Clear enterprise narrative: cost reduction evidence plus AI safety, model governance, architecture consistency, and deployment readiness
+
+## Product Surface Map
+
+| Surface | Current role | Status |
+| --- | --- | --- |
+| CLI | Local setup, scan, docs sync, context packs, domain packs, benchmarks, model setup, one-shot chat | MVP implemented |
+| CLI AI workbench | Interactive repo memory and AI command loop | MVP implemented; deeper streaming/tool orchestration planned |
+| MCP runtime | Local stdio tools for compatible AI clients | MVP implemented |
+| Portal | Tenant-scoped repository, docs/spec, graph, benchmark, domain-pack, model, and chat views | Guided-pilot surface |
+| Admin | Internal support, observability, billing posture, sessions, customers, and revenue views | Internal pilot surface |
+| Domain packs | Reusable source-backed domain memory, starting with Tolling Management | Phase 1 implemented |
+| Billing/payment | Entitlement and billing posture contracts | Adapter-ready; live provider integration planned |

@@ -36,7 +36,7 @@ export function PortalMembersAccessClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Seats and access</span>
-            <h3>Role-aware member visibility without leaking tenant boundaries</h3>
+            <h3>Member access</h3>
             <p>Members and access should tell the customer who can act, who is consuming seats, and where governance responsibilities sit.</p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Install heart, scan one repository, and sync your first project memory into the portal.
+description: Install the BeHeart CLI, scan one repository, and create the first durable project memory artifact.
 order: 10
 category: onboarding
 keywords:
@@ -11,27 +11,113 @@ keywords:
 
 # Start with one repository
 
-`be-ai-heart` should prove value on one active repository before you ask a team to trust it on everything else.
+BeHeart is durable project memory for AI-assisted software teams. Start with one active repository, prove the memory is useful, then decide what should sync into the portal.
+
+## Prerequisites
+
+- Node.js and npm available on the machine that owns the repo.
+- A Git checkout of the repository you want AI tools to understand.
+- Permission to create local `.heart` artifacts and `heart.config.yaml`.
+- Optional: an MCP-compatible AI coding client such as Cursor or Claude Code.
 
 ## Install the CLI
 
-Use the local-first CLI first. That keeps the first proof close to the repo and avoids turning setup into a procurement exercise.
+The package is `beheart`. The installed command is `heart`.
+
+Global install:
 
 ```bash
-npm install
+npm install -g beheart
+heart
+```
+
+Repo-local install:
+
+```bash
+npm install --save-dev beheart
+npx heart doctor
+```
+
+## First local loop
+
+Run these commands inside the repository you want AI tools to understand.
+
+```bash
+heart init
+heart doctor
 heart scan
 heart overview
 ```
 
-## Publish the first heart
+This creates local BeHeart configuration, checks readiness, scans source and document inputs, and shows the repository memory summary.
 
-Once the repository has been scanned, generate diagrams and sync the profile to the portal so engineering and leadership can review the same project memory.
+## What the scan creates
+
+The local workspace should produce a durable `.heart` memory lane that can include:
+
+- repository profile and scan metadata
+- code graph summary
+- document memory summary
+- policy warnings
+- generated Mermaid diagrams
+- benchmark reports and evidence bundles
+- context pack metadata
+
+## Create useful AI context
+
+Use a task-specific pack when you want AI to start from cited project memory instead of rediscovering the repo.
 
 ```bash
-heart diagram generate high-level
-heart diagram sync --slug acme-billing
+heart pack --token-budget 1200 "add SSO login audit logging"
+heart docs search "billing requirements"
+heart impact src/billing/service.ts
 ```
 
-## What success looks like
+## Connect AI tools through MCP
 
-By the end of setup, the team should see code structure, document memory, and benchmark readiness without manually re-explaining the repo to every AI session.
+BeHeart can expose structured memory to MCP-compatible coding tools without letting the portal run arbitrary shell commands.
+
+```bash
+heart connect detect
+heart connect install --client cursor --scope repo
+heart connect verify --client cursor --scope repo
+heart mcp tools
+```
+
+## Useful daily commands
+
+```bash
+heart find symbol loginUser
+heart deps src/auth/login.ts
+heart impact src/billing/service.ts
+heart policy check
+heart docs search "pricing requirements"
+heart diagram generate mindmap
+heart pack "refactor billing retry flow"
+```
+
+## Publish reviewed artifacts
+
+Sync only after the local artifacts look credible. The fastest activation path is `heart sync setup`, which publishes the repository profile, docs/spec artifact, and a starter hosted context pack in one tenant-scoped call.
+
+```bash
+heart login
+heart sync setup --slug acme-billing --task "add SSO login audit logging"
+```
+
+## What good setup looks like
+
+- The repo has a current scan.
+- The graph and docs memory have clear freshness status.
+- Context packs cite files and docs.
+- MCP tools are visible to the local AI client.
+- Portal sync shows safe summaries, not raw private source by default.
+- Portal chat can attach the synced context pack and stream a response from the selected provider/model.
+- Benchmark claims stay labeled as observed, estimated, or mixed.
+
+## Troubleshooting
+
+- If `heart doctor` reports missing config, run `heart init`.
+- If graph data looks stale, run `heart scan` again from the repo root.
+- If MCP tools do not appear in your AI client, run `heart connect verify --client cursor --scope repo`.
+- If portal data looks old, run `heart scan` and `heart sync setup` again from the repo root.

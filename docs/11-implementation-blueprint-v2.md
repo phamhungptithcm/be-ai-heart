@@ -14,6 +14,10 @@ The goal of `v2` is not to add surface area for its own sake. The goal is to mak
 
 This blueprint is intentionally narrow. It focuses on the smallest set of changes that move `be-ai-heart` from `repo index plus artifact sync` toward `credible project memory`.
 
+Current product direction also includes a provider-neutral AI coding workbench, portal chat, domain packs, Tolling Sales
+MVP Demo Kit artifacts, billing/payment readiness, and deployment/operations readiness. Those surfaces should stay thin
+over the same durable memory contracts instead of creating parallel product logic.
+
 ## Why v2 Exists
 
 The current repository already demonstrates several useful capabilities:
@@ -26,6 +30,8 @@ The current repository already demonstrates several useful capabilities:
 - local MCP stdio tools
 - portal/admin sync of repository, document, and benchmark artifacts
 - tenant-scoped hosted write path
+- provider/model registry, AI gateway, chat runtime, masked model settings, and one-shot provider-backed `heart chat`
+- Tolling Management Domain Pack and Sales MVP Demo Kit generation
 
 That is enough to prove the concept. It is not yet enough to prove the product wedge at design-partner quality.
 
@@ -37,6 +43,35 @@ The main gaps are:
 - diagrams are useful demos but not yet trustworthy customer-facing system views
 - document memory works, but governance and linkage depth are still light
 - benchmark reporting exists, but the current runner is not yet evidence-rich enough for strong ROI claims
+
+## AI Agent Chat Implementation Status
+
+The first AI-agent vertical slice is now part of v2:
+
+- Provider/model registry package with OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Groq, Ollama, LM Studio, and Bedrock metadata.
+- Dynamic provider model discovery when a key or local endpoint exists, plus a dated fallback manifest when discovery is unavailable.
+- Versioned pricing catalog overlay, provider validation manifest, local zero-cost metadata, and unknown-cost warnings.
+- AI gateway package for normalized provider requests, provider-native streaming events, Bedrock SigV4 env/static-profile/source-profile assume-role validation/runtime calls, Bedrock `ConverseStream` parsing, error mapping, usage, and cost hooks.
+- CLI `heart models ...`, `heart agent settings`, and non-interactive `heart chat <prompt>` paths.
+- Interactive `heart` workbench status rows for selected model, provider keys, context source, and allowlisted tools.
+- Portal encrypted provider-key routes, model refresh, chat sessions, chat messages, chat history, context source selector, domain-pack attachment, citations, artifact cards, and tool safety panel.
+- Allowlisted BeHeart tools only; risky actions require confirmation, and portal executors are scoped to synced docs/graph/policy/domain-pack artifacts plus generated `.heart/packs/generated` outputs.
+- Confirmed scoped file-edit tools can write only generated BeHeart docs/spec/template outputs under `docs/*/generated` paths or `.heart/packs/generated` artifacts; arbitrary repo edits remain blocked.
+
+Remaining v2 work should deepen context retrieval quality, enterprise model administration, AWS SSO profile support for Bedrock, live provider validation with real customer keys/runtimes/AWS accounts, and richer generated-artifact review workflows rather than duplicating this provider/chat foundation.
+
+## Domain Pack And Tolling Implementation Status
+
+The first domain-pack vertical slice is part of v2:
+
+- `packs/tolling-management` contains source-backed domain memory, workflows, security/privacy notes, entities, benchmark scenarios, and sales-demo-kit artifacts.
+- `packages/core/src/domain-packs.js` owns pack metadata, layers, overlays, merge/conflict behavior, build options, generated artifact manifests, safety validation, and sync helpers.
+- CLI supports `heart packs list/show/layers/build/validate/conflicts/sync/open/artifacts`.
+- MCP exposes `domain_pack_*` tools through the same allowlist registry as core repo-memory tools.
+- Portal supports domain-pack browsing, artifact generation, artifact viewing, pack chat command records, source notes, benchmark lists, and security warnings.
+
+Remaining work should focus on customer-specific overlays, observed domain-pack benchmarks, and additional domain packs.
+Do not convert demo artifacts into production tolling runtime behavior without a separate security and implementation plan.
 
 ## North Star
 
@@ -87,6 +122,8 @@ Context leakage, secret exposure, and weak tenant isolation directly undermine t
 - diagram engine `v2`
 - document memory `v2`
 - benchmark runner `v2`
+- AI workbench and provider-chat foundations
+- source-backed domain pack foundations
 
 `v2` does not include:
 
@@ -95,6 +132,9 @@ Context leakage, secret exposure, and weak tenant isolation directly undermine t
 - fully autonomous learning or self-modifying prompts
 - enterprise-grade billing or CRM expansion
 - runtime tracing infrastructure
+- production payment/billing provider integration
+- production tolling account/payment/OCR integrations
+- broad private deployment support without additional hardening
 
 ## Current State Summary
 
@@ -112,15 +152,18 @@ In maturity terms, this is between late `Stage 1` and early `Stage 2`.
 flowchart LR
     A["Repository"] --> B["Source Scanner"]
     A2["Project Documents"] --> C["Document Ingest"]
+    A3["Domain Packs"] --> E
     B --> D["Typed Graph Builder"]
     C --> D
     D --> E["Context Compiler v2"]
     D --> F["Diagram Engine v2"]
     D --> G["Policy Engine"]
-    E --> H["CLI"]
+    E --> H["CLI and AI Workbench"]
     E --> I["MCP Server"]
+    E --> I2["Chat Runtime"]
     F --> J["Portal and Admin"]
     C --> J
+    A3 --> J
     D --> K["Benchmark Runner v2"]
     K --> J
 ```
@@ -219,6 +262,46 @@ Owns:
 - tool registry
 - compact tool response contracts
 
+### `packages/model-registry`
+
+Owns:
+
+- provider metadata
+- model discovery and fallback manifests
+- capability and redaction helpers
+
+### `packages/ai-gateway`
+
+Owns:
+
+- provider request/response normalization
+- streaming event contracts
+- credential validation
+- provider error mapping
+- usage and cost hooks
+
+### `packages/chat-runtime`
+
+Owns:
+
+- BeHeart system prompt and chat request assembly
+- context attachments
+- citations and artifact cards
+- model-provider calls through `ai-gateway`
+
+### `packages/agent-tools`
+
+Owns:
+
+- allowlisted BeHeart tool definitions
+- confirmation policy for risky actions
+
+### `packages/portal-chat-contracts`
+
+Owns:
+
+- shared portal/service chat messages, sessions, events, context attachments, citations, and artifact-card contracts
+
 ### `packages/benchmark`
 
 Owns:
@@ -236,6 +319,21 @@ Owns:
 - session and actor resolution
 - hosted read/write contracts
 - publication of public artifacts to surfaces
+
+### `packs/tolling-management`
+
+Owns:
+
+- source-backed tolling domain memory
+- layer and overlay source files
+- demo-safe Sales MVP Demo Kit artifacts
+- pack benchmark scenarios
+
+Must not own:
+
+- production tolling runtime integrations
+- legal policy conclusions
+- customer-specific toll rates, notice windows, payment rules, or enforcement outcomes
 
 ## Core Data Contracts
 
@@ -627,3 +725,15 @@ That means:
 - the benchmark report proves that the workflow wastes fewer tokens and less review effort
 
 If those outcomes are not visible together, the product is still a promising prototype rather than a credible project-memory layer.
+
+## Web/Portal/Admin Implementation Slice
+
+The current web slice moves the product beyond a static demo:
+
+- `services/api` exposes typed repository sync, graph, diagram, docs/spec/business requirement, context pack, chat command, model settings, and founder metrics contracts.
+- `apps/portal` has required navigation and repo-specific workflow pages for sync, context packs, graph, diagrams, docs/specs/BRD, benchmarks/ROI, policies, CLI/MCP connect, AI chat workbench, and models.
+- `apps/website` has public product, how-it-works, CLI/MCP, benchmark, security, pricing, docs, trial, and demo paths.
+- `apps/admin` consumes founder metrics from the admin overview contract and labels finance as estimated until billing integration is live.
+
+Follow-up implementation should keep building vertically: make each portal view read synced `.heart`/service artifacts,
+add stronger contract tests for each endpoint, then improve browser smoke coverage and accessibility checks.

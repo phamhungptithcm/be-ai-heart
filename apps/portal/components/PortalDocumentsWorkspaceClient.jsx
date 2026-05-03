@@ -23,7 +23,7 @@ export function PortalDocumentsWorkspaceClient({ defaultProfileSlug = "" }) {
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState("info");
   const [isPending, startTransition] = useTransition();
-  const { status, repositories, submissions, error } = useDocumentsWorkspace(refreshToken);
+  const { status, repositories, submissions, statusSummary, error } = useDocumentsWorkspace(refreshToken);
 
   useEffect(() => {
     if (!defaultProfileSlug) {
@@ -97,55 +97,39 @@ export function PortalDocumentsWorkspaceClient({ defaultProfileSlug = "" }) {
   }
 
   const summary = summarizeDocumentsWorkspace(repositories, submissions);
+  const documentStatus = statusSummary ?? {};
 
   return (
-    <>
-      <section className="portal-section">
-        <div className="portal-section-head">
+    <div className="portal-enterprise-stack portal-docs-focus">
+      <section className="portal-enterprise-panel">
+        <div className="portal-enterprise-panel-head">
           <div>
-            <h2>Document memory control</h2>
-            <p>Business documents, requirement specs, and uploaded notes should stay visible here so teams know what the AI heart actually remembers.</p>
+            <span>Docs memory</span>
+            <h3>Specs and business intent</h3>
+            <p>Synced docs are usable by context packs. Queued drafts still need CLI import.</p>
           </div>
         </div>
-        <div className="portal-stat-grid">
-          <div><span>Repositories</span><strong>{summary.repository_count}</strong></div>
-          <div><span>Synced Docs</span><strong>{summary.document_count}</strong></div>
-          <div><span>Queued Updates</span><strong>{summary.submission_count}</strong></div>
-          <div><span>Biz + Req Docs</span><strong>{summary.business_requirement_count}</strong></div>
+        <div className="portal-kpi-grid portal-kpi-grid-focus">
+          <article className="portal-kpi-card"><span>Status</span><strong>{formatStatusLabel(documentStatus.status)}</strong></article>
+          <article className="portal-kpi-card"><span>Synced docs</span><strong>{summary.document_count}</strong></article>
+          <article className="portal-kpi-card"><span>Queued drafts</span><strong>{summary.submission_count}</strong></article>
+          <article className="portal-kpi-card"><span>Stale</span><strong>{documentStatus.stale_document_count ?? 0}</strong></article>
+        </div>
+        <div className="portal-inline-banner portal-inline-banner-compact">
+          <strong>CLI import</strong>
+          <p><code>heart docs sync-web --root /path/to/repo --slug your-profile</code></p>
         </div>
       </section>
 
-      <section className="portal-section">
-        <div className="portal-section-head">
+      <section className="portal-enterprise-panel">
+        <div className="portal-enterprise-panel-head">
           <div>
-            <h2>Sync instructions</h2>
-            <p>Web uploads are queued first, then the CLI imports them into the repository and republishes the updated document memory back to the portal.</p>
+            <span>Draft queue</span>
+            <h3>Add or update a document</h3>
+            <p>Use this for a PRD, spec, decision, or business requirement that should enter repo memory.</p>
           </div>
         </div>
-        <div className="portal-list">
-          <article className="portal-card">
-            <strong>1. Upload or revise</strong>
-            <p>Use the form below to add a business brief, PRD, or requirement update for a specific repository profile.</p>
-          </article>
-          <article className="portal-card">
-            <strong>2. Sync into the repo</strong>
-            <p><code>heart docs sync-web --root /path/to/repo --slug your-profile</code></p>
-          </article>
-          <article className="portal-card">
-            <strong>3. Reuse with confidence</strong>
-            <p>The imported doc lands under <code>.heart/imported-documents</code> so future context packs and diagrams see the latest business intent.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="portal-section">
-        <div className="portal-section-head">
-          <div>
-            <h2>Upload or update a document</h2>
-            <p>Submitting the same profile slug and title again will update the existing web draft instead of creating noise.</p>
-          </div>
-        </div>
-        <form className="portal-form" onSubmit={handleSubmit}>
+        <form className="portal-form portal-docs-form" onSubmit={handleSubmit}>
           <div className="portal-form-grid">
             <label className="portal-field">
               <span>Profile slug</span>
@@ -210,77 +194,78 @@ export function PortalDocumentsWorkspaceClient({ defaultProfileSlug = "" }) {
         </form>
       </section>
 
-      <section className="portal-section">
-        <div className="portal-section-head">
-          <div>
-            <h2>Synced repository documents</h2>
-            <p>These are the documents already published back from the repository after CLI sync.</p>
+      <div className="portal-enterprise-split portal-docs-lists">
+        <section className="portal-enterprise-panel">
+          <div className="portal-enterprise-panel-head">
+            <div>
+              <span>Synced</span>
+              <h3>Repository docs</h3>
+            </div>
           </div>
-        </div>
-        {repositories.length === 0 ? (
-          <PortalStateBlock
-            tone="neutral"
-            eyebrow="Repository documents"
-            title="No repository document artifact has been published yet"
-            description="Run heart docs import or heart diagram sync from the CLI to publish the repository document memory back to the portal."
-            actions={[{ href: "/repositories", label: "Open repositories" }]}
-          />
-        ) : (
-          <div className="portal-list">
-            {repositories.map((repository) => (
-              <Link key={repository.profile_slug} href={`/repositories/${repository.profile_slug}`} className="portal-card">
-                <div className="portal-card-head">
-                  <div>
-                    <strong>{repository.repo}</strong>
-                    <p>{repository.totals?.document_count ?? repository.documents.length} synced documents</p>
+          {repositories.length === 0 ? (
+            <PortalStateBlock
+              tone="neutral"
+              eyebrow="Repository docs"
+              title="No synced docs yet"
+              description="Import docs locally, then sync the repo profile."
+              actions={[{ href: "/repositories", label: "Open repositories" }]}
+            />
+          ) : (
+            <div className="portal-list">
+              {repositories.map((repository) => (
+                <Link key={repository.profile_slug} href={`/repositories/${repository.profile_slug}/docs`} className="portal-card">
+                  <div className="portal-card-head">
+                    <div>
+                      <strong>{repository.repo}</strong>
+                      <p>{repository.totals?.document_count ?? repository.documents.length} synced documents</p>
+                    </div>
+                    <span>{repository.profile_slug}</span>
                   </div>
-                  <span>{repository.profile_slug}</span>
-                </div>
-                <div className="portal-inline-metrics">
-                  <span>{formatCategoryCounts(repository.totals?.category_counts)}</span>
-                  <span>{repository.documents.slice(0, 3).map((document) => document.title).join(" · ") || "No titles yet."}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+                  <div className="portal-inline-metrics">
+                    <span>{formatCategoryCounts(repository.totals?.category_counts)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
-      <section className="portal-section">
-        <div className="portal-section-head">
-          <div>
-            <h2>Queued web submissions</h2>
-            <p>This queue shows edits entered on the web before they are pulled into the repository by the CLI.</p>
+        <section className="portal-enterprise-panel">
+          <div className="portal-enterprise-panel-head">
+            <div>
+              <span>Queued</span>
+              <h3>Web drafts</h3>
+            </div>
           </div>
-        </div>
-        {submissions.length === 0 ? (
-          <PortalStateBlock
-            tone="neutral"
-            eyebrow="Queued submissions"
-            title="No queued document update"
-            description="The web queue is empty. Submit a brief or requirement update above when business intent changes before the next repo sync."
-          />
-        ) : (
-          <div className="portal-list">
-            {submissions.map((submission) => (
-              <article key={submission.submission_id} className="portal-card">
-                <div className="portal-card-head">
-                  <div>
-                    <strong>{submission.title}</strong>
-                    <p>{submission.summary}</p>
+          {submissions.length === 0 ? (
+            <PortalStateBlock
+              tone="neutral"
+              eyebrow="Queued drafts"
+              title="No queued update"
+              description="Add a draft above when business intent changes."
+            />
+          ) : (
+            <div className="portal-list">
+              {submissions.map((submission) => (
+                <article key={submission.submission_id} className="portal-card">
+                  <div className="portal-card-head">
+                    <div>
+                      <strong>{submission.title}</strong>
+                      <p>{submission.summary}</p>
+                    </div>
+                    <span>{submission.category}</span>
                   </div>
-                  <span>{submission.category}</span>
-                </div>
-                <div className="portal-inline-metrics">
-                  <span>{submission.profile_slug}</span>
-                  <span>{formatTimestamp(submission.updated_at)}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </>
+                  <div className="portal-inline-metrics">
+                    <span>{submission.profile_slug}</span>
+                    <span>{formatTimestamp(submission.updated_at)}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -289,6 +274,7 @@ function useDocumentsWorkspace(refreshToken) {
     status: "loading",
     repositories: [],
     submissions: [],
+    statusSummary: null,
     error: "",
   });
 
@@ -304,6 +290,7 @@ function useDocumentsWorkspace(refreshToken) {
             status: "ready",
             repositories: payload.repositories ?? [],
             submissions: payload.submissions ?? [],
+            statusSummary: payload.status_summary ?? null,
             error: "",
           });
         }
@@ -313,6 +300,7 @@ function useDocumentsWorkspace(refreshToken) {
             status: "error",
             repositories: [],
             submissions: [],
+            statusSummary: null,
             error: loadError.message,
           });
         }
@@ -360,6 +348,10 @@ function formatCategoryCounts(categoryCounts = {}) {
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
     .map(([category, count]) => `${category}: ${count}`)
     .join(" · ");
+}
+
+function formatStatusLabel(value) {
+  return String(value ?? "unknown").replace(/[_-]+/g, " ");
 }
 
 function formatTimestamp(value) {

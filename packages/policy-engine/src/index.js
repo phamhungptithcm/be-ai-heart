@@ -105,6 +105,20 @@ export function evaluatePolicyViolations(scanResult, rules = DEFAULT_POLICY_RULE
   };
 }
 
+export function showPolicyWarnings(policyReport = {}) {
+  const violations = Array.isArray(policyReport.violations) ? policyReport.violations : [];
+  return {
+    schema_version: 1,
+    warning_count: violations.length,
+    warnings: violations.map((violation) => ({
+      rule_id: violation.rule_id,
+      file: violation.file,
+      message: violation.message ?? `${violation.file ?? "unknown"} violates ${violation.rule_id ?? "policy"}.`,
+      severity: "warning",
+    })),
+  };
+}
+
 function normalizePolicyRules(rules) {
   const errors = [];
 

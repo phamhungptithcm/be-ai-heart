@@ -17,7 +17,7 @@
 
 ## Positioning Statement
 
-For software teams that use AI to write code, `be-ai-heart` is the context operating layer that gives agents durable project memory, reduces token waste, and keeps code changes aligned with architecture.
+For software teams that use AI to write code, `be-ai-heart` is the context operating layer that gives agents durable project memory, a local AI coding workbench, provider choice, MCP access, domain packs, benchmark evidence, and architecture guardrails.
 
 ## Wedge Strategy
 
@@ -33,39 +33,72 @@ The stronger narrative:
 - reduce review cleanup
 - increase trust in AI-generated changes
 - preserve project intent from code and documents
+- make model/provider and context exposure explicit
+- turn domain knowledge into reusable packs and demo-safe artifacts
 
 ## Pricing Model
+
+Pricing is evidence-led. Do not ask a small team to buy a broad platform until they can inspect a local benchmark report, measurement mode, confidence label, and security boundary for their own repository.
 
 ### Free
 
 - local CLI
+- interactive CLI AI workbench
 - single-user local indexing
 - basic MCP
+- provider/model selection and local BYOK storage
+- domain-pack browsing and Tolling Sales MVP Demo Kit generation
 - limited benchmark scenarios
 
 Use:
 
 - developer adoption
 - bottom-up distribution
+- first proof that context packs reduce repeated repo discovery
 
-### Team
+Current buyer language:
 
-- per-seat subscription
-- shared workspace
-- benchmark reports
-- policy packs
-- usage analytics
+- "Start with one local repo and no hosted sync requirement."
+- "Use the benchmark report to decide whether a guided pilot is worth it."
+- "Savings claims are scenario-specific until repeated observed runs exist."
 
-Indicative starting point:
+### Design Partner / Team Pilot
 
-- `49-99 USD` per active developer per month
+- guided setup for 1-3 repositories
+- shared portal workspace for synced summaries, diagrams, docs/spec status, and benchmark history
+- portal chat over synced artifacts, with allowlisted actions and masked model/provider settings
+- domain-pack artifact review and sales/demo-kit workflows
+- evidence review with technical caveats
+- policy/governance posture review
+- optional support lane while local workflow becomes repeatable
 
-For SMBs, pricing should feel obviously cheaper than the monthly waste from:
+Use:
+
+- SMB teams that already use AI coding tools and need proof before rollout
+- design partners willing to run real tasks through baseline vs assisted workflows
+- managers who need token, review cleanup, and duplicate-work evidence before budget approval
+
+Suggested decision gate:
 
 - avoidable token burn
 - review cleanup
 - duplicate implementation
 - rework caused by missing requirements or architecture context
+- evidence quality strong enough to justify expanding beyond the pilot repo
+
+### Team
+
+Team packaging should come after repeatable pilot evidence.
+
+- per-seat or per-active-developer subscription
+- shared workspace
+- benchmark reports and trend history
+- policy packs
+- usage analytics
+- billing posture and entitlement views
+- saved context-pack and portal chat history
+
+Indicative pricing can be explored, but public copy should not imply fixed savings or guaranteed ROI before customer evidence exists.
 
 ### Enterprise
 
@@ -76,10 +109,18 @@ For SMBs, pricing should feel obviously cheaper than the monthly waste from:
 - VPC/on-prem
 - dedicated support
 - custom benchmark engagement
+- enterprise model administration
+- private deployment and operations review
 
 Indicative range:
 
 - `25k-150k+ USD` annually depending on seats, repos, and deployment model
+
+Current status:
+
+- enterprise posture is credible as a roadmap and guided-review story
+- SSO/SAML, advanced retention controls, private deployment, billing-provider integration, and shared graph storage remain future or customer-specific work until implemented and tested
+- do not claim compliance certifications that have not been achieved
 
 ## Packaging
 
@@ -89,6 +130,8 @@ Primary packaging dimensions:
 - indexed repositories
 - benchmark/reporting features
 - deployment model
+- model-provider governance
+- domain-pack/demo-kit needs
 
 ## Acquisition Channels
 
@@ -106,6 +149,8 @@ Primary packaging dimensions:
 - docs portal
 - pilot offer deck
 - security overview
+- Tolling Sales MVP Demo Kit
+- provider/BYOK and portal-chat security notes
 
 ## Pilot Offer
 
@@ -121,6 +166,8 @@ Pilot success criteria:
 - clear token delta
 - clear reduction in duplicate work
 - at least one engineering leader champion
+- documented confidence label and measurement mode for every shared ROI claim
+- explicit "continue / pause / expand" decision at the end of the pilot
 
 ## Sales Funnel
 
@@ -166,3 +213,14 @@ Pilot success criteria:
 - private deployment
 - onboarding services
 - benchmark certification engagements
+- domain-pack customization
+- enterprise model governance
+
+## Payment And Billing Readiness
+
+Current billing posture is adapter-ready, not payment-live.
+
+- Portal/admin may show plan posture, entitlement state, seats, invoices, and estimated finance.
+- Live subscription, invoice, and payment-provider integration should sit behind an adapter such as Stripe.
+- Demo kits and docs must not include raw payment data.
+- Do not sell PCI compliance or live billing automation until implementation, threat model, and tests exist.

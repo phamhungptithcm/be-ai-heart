@@ -6,116 +6,128 @@ import { listWebsiteServices } from "../../src/services.js";
 
 export const metadata = createWebsiteMetadata({
   title: "Services",
-  description: "Explore the six concrete services BeHeart provides for project memory, governed AI delivery, customer operations, and benchmark-backed ROI.",
+  description:
+    "Explore the BeHeart service map for durable project memory, CLI AI agent workflows, portal chat, MCP runtime, domain packs, benchmark proof, and enterprise readiness.",
   path: "/services",
-  keywords: ["services", "code graph", "document memory", "policy rails", "benchmark ROI"],
+  keywords: ["services", "CLI AI agent", "portal chat", "MCP runtime", "domain packs", "benchmark ROI"],
 });
 
 export default function ServicesPage() {
   const services = listWebsiteServices();
+  const servicesBySlug = new Map(services.map((service) => [service.slug, service]));
+  const serviceLanes = [
+    {
+      title: "Developer adoption",
+      body: "Start with local repo memory, agent chat, workbench flow, and MCP integration.",
+      slugs: ["durable-project-memory", "cli-ai-agent", "coding-workbench", "mcp-runtime"],
+    },
+    {
+      title: "Team operation",
+      body: "Move into portal chat, context packs, docs/spec sync, usage posture, and benchmark proof.",
+      slugs: ["web-portal-chat", "repo-graph-context-packs", "docs-spec-sync", "benchmark-roi"],
+    },
+    {
+      title: "Domain and enterprise",
+      body: "Use source-backed packs, tolling demo assets, security governance, billing readiness, and deployment evaluation.",
+      slugs: ["domain-packs", "tolling-demo-kit", "governance-enterprise-readiness"],
+    },
+  ];
 
   return (
     <WebsiteShell
       eyebrow="Services"
-      title="Six concrete services. One operating layer for AI delivery."
-      description="BeHeart is easier to understand when the offering is broken into distinct services: memory, governance, runtime delivery, web surfaces, and ROI proof."
+      title="Services for teams adopting AI with memory, control, and proof."
+      description="BeHeart packages durable repo memory into developer tools, team portal workflows, domain packs, benchmark evidence, and enterprise-ready operating paths."
       actions={[
-        { label: "Start Trial", href: "/start-trial", primary: true },
-        { label: "Run Benchmark", href: "/benchmark" },
-        { label: "Book Demo", href: "/book-demo" },
+        { label: "Try CLI", href: "/docs/v1/getting-started", primary: true },
+        { label: "Tolling kit", href: "/domain-demo-kits/tolling-management" },
+        { label: "Book demo", href: "/book-demo" },
       ]}
-      nav={["home", "services", "benchmark", "pricing", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
+      nav={["home", "product", "services", "cli-mcp", "benchmark", "pricing", "security", "docs", "sign-in", "book-demo"]}
       accent="teal"
       aside={
         <WebsiteServicesVisual
-          title="How the operating layer is packaged"
-          description="Each service solves a different buyer or engineering job, but they compound best when used together."
+          title="Service map"
+          description="Latest services cover local AI workflows, team portal visibility, domain packs, proof, and enterprise evaluation."
         />
       }
     >
       <section className="website-proof-strip" aria-label="Service-level proof">
         <div>
-          <span>Memory layer</span>
-          <strong>Code + docs + policy</strong>
-          <p>Project memory is more useful when structure, intent, and boundaries are retrievable together.</p>
+          <span>Developers</span>
+          <strong>Local AI workflow</strong>
+          <p>CLI agent, CLI IDE workbench, MCP tools, and repo memory start in one repository.</p>
         </div>
         <div>
-          <span>Delivery layer</span>
-          <strong>CLI + MCP + surfaces</strong>
-          <p>BeHeart reaches daily workflows locally first, then publishes web-readable artifacts for customers and operators.</p>
+          <span>Teams</span>
+          <strong>Portal visibility</strong>
+          <p>Portal chat, model selection, context previews, docs/spec sync, usage, and access stay inspectable.</p>
         </div>
         <div>
-          <span>Proof layer</span>
-          <strong>Benchmark-backed ROI</strong>
-          <p>Savings claims are easier to defend when token, cleanup, and trust proof come from repeatable scenarios.</p>
+          <span>Buyers</span>
+          <strong>Proof and readiness</strong>
+          <p>Benchmark ROI, governance, billing posture, and deployment path are clearly labeled.</p>
         </div>
       </section>
 
       <WebsiteSection
-        eyebrow="Service catalog"
-        title="Every service has a tight job, clear output, and visible business value."
-        description="These are not vague feature buckets. Each page should explain what the service does, how teams use it, and why it changes rollout economics."
+        eyebrow="Service map"
+        title="Choose the service by the job the user needs done."
+        description="Each service points to one adoption question: developer value, team workflow, domain proof, or enterprise readiness."
       >
-        <div className="website-services-card-grid">
+        <div className="website-service-map">
           {services.map((service) => (
-            <article key={service.slug} className="website-service-card">
-              <div className="website-service-card-head">
+            <Link key={service.slug} href={`/services/${service.slug}`} className="website-service-row">
+              <div>
                 <span>{service.category}</span>
                 <h3>{service.title}</h3>
-                <p className="website-service-card-subtitle">{service.subtitle}</p>
-                <p>{service.summary}</p>
+                <p>{service.descriptor}</p>
+                <small className="website-service-status">{service.status}</small>
               </div>
-              <ul className="website-service-card-list">
-                {service.capabilities.map((capability) => (
+              <ul>
+                {service.capabilities.slice(0, 2).map((capability) => (
                   <li key={capability.title}>{capability.title}</li>
                 ))}
               </ul>
-              <div className="website-service-card-foot">
-                <Link href={`/services/${service.slug}`}>Open service page</Link>
-              </div>
-            </article>
+              <strong>Open</strong>
+            </Link>
           ))}
         </div>
       </WebsiteSection>
 
       <WebsiteSection
-        eyebrow="Operating path"
-        title="The services fit together in three layers."
-        description="BeHeart becomes easier to buy and easier to adopt when the story moves from memory, to delivery, to measurable proof."
+        eyebrow="Adoption lanes"
+        title="Start narrow, then connect the operating layer."
+        description="The recommended path is developer adoption first, team visibility second, domain or enterprise expansion third."
       >
-        <div className="website-split-grid">
-          <article>
-            <span>Layer 01</span>
-            <h3>Build durable memory</h3>
-            <p>Code Graph, Document Memory, and Policy Rails create the project understanding and architectural guidance that AI usually lacks.</p>
-          </article>
-          <article>
-            <span>Layer 02</span>
-            <h3>Deliver it where work happens</h3>
-            <p>CLI + MCP Runtime and Portal + Admin Surfaces move that memory into daily engineering, customer operations, and internal control workflows.</p>
-          </article>
-          <article>
-            <span>Layer 03</span>
-            <h3>Prove the economics</h3>
-            <p>Benchmark ROI translates cleaner context and governed workflows into token, cleanup, and trust proof that a buyer can act on.</p>
-          </article>
+        <div className="website-service-lanes">
+          {serviceLanes.map((lane) => (
+            <article key={lane.title}>
+              <span>{lane.title}</span>
+              <p>{lane.body}</p>
+              <ul>
+                {lane.slugs.map((slug) => {
+                  const service = servicesBySlug.get(slug);
+                  return service ? <li key={slug}>{service.title}</li> : null;
+                })}
+              </ul>
+            </article>
+          ))}
         </div>
       </WebsiteSection>
 
       <section className="website-cta-band">
         <div>
           <p className="website-section-eyebrow">Next step</p>
-          <h2>Start with the service that fixes today’s biggest source of AI waste.</h2>
-          <p>
-            Some teams start with code graph and document memory, others start with benchmark proof. The point is to make
-            rollout easier to understand than the waste it removes.
-          </p>
+          <h2>Start with one repo and one service lane.</h2>
+          <p>Use the CLI to prove memory quality, then move into portal chat, domain packs, and benchmark evidence when needed.</p>
         </div>
-        <div className="website-actions">
-          <Link className="primary" href="/start-trial">
-            Start Trial
+        <div className="website-cta-grid">
+          <Link className="primary" href="/docs/v1/getting-started">
+            Try CLI
           </Link>
-          <Link href="/book-demo">Book Demo</Link>
+          <Link href="/domain-demo-kits/tolling-management">Tolling kit</Link>
+          <Link href="/book-demo">Book demo</Link>
         </div>
       </section>
     </WebsiteShell>

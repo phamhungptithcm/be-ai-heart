@@ -4,102 +4,71 @@ import { createWebsiteMetadata } from "../../src/metadata.js";
 
 export const metadata = createWebsiteMetadata({
   title: "Start Trial",
-  description: "Start a self-serve or guided pilot for one repository and prove value before wider rollout.",
+  description: "Start a local CLI trial for one repository, then move into portal visibility, model setup, and benchmark proof when ready.",
   path: "/start-trial",
-  keywords: ["trial", "pilot", "CLI", "portal"],
+  keywords: ["trial", "CLI AI agent", "portal chat", "benchmark", "design partner"],
 });
 
 export default function StartTrialPage() {
   return (
     <WebsiteShell
       eyebrow="Start Trial"
-      title="Trial locally, then unlock the portal."
-      description="The recommended customer path is local CLI adoption first, then repository sync, visual diagram review, and team workspace management in the portal."
+      title="Try the CLI locally, then bring the team into the portal."
+      description="The recommended path is one repo, local CLI memory, one context pack, one MCP connection, one benchmark report, then portal chat and model setup when the team needs shared visibility."
       actions={[
-        { label: "Install CLI", href: "/docs", primary: true },
-        { label: "Book Demo", href: "/book-demo" },
+        { label: "Open Portal", href: "/sign-in", primary: true },
+        { label: "Try CLI", href: "/docs/v1/getting-started" },
+        { label: "Book demo", href: "/book-demo" },
       ]}
       nav={["home", "product", "benchmark", "pricing", "docs", "sign-in", "start-trial", "book-demo"]}
       accent="amber"
-      aside={<p className="website-aside-copy">Trials should prove token savings, diagram clarity, and project memory quality before wider rollout.</p>}
+      aside={<p className="website-aside-copy">Use the trial to prove memory quality, context pack usefulness, MCP readiness, and benchmark evidence before rollout.</p>}
     >
       <WebsiteSection
         eyebrow="Trial motion"
-        title="The first trial should be small enough to finish and strong enough to convince."
-        description="The product should help a team prove local value first, then move toward shared portal visibility only after the signal is real."
+        title="Start small enough to finish."
+        description="Prove local value first, then move toward shared portal visibility."
       >
         <div className="website-detail-grid">
           <div>
-            <h3>Run the CLI</h3>
-            <p>Index the repo, inspect the graph, and compile task-specific context packs.</p>
+            <h3>Run the CLI AI agent</h3>
+            <p>Index the repo, choose a model, inspect readiness, and compile task-specific context packs.</p>
           </div>
           <div>
-            <h3>Generate diagrams</h3>
-            <p>Use symbol graph, high-level, class, and sequence diagrams to build stakeholder trust faster.</p>
+            <h3>Connect MCP</h3>
+            <p>Expose repo memory to a supported AI client through narrow tool contracts and verify the handshake.</p>
           </div>
           <div>
             <h3>Sync into the portal</h3>
-            <p>Once value is proven, the customer sees the project visually on the web and manages the workspace there.</p>
+            <p>Once value is proven, the team sees repo memory, portal chat, model settings, benchmarks, and access controls.</p>
           </div>
-        </div>
-      </WebsiteSection>
-
-      <WebsiteSection
-        eyebrow="What success looks like"
-        title="A credible trial ends with proof, not just setup."
-        description="Use the trial to answer whether the heart is improving cost, reuse, and review quality on work the team already has."
-      >
-        <div className="website-checklist-grid">
-          <article>
-            <span>Week 1</span>
-            <h3>Build project memory</h3>
-            <ul>
-              <li>Scan the repo and ingest core docs</li>
-              <li>Generate high-level and class diagrams</li>
-              <li>Confirm missing context warnings are understandable</li>
-            </ul>
-          </article>
-          <article>
-            <span>Week 2</span>
-            <h3>Run a benchmark</h3>
-            <ul>
-              <li>Pick one real bug fix or feature task</li>
-              <li>Compare baseline vs heart-assisted runs</li>
-              <li>Review token, cleanup, and architecture adherence</li>
-            </ul>
-          </article>
-          <article>
-            <span>After proof</span>
-            <h3>Unlock the portal</h3>
-            <ul>
-              <li>Publish profile and document artifacts</li>
-              <li>Share benchmark evidence with the team</li>
-              <li>Decide whether expansion is justified</li>
-            </ul>
-          </article>
         </div>
       </WebsiteSection>
 
       <WebsiteSection
         eyebrow="CLI path"
-        title="The website should make the first commands obvious."
-        description="Self-serve adoption falls apart when trial pages talk in concepts without showing the operator path."
+        title="The first commands are the product."
+        description="Use one repository and keep the loop inspectable."
       >
         <div className="website-command-block">
           <span>Starter path</span>
           <strong>Use one repo and keep the loop tight</strong>
-          <pre>{`heart scan
-heart overview
-heart diagram generate class
-heart benchmark compare baseline.json assisted.json
-heart diagram sync --slug your-project`}</pre>
+          <pre>{`npm install -g beheart
+heart init
+heart doctor
+heart scan
+heart pack "add SSO login audit logging"
+heart login
+heart sync setup --slug your-project --task "add SSO login audit logging"
+heart models providers
+heart connect doctor`}</pre>
         </div>
       </WebsiteSection>
 
       <WebsiteSection
         eyebrow="Start trial"
         title="Request a self-serve or guided pilot."
-        description="Trial intake should capture the exact team size, repo count, and operating goal so follow-up stays grounded in the real rollout path."
+        description="Share team size, repo count, and the proof you need."
       >
         <LeadCaptureForm
           intakeKind="trial"

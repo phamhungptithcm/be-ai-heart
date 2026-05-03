@@ -1,141 +1,176 @@
+import Link from "next/link";
 import { WebsiteShell, WebsiteSection } from "../../components/WebsiteShell.jsx";
-import { WebsiteInsightRail } from "../../components/WebsiteInsightRail.jsx";
 import { createWebsiteMetadata } from "../../src/metadata.js";
 
 export const metadata = createWebsiteMetadata({
   title: "Pricing",
-  description: "Pricing that starts with local proof and expands only when benchmark-backed ROI is visible.",
+  description: "BeHeart packaging for local CLI proof, design partner pilots, team portal adoption, billing readiness, and enterprise governance.",
   path: "/pricing",
-  keywords: ["pricing", "SMB", "ROI", "trial"],
+  keywords: ["pricing", "design partner", "billing readiness", "ROI", "AI coding governance"],
 });
+
+const pricingPlans = [
+  {
+    stage: "Free",
+    name: "Local CLI",
+    price: "$0",
+    cadence: "per developer",
+    description: "Prove project memory on one workstation before asking the team to buy anything.",
+    cta: "Try CLI",
+    href: "/docs/v1/getting-started",
+    included: [
+      "Local repo scan and overview",
+      "Context packs and docs search",
+      "Basic MCP tool setup",
+      "Limited benchmark scenarios",
+    ],
+    bestFor: "Individual engineers and tech leads validating one repo.",
+  },
+  {
+    stage: "Design partner",
+    name: "Team Pilot",
+    price: "Pilot quote",
+    cadence: "guided engagement",
+    description: "A focused pilot with portal visibility, model setup review, and a concrete benchmark readout.",
+    cta: "Request pilot",
+    href: "/book-demo",
+    highlighted: true,
+    included: [
+      "Pilot-scoped seats and repositories",
+      "Synced portal workspace",
+      "Portal chat and model setup review",
+      "Guided benchmark evidence review",
+    ],
+    bestFor: "SMB teams already using AI coding tools and needing proof.",
+  },
+  {
+    stage: "Team",
+    name: "Growth",
+    price: "Team quote",
+    cadence: "after pilot proof",
+    description: "A broader rollout for teams that have validated the first repo and need operating visibility.",
+    cta: "Plan rollout",
+    href: "/book-demo",
+    included: [
+      "Team-scoped seats and repositories",
+      "Benchmark history and ROI dashboard",
+      "Governance and policy workspace",
+      "Payment and billing readiness review",
+      "Priority implementation support",
+    ],
+    bestFor: "Engineering managers standardizing AI-assisted delivery.",
+  },
+  {
+    stage: "Enterprise",
+    name: "Governance",
+    price: "Custom",
+    cadence: "annual or private deployment",
+    description: "Custom procurement, security review, billing posture, and deployment support for serious rollout.",
+    cta: "Contact sales",
+    href: "/book-demo",
+    included: [
+      "Custom seats, repos, and benchmark engagement",
+      "Admin, audit, retention, and export planning",
+      "SSO/SAML, VPC, and private deployment review",
+      "Dedicated support and rollout design",
+    ],
+    bestFor: "Mid-market and enterprise buyers with governance needs.",
+  },
+];
+
+const serviceBundles = [
+  ["Durable Project Memory", "/services/durable-project-memory"],
+  ["CLI AI Agent", "/services/cli-ai-agent"],
+  ["Web Portal And Chat", "/services/web-portal-chat"],
+  ["MCP Runtime", "/services/mcp-runtime"],
+  ["Domain Packs", "/services/domain-packs"],
+  ["Benchmark ROI", "/services/benchmark-roi"],
+  ["Governance And Enterprise Readiness", "/services/governance-enterprise-readiness"],
+];
 
 export default function PricingPage() {
   return (
     <WebsiteShell
       eyebrow="Pricing"
-      title="Start with proof, expand only when the economics are clear."
-      description="BeHeart pricing is built for teams that need AI efficiency without enterprise-size prompt waste or enterprise-size procurement too early."
+      title="Package BeHeart around the rollout stage you can prove."
+      description="Start free with the CLI, add portal and benchmark proof for a design partner pilot, then expand into governed rollout when evidence and security review support it."
       actions={[
-        { label: "Start Trial", href: "/start-trial", primary: true },
-        { label: "Book Demo", href: "/book-demo" },
+        { label: "Try CLI", href: "/docs/v1/getting-started", primary: true },
+        { label: "Request pilot", href: "/book-demo" },
       ]}
       nav={["home", "product", "benchmark", "pricing", "security", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
       accent="amber"
       aside={
-        <WebsiteInsightRail
-          eyebrow="Commercial logic"
-          title="Pricing should follow measurable savings, not precede them."
-          description="The buyer needs enough proof to justify spend without jumping into heavy procurement too early."
-          metrics={[
-            { label: "Pilot path", value: "Local-first", detail: "One repo, one benchmark, one internal owner." },
-            { label: "Expansion gate", value: "ROI visible", detail: "Upgrade when token, time, and cleanup improvements are real." },
-            { label: "Support motion", value: "Self-serve to guided", detail: "Teams can start alone and pull in BeHeart later." },
-          ]}
-          bars={[
-            { label: "SMB fit", value: 88, caption: "Best when AI spend needs guardrails early", tone: "brand" },
-            { label: "Time to value", value: 72, caption: "Fastest through CLI + benchmark proof", tone: "teal" },
-            { label: "Procurement drag", value: 28, caption: "Lower when the portal proves savings first", tone: "ink" },
-          ]}
-          notes={[
-            { label: "Pricing signal", detail: "Portal reporting should make renewal and expansion feel earned, not upsold." },
-            { label: "What buyers compare", detail: "Token spend, engineer cleanup time, and rollout risk are the three real competitors." },
-          ]}
-        />
+        <div className="website-pricing-aside">
+          <span>Package logic</span>
+          <strong>Local proof first. Team payment after evidence.</strong>
+          <p>Published packaging stays directional until a pilot defines seats, repos, model usage, billing needs, and deployment path.</p>
+        </div>
       }
     >
       <WebsiteSection
-        eyebrow="Commercial ladder"
-        title="Packaging should feel cheaper than the AI waste it removes."
-        description="The buyer has to see a clear path from local proof to team rollout without jumping straight into enterprise procurement."
+        eyebrow="Plans"
+        title="Pick the smallest package that proves the next decision."
+        description="BeHeart pricing is tied to usage stage: local proof, team pilot, growth rollout, enterprise governance."
       >
-        <div className="website-plan-grid">
-          <article className="website-plan-card">
-            <span>Local</span>
-            <h3>Free or low-friction trial</h3>
-            <p>CLI-first onboarding for one repository, one benchmark, and one internal champion.</p>
-            <ul>
-              <li>Local scan and diagrams</li>
-              <li>Single-team benchmark workflow</li>
-              <li>Best for first proof of value</li>
-            </ul>
-          </article>
-          <article className="website-plan-card">
-            <span>Team</span>
-            <h3>Portal workspace</h3>
-            <p>Customer workspace, synced diagrams, repository visibility, and shared benchmark history.</p>
-            <ul>
-              <li>Workspace visibility and documents</li>
-              <li>Usage and efficiency reporting</li>
-              <li>Ideal for SMB teams scaling AI usage carefully</li>
-            </ul>
-          </article>
-          <article className="website-plan-card">
-            <span>Enterprise</span>
-            <h3>Governance and support</h3>
-            <p>Rollout assistance, security review, procurement support, and operational controls.</p>
-            <ul>
-              <li>Tenant controls and support lane</li>
-              <li>Security and auditability posture</li>
-              <li>Fit for multi-team or regulated environments</li>
-            </ul>
-          </article>
+        <div className="website-pricing-grid">
+          {pricingPlans.map((plan) => (
+            <article key={plan.name} className="website-pricing-card" data-highlighted={plan.highlighted ? "true" : "false"}>
+              <div className="website-pricing-card-head">
+                <span>{plan.stage}</span>
+                <h3>{plan.name}</h3>
+                <div className="website-price-line">
+                  <strong>{plan.price}</strong>
+                  <small>{plan.cadence}</small>
+                </div>
+                <p>{plan.description}</p>
+              </div>
+              <ul>
+                {plan.included.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <p className="website-pricing-best">{plan.bestFor}</p>
+              <Link href={plan.href} className={plan.highlighted ? "primary" : ""}>
+                {plan.cta}
+              </Link>
+            </article>
+          ))}
         </div>
       </WebsiteSection>
 
       <WebsiteSection
-        eyebrow="Buying criteria"
-        title="Customers should buy for economic proof, clearer governance, and cleaner delivery."
-        description="Price only makes sense when the team can connect spend to lower token waste, fewer duplicate changes, and better review outcomes."
+        eyebrow="What you are buying"
+        title="The paid product is a service bundle, not just a dashboard."
+        description="Plans combine local tooling, hosted visibility, portal chat/model setup, benchmark evidence, billing readiness, and governance support."
+      >
+        <div className="website-bundle-row">
+          {serviceBundles.map(([service, href]) => (
+            <Link key={service} href={href}>
+              {service}
+            </Link>
+          ))}
+        </div>
+      </WebsiteSection>
+
+      <WebsiteSection
+        eyebrow="Buying guardrails"
+        title="Upgrade when the evidence is visible."
+        description="Do not buy a bigger plan until the current stage shows useful memory, cleaner reuse, and credible benchmark evidence."
       >
         <div className="website-detail-grid">
           <div>
-            <h3>Lower AI waste</h3>
-            <p>Less repeated repo discovery and fewer oversized prompts across repeated tasks.</p>
+            <h3>Before pilot</h3>
+            <p>Show one repo scan, one context pack, one MCP connection, and one benchmark report.</p>
           </div>
           <div>
-            <h3>Cleaner changes</h3>
-            <p>Better reuse and less architecture drift when the model already knows the project memory.</p>
+            <h3>Before growth</h3>
+            <p>Show repeated team usage, docs freshness, policy warnings, and ROI trend history.</p>
           </div>
           <div>
-            <h3>Operational clarity</h3>
-            <p>Managers and engineers can inspect diagrams, benchmark history, and profile freshness in one place.</p>
+            <h3>Before enterprise</h3>
+            <p>Confirm SSO, retention, audit, export, billing provider, deployment, and support requirements.</p>
           </div>
-        </div>
-      </WebsiteSection>
-
-      <WebsiteSection
-        eyebrow="What is visible"
-        title="Keep benchmark, security, and support in the buying conversation."
-        description="For smaller teams, trust and clarity are conversion features. Hiding them makes the product feel expensive and risky."
-      >
-        <div className="website-checklist-grid">
-          <article>
-            <span>Before upgrade</span>
-            <h3>Show benchmark evidence</h3>
-            <ul>
-              <li>Token savings and cost delta</li>
-              <li>Review cleanup change</li>
-              <li>Context depth and memory retention</li>
-            </ul>
-          </article>
-          <article>
-            <span>Before rollout</span>
-            <h3>Show security posture</h3>
-            <ul>
-              <li>Local-first adoption path</li>
-              <li>Policy exclusions and sensitive-path controls</li>
-              <li>Tenant-scoped sessions and hosted boundaries</li>
-            </ul>
-          </article>
-          <article>
-            <span>Before renewal</span>
-            <h3>Show operational value</h3>
-            <ul>
-              <li>Portal visibility across repos</li>
-              <li>Admin support and health signals</li>
-              <li>Expansion tied to proven usage, not optimism</li>
-            </ul>
-          </article>
         </div>
       </WebsiteSection>
     </WebsiteShell>

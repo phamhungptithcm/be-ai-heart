@@ -1,107 +1,95 @@
 import { WebsiteShell, WebsiteSection } from "../../components/WebsiteShell.jsx";
-import { WebsiteInsightRail } from "../../components/WebsiteInsightRail.jsx";
 import { createWebsiteMetadata } from "../../src/metadata.js";
 
 export const metadata = createWebsiteMetadata({
   title: "Security",
-  description: "Understand local-first indexing, tenant-scoped access, policy controls, and how BeHeart treats project memory safely.",
+  description: "Understand local-first indexing, provider key handling, tenant-scoped access, MCP action safety, governance, and enterprise deployment boundaries.",
   path: "/security",
-  keywords: ["security", "governance", "tenant access", "redaction"],
+  keywords: ["security", "governance", "provider keys", "MCP safety", "enterprise deployment", "redaction"],
 });
 
 export default function SecurityPage() {
   return (
     <WebsiteShell
       eyebrow="Security"
-      title="Security is part of the product, not marketing garnish."
-      description="Project memory only matters if customers can trust what is indexed, what is excluded, and how synced artifacts are handled."
+      title="Local-first by default. Governed when synced."
+      description="BeHeart is designed to show what stays in the repo, what can sync to the portal, how provider keys are handled, and which controls protect project memory."
       actions={[
-        { label: "Read Docs", href: "/docs", primary: true },
+        { label: "Read Security Docs", href: "/docs/v1/security-governance", primary: true },
         { label: "Book Demo", href: "/book-demo" },
       ]}
       nav={["home", "product", "benchmark", "pricing", "security", "docs", "customers", "sign-in", "start-trial", "book-demo"]}
       accent="teal"
-      aside={
-        <WebsiteInsightRail
-          eyebrow="Trust boundary"
-          title="Sensitive paths, redaction, and policy controls need visible boundaries."
-          description="Security here should read like a system map: what stays local, what syncs, and what remains tenant-scoped."
-          metrics={[
-            { label: "Local-first start", value: "Yes", detail: "Index and validate value before any shared publication." },
-            { label: "Portal scope", value: "Tenant-scoped", detail: "Customer-facing data is isolated from admin operations." },
-            { label: "Control plane split", value: "3 surfaces", detail: "Website sells, portal proves, admin operates." },
-          ]}
-          bars={[
-            { label: "Local indexing coverage", value: 92, caption: "Best trust story for first adoption", tone: "teal" },
-            { label: "Policy exclusion readiness", value: 74, caption: "Sensitive paths and memory rules stay explicit", tone: "brand" },
-            { label: "Shared-surface exposure", value: 22, caption: "Only the minimum artifacts should leave the local lane", tone: "ink" },
-          ]}
-          notes={[
-            { label: "Enterprise concern", detail: "Customers need to know which artifacts become visible in portal or admin, and which never should." },
-            { label: "Rollout story", detail: "Security pages convert better when they expose concrete boundaries instead of generic promises." },
-          ]}
-        />
-      }
+      aside={<p className="website-aside-copy">Security copy avoids unsupported compliance claims. Enterprise controls such as SSO, advanced retention, and private deployment are reviewed per customer.</p>}
     >
-      <WebsiteSection eyebrow="Security stance" title="Security should explain clear boundaries, not vague intent." description="The product earns trust when teams can see what stays local, what gets published, and which controls exist before shared rollout.">
+      <WebsiteSection
+        eyebrow="Trust boundaries"
+        title="The source repo stays the first source of truth."
+        description="Hosted surfaces show reviewed artifacts and status; they do not imply raw private source is mirrored by default."
+      >
         <div className="website-detail-grid">
           <div>
             <h3>Local-first indexing</h3>
-            <p>Teams can start with local scans and validate value before syncing anything to a shared surface.</p>
+            <p>Teams can scan, inspect, and benchmark locally before sharing anything with a hosted surface.</p>
           </div>
           <div>
-            <h3>Selective context</h3>
-            <p>Policy rules should exclude sensitive paths from prompts and visual profiles when needed.</p>
+            <h3>Selective publication</h3>
+            <p>Portal sync focuses on repository profile, diagrams, docs freshness, policy posture, and benchmark evidence.</p>
           </div>
           <div>
-            <h3>Operational support</h3>
-            <p>The admin surface exists so the owner can support customers without blurring public and internal responsibilities.</p>
+            <h3>Separated surfaces</h3>
+            <p>The website sells, the portal serves customers, and admin stays internal-only.</p>
           </div>
         </div>
       </WebsiteSection>
 
-      <WebsiteSection eyebrow="Core controls" title="The hosted layer still needs visible control points." description="Enterprise credibility comes from naming the control plane clearly and making risk handling legible to buyers.">
+      <WebsiteSection
+        eyebrow="Model providers"
+        title="Provider and API key setup is security-sensitive."
+        description="Model selection and portal chat are useful only when provider exposure and secret handling are clear."
+      >
+        <div className="website-detail-grid">
+          <div>
+            <h3>CLI keys</h3>
+            <p>CLI model keys stay local with user-only permissions or resolve from provider environment variables.</p>
+          </div>
+          <div>
+            <h3>Portal keys</h3>
+            <p>Hosted portal keys require encrypted server-side storage; API responses and UI state expose only masked key presence.</p>
+          </div>
+          <div>
+            <h3>Provider exposure</h3>
+            <p>Users see selected provider, model, preset, budget, and context source before data is sent to a model.</p>
+          </div>
+        </div>
+      </WebsiteSection>
+
+      <WebsiteSection
+        eyebrow="Controls"
+        title="Governance is visible where work happens."
+        description="Policy, role, and audit signals stay close to the repo and portal views that use them."
+      >
         <div className="website-rail-list">
           <article>
-            <span>Control 01</span>
+            <span>MCP</span>
             <div>
-              <h3>Tenant-scoped sessions and access</h3>
-              <p>Public website, customer portal, and internal admin should stay cleanly separated so customer data never rides through the wrong surface.</p>
+              <h3>Allowlisted runtime actions</h3>
+              <p>MCP and portal chat actions map to explicit BeHeart tools instead of arbitrary shell execution.</p>
             </div>
           </article>
           <article>
-            <span>Control 02</span>
+            <span>Access</span>
             <div>
-              <h3>Selective memory publication</h3>
-              <p>Not every indexed symbol or document belongs in every context pack, benchmark artifact, or synced diagram surface.</p>
+              <h3>Tenant-scoped roles</h3>
+              <p>Customer actors use portal roles; internal operators use separate admin roles.</p>
             </div>
           </article>
           <article>
-            <span>Control 03</span>
+            <span>Enterprise</span>
             <div>
-              <h3>Traceable benchmark evidence</h3>
-              <p>Customers need to understand what was measured, which scenario was used, and how the report reached its ROI summary.</p>
+              <h3>Deployment review path</h3>
+              <p>SSO, RBAC, audit, retention, export, VPC, and on-prem needs are evaluation items until implemented and tested.</p>
             </div>
-          </article>
-        </div>
-      </WebsiteSection>
-
-      <WebsiteSection eyebrow="Required next controls" title="Security roadmap for serious rollout" description="The security page should make upcoming gaps explicit so smaller teams can still trust the adoption path.">
-        <div className="website-split-grid">
-          <article>
-            <span>Policy</span>
-            <h3>Sensitive path exclusion</h3>
-            <p>Define what can and cannot be loaded into AI context or synced into portal artifacts.</p>
-          </article>
-          <article>
-            <span>Redaction</span>
-            <h3>Document-safe extraction</h3>
-            <p>Handle PDFs, DOCX files, and specs without leaking content that should stay out of prompts.</p>
-          </article>
-          <article>
-            <span>Audit</span>
-            <h3>Traceable benchmark runs</h3>
-            <p>Customers need evidence for what was measured, not just headline numbers.</p>
           </article>
         </div>
       </WebsiteSection>

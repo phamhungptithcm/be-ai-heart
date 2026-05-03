@@ -73,7 +73,7 @@ export function AuthProviderCards({ surface = "portal" }) {
   if (state.status !== "ready") {
     return (
       <div className="provider-grid">
-        <div className="provider-card">
+        <div className={`provider-card ${state.status === "loading" ? "provider-card-loading" : ""}`} aria-busy={state.status === "loading"}>
           <h3>{state.status === "error" ? "Auth unavailable" : "Loading providers"}</h3>
           <p>{state.status === "error" ? state.error : "Checking which hosted login providers are configured."}</p>
         </div>
@@ -100,7 +100,7 @@ export function AuthProviderCards({ surface = "portal" }) {
           <h3>{provider.label}</h3>
           <p>{provider.description}</p>
           <Link href={provider.authorize_url} className="provider-link">
-            Continue with {provider.id}
+            {provider.action_label ?? `Continue with ${provider.id}`}
           </Link>
         </div>
       ))}

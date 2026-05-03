@@ -149,7 +149,7 @@ async function handleToolRequest(state, params) {
   const name = readString(params.name, "Tool name is required.");
   const argumentsObject = readArgumentsObject(params.arguments);
   const workspaceState = await loadWorkspaceState(state);
-  const payload = handleToolCall({
+  const payload = await handleToolCall({
     name,
     args: argumentsObject,
     graph: workspaceState.graph,
@@ -159,6 +159,7 @@ async function handleToolRequest(state, params) {
     policyReport: workspaceState.policyReport,
     readiness: workspaceState.readiness,
     enabledTools: workspaceState.configState.config.mcp?.enabled_tools,
+    repoRoot: workspaceState.repoRoot,
   });
 
   return createToolCallResult(payload);

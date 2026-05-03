@@ -68,7 +68,7 @@ export function LeadCaptureForm({
   }
 
   return (
-    <form className="website-lead-form" onSubmit={handleSubmit}>
+    <form className="website-lead-form" onSubmit={handleSubmit} aria-busy={status === "submitting"}>
       <div className="website-lead-form-head">
         <div>
           <span>{intakeKind === "demo" ? "Demo intake" : "Trial intake"}</span>
@@ -148,7 +148,7 @@ export function LeadCaptureForm({
       </label>
 
       <label className="website-form-field">
-        <span>What should the first engagement prove?</span>
+        <span>What must the first engagement prove?</span>
         <textarea
           required
           value={formState.message}
@@ -163,7 +163,7 @@ export function LeadCaptureForm({
           This submits directly to the `BeHeart` service host and appears in admin for follow-up,
           revenue tracking, and support qualification.
         </p>
-        <button type="submit" disabled={status === "submitting"}>
+        <button type="submit" disabled={status === "submitting"} data-loading={status === "submitting" ? "true" : "false"}>
           {status === "submitting" ? "Submitting..." : submitLabel}
         </button>
       </div>

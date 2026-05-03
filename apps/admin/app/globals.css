@@ -3285,6 +3285,108 @@ body {
   }
 }
 
+/* BeHeart admin v5: focus-first work pages */
+.admin-shell-dashboard .admin-context-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: 18px;
+  scrollbar-width: thin;
+}
+
+.admin-shell-dashboard .admin-context-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  grid-template-columns: none;
+  width: auto;
+  min-height: 42px;
+  gap: 8px;
+  padding: 7px 12px 7px 8px;
+  border-radius: 999px;
+}
+
+.admin-shell-dashboard .admin-context-tab-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.admin-shell-dashboard .admin-context-tab-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.admin-shell-dashboard .admin-context-tab-copy {
+  display: block;
+}
+
+.admin-shell-dashboard .admin-context-tab-copy strong {
+  display: block;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  letter-spacing: -0.01em;
+}
+
+.admin-shell-dashboard .admin-context-tab-copy small {
+  display: none;
+}
+
+.admin-shell-dashboard .admin-page-header {
+  align-items: flex-start;
+  padding: 0 4px 4px;
+}
+
+.admin-shell-dashboard .admin-page-header h1 {
+  max-width: 14ch;
+  font-size: clamp(1.9rem, 3.5vw, 2.8rem);
+  line-height: 1.02;
+}
+
+.admin-shell-dashboard .admin-page-header p {
+  max-width: 68ch;
+  line-height: 1.5;
+}
+
+.admin-shell-dashboard .admin-section-head {
+  padding-top: 18px;
+}
+
+.admin-shell-dashboard .admin-section-body {
+  padding-top: 14px;
+}
+
+.admin-shell-dashboard .admin-card p,
+.admin-shell-dashboard .admin-state-block p,
+.admin-shell-dashboard .admin-enterprise-panel p,
+.admin-shell-dashboard .admin-command-head p {
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .admin-shell-dashboard .admin-appbar {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .admin-shell-dashboard .admin-context-tabs {
+    display: none;
+  }
+
+  .admin-shell-dashboard .admin-appbar-actions > .admin-appbar-pill {
+    display: none;
+  }
+
+  .admin-shell-dashboard .admin-appbar-actions .admin-toolbar-chip {
+    display: none;
+  }
+
+  .admin-shell-dashboard .admin-page-header h1 {
+    max-width: none;
+  }
+}
+
 @media (min-width: 1261px) {
   .admin-drawer,
   .admin-drawer-scrim {
@@ -4052,6 +4154,12 @@ body {
 @media (max-width: 1260px) {
   .admin-shell.admin-shell-dashboard {
     grid-template-columns: 1fr;
+  }
+
+  .admin-dashboard-topbar {
+    position: static;
+    top: auto;
+    z-index: auto;
   }
 
   .admin-dashboard-sidebar {

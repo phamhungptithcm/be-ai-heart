@@ -12,16 +12,11 @@ export default function PortalSettingsPage() {
   return (
     <PortalShell
       title="Settings"
-      description="Review org profile, repo policy defaults, local-first sync controls, and hosted integration state."
+      description="Org profile, policy defaults, and integration state."
     >
-      <PortalSection
-        eyebrow="Configuration"
-        title="Organization and integration settings"
-        subtitle="Tenant-safe profile and policy defaults"
-      >
+      <PortalSection eyebrow="Configuration" title="Org settings">
         <PortalSettingsClient />
       </PortalSection>
     </PortalShell>
   );
 }
-

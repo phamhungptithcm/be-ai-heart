@@ -99,8 +99,7 @@ export function PortalUsageAnalyticsClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Usage summary</span>
-            <h3>Live telemetry and benchmark-derived value in one customer view</h3>
-            <p>Use this page to separate real workload from benchmark-backed proof, then decide where the tenant needs more coverage before scaling AI deeper.</p>
+            <h3>Usage and savings</h3>
           </div>
         </div>
         <div className="portal-kpi-grid">
@@ -118,7 +117,7 @@ export function PortalUsageAnalyticsClient() {
         </div>
         <div className="portal-inline-banner">
           <strong>Metric sources</strong>
-          <p>Live operational telemetry is labeled as hosted telemetry. ROI and savings deltas are benchmark-derived from published benchmark artifacts.</p>
+          <p>Usage is hosted telemetry. Savings are benchmark-derived.</p>
         </div>
       </section>
 
@@ -127,8 +126,7 @@ export function PortalUsageAnalyticsClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Coverage digest</span>
-              <h3>Where usage is concentrated right now</h3>
-              <p>The top repository, model, and client should be obvious without drilling into every table.</p>
+              <h3>Top lanes</h3>
             </div>
           </div>
           <div className="portal-summary-list">
@@ -164,8 +162,7 @@ export function PortalUsageAnalyticsClient() {
           <div className="portal-enterprise-panel-head">
             <div>
               <span>Action center</span>
-              <h3>What the customer should improve next</h3>
-              <p>Actionable pressure matters more than raw traffic. Fix these gaps before asking the team to trust broader AI rollout.</p>
+              <h3>Next fixes</h3>
             </div>
           </div>
           <div className="portal-readiness-list">
@@ -192,8 +189,7 @@ export function PortalUsageAnalyticsClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Trend</span>
-            <h3>Activity and savings over time</h3>
-            <p>Check whether real usage is rising while benchmark-backed savings and memory discipline stay intact.</p>
+            <h3>Activity trend</h3>
           </div>
         </div>
         <div className="portal-data-table-shell">
@@ -296,7 +292,7 @@ export function PortalUsageAnalyticsClient() {
         <div className="portal-enterprise-panel-head">
           <div>
             <span>Client footprint</span>
-            <h3>Which clients and IDEs are driving BeHeart usage</h3>
+            <h3>Clients and IDEs</h3>
             <p>Platform leads need to know whether usage is concentrated in one workflow or distributed across the actual engineering toolchain.</p>
           </div>
         </div>

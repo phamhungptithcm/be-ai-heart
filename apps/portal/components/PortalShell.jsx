@@ -87,7 +87,8 @@ export function PortalShell({
   children,
   eyebrow = "Customer Workspace",
   shellMode = "default",
-  showToolbar = true,
+  showToolbar = false,
+  showHeaderActions = false,
 }) {
   const pathname = usePathname() ?? "/";
   const [navOpen, setNavOpen] = useState(false);
@@ -163,7 +164,7 @@ export function PortalShell({
                 <PortalMark />
                 <div>
                   <strong>BeHeart Portal</strong>
-                  <span>Customer workspace for AI delivery operations</span>
+                  <span>Project memory for AI teams</span>
                   <small className="portal-brand-version">{`BeHeart ${BEHEART_RELEASE_VERSION}`}</small>
                 </div>
               </Link>
@@ -179,9 +180,9 @@ export function PortalShell({
             </div>
 
             <section className="portal-sidebar-summary">
-              <span>{navigation.activeGroup.eyebrow}</span>
-              <strong>{navigation.activeGroup.description}</strong>
-              <p>{navigation.activeGroup.summary}</p>
+              <span>{navigation.activeGroup.label}</span>
+              <strong>{navigation.activeItem.label}</strong>
+              <p>{navigation.activeItem.meta}</p>
             </section>
 
             <div className="portal-sidebar-groups">
@@ -210,9 +211,9 @@ export function PortalShell({
 
             <div className="portal-sidebar-footer">
               <article>
-                <span>Sync lane</span>
-                <strong>Local-first memory</strong>
-                <p>CLI, portal, and benchmark artifacts stay aligned through the BeHeart API host.</p>
+                <span>Sync</span>
+                <strong>CLI is the source of repo truth.</strong>
+                <p>Portal shows the latest published artifacts.</p>
               </article>
               <div className="portal-sidebar-footer-actions">
                 {actorHasPermission(navigation.actor, "portal.documents.read") ? (
@@ -254,21 +255,10 @@ export function PortalShell({
               <div className="portal-appbar-trailing">
                 <div className="portal-appbar-pill">
                   {viewerStatus === "loading"
-                    ? "Loading access"
-                    : navigation.actor.primary_role || "Sign-in required"}
-                </div>
-                <div className="portal-appbar-actions">
-                  <span className="portal-appbar-pill">Scoped filters live inside each page</span>
-                  {actorHasPermission(navigation.actor, "portal.benchmarks.read") ? (
-                    <Link href="/benchmarks" className="portal-toolbar-chip">
-                      ROI
-                    </Link>
-                  ) : null}
-                  {actorHasPermission(navigation.actor, "portal.settings.read") ? (
-                    <Link href="/settings" className="portal-toolbar-chip portal-toolbar-chip-primary">
-                      Settings
-                    </Link>
-                  ) : null}
+                    ? "Loading"
+                    : navigation.actor.primary_role
+                      ? "Signed in"
+                      : "Sign in"}
                 </div>
               </div>
             </header>
@@ -334,20 +324,22 @@ export function PortalShell({
               <div>
                 <p className="portal-eyebrow">{eyebrow}</p>
                 <h1>{title}</h1>
-                <p>{description}</p>
+                {description ? <p>{description}</p> : null}
               </div>
-              <div className="portal-page-header-actions">
-                {actorHasPermission(navigation.actor, "portal.repositories.read") ? (
-                  <Link href="/repositories" className="portal-button-link portal-button-link-primary">
-                    Open repositories
-                  </Link>
-                ) : null}
-                {actorHasPermission(navigation.actor, "portal.usage.read") ? (
-                  <Link href="/usage" className="portal-button-link">
-                    View savings
-                  </Link>
-                ) : null}
-              </div>
+              {showHeaderActions ? (
+                <div className="portal-page-header-actions">
+                  {actorHasPermission(navigation.actor, "portal.repositories.read") ? (
+                    <Link href="/repositories" className="portal-button-link portal-button-link-primary">
+                      Open repositories
+                    </Link>
+                  ) : null}
+                  {actorHasPermission(navigation.actor, "portal.usage.read") ? (
+                    <Link href="/usage" className="portal-button-link">
+                      View savings
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
 
             <div className="portal-stack">{isAccessDenied ? null : children}</div>
@@ -359,15 +351,18 @@ export function PortalShell({
 }
 
 export function PortalSection({ title, subtitle, children, eyebrow }) {
+  const hasHeader = Boolean(title || subtitle || eyebrow);
   return (
     <section className="portal-section">
-      <div className="portal-section-head">
-        <div>
-          {eyebrow ? <p className="portal-section-eyebrow">{eyebrow}</p> : null}
-          <h2>{title}</h2>
-          {subtitle ? <p>{subtitle}</p> : null}
+      {hasHeader ? (
+        <div className="portal-section-head">
+          <div>
+            {eyebrow ? <p className="portal-section-eyebrow">{eyebrow}</p> : null}
+            {title ? <h2>{title}</h2> : null}
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="portal-section-body">{children}</div>
     </section>
   );

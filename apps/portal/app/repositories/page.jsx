@@ -11,10 +11,10 @@ export const metadata = createPortalMetadata({
 export default function PortalRepositoriesPage() {
   return (
     <PortalShell
-      title="Repository profiles"
-      description="Every synced repository becomes a visible project-memory profile where customers can inspect structure, documents, diagrams, and efficiency signals."
+      title="Repositories"
+      description="Repo memory readiness."
     >
-      <PortalSection eyebrow="Inventory" title="All repositories" subtitle="Synced profile inventory">
+      <PortalSection>
         <PortalProfilesClient />
       </PortalSection>
     </PortalShell>

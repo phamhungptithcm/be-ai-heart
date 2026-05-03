@@ -19,8 +19,8 @@ export default function SignInPage() {
       eyebrow="Hosted Authentication"
       title={
         <>
-          Open the portal with
-          <span className="website-highlight"> a scoped BeHeart session.</span>
+          Open the portal with{" "}
+          <span className="website-highlight">a scoped BeHeart session.</span>
         </>
       }
       description="Auth belongs to the hosted API layer. The website explains the value, then routes the user into the BeHeart portal where repository memory, diagrams, docs, and benchmark reports are available."
@@ -61,35 +61,6 @@ export default function SignInPage() {
         <AuthProviderCards surface="portal" />
       </WebsiteSection>
 
-      <WebsiteSection
-        eyebrow="Session boundary"
-        title="The sign-in flow should explain where trust moves next."
-        description="The public website stays acquisition-focused. The portal holds customer state. The hosted API issues the tenant-scoped session in between."
-      >
-        <div className="website-rail-list">
-          <article>
-            <span>Website</span>
-            <div>
-              <h3>Explains value and routes traffic</h3>
-              <p>Pricing, docs, benchmark proof, and security stay public so the buying decision is legible before sign-in.</p>
-            </div>
-          </article>
-          <article>
-            <span>Provider</span>
-            <div>
-              <h3>Issues a scoped session</h3>
-              <p>OIDC exchange happens on the hosted layer so workspace identity and access rules stay out of the marketing surface.</p>
-            </div>
-          </article>
-          <article>
-            <span>Portal</span>
-            <div>
-              <h3>Shows project memory and ROI</h3>
-              <p>After sign-in, the user should land inside repository profiles, document memory, usage, and benchmark views that match their tenant scope.</p>
-            </div>
-          </article>
-        </div>
-      </WebsiteSection>
     </WebsiteShell>
   );
 }

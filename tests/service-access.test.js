@@ -166,4 +166,6 @@ test("service access filters workspaces, repository views, and documents by acto
   assert.equal(documentsView.repositories[0].profile_slug, "alpha-workspace");
   assert.equal(documentsView.submissions.length, 1);
   assert.equal(documentsView.submissions[0].profile_slug, "alpha-workspace");
+  assert.equal(documentsView.status_summary.status, "queued_updates");
+  assert.deepEqual(documentsView.status_summary.queued_profile_slugs, ["alpha-workspace"]);
 });

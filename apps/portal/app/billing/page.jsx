@@ -11,8 +11,8 @@ export const metadata = createPortalMetadata({
 export default function PortalBillingPage() {
   return (
     <PortalShell
-      title="Billing and license control"
-      description="Inspect tenant-scoped license posture, seats, invoices, entitlements, and the operational signals that justify plan expansion."
+      title="Billing"
+      description="Plan, seats, entitlements, and invoices."
     >
       <PortalBillingSnapshotClient />
     </PortalShell>

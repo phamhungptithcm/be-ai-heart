@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "cache-truthfulness",
+  "title": "Cache Truthfulness Dataset",
+  "repo_strategy": "current-repo",
+  "summary": "Benchmark slice for fixing stale or misleading local memory signals without weakening scan provenance, ignore rules, or script-safe output.",
+  "source_paths": [
+    "packages/core/src",
+    "packages/cli/src",
+    "tests/workspace-storage.test.js",
+    "tests/cli-contracts.test.js"
+  ],
+  "documents": [
+    {
+      "path": "docs/03-technical-architecture.md",
+      "title": "Technical Architecture",
+      "reason": "Workspace readiness and cache truthfulness are part of the core architecture."
+    },
+    {
+      "path": "docs/04-mcp-cli-spec.md",
+      "title": "CLI and MCP Specification",
+      "reason": "Human and JSON outputs must stay deterministic and script-safe."
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "packages/core/src/index.js",
+      "title": "Workspace state and readiness",
+      "reason": "Cache status and provenance should be fixed where workspace memory is built."
+    },
+    {
+      "path": "tests/workspace-storage.test.js",
+      "title": "Workspace cache tests",
+      "reason": "Bug fixes should pin repeated scan and cache invalidation behavior."
+    }
+  ],
+  "policy_targets": [
+    "Do not hide stale cache state behind a ready status.",
+    "Do not print decorative output in JSON mode.",
+    "Respect configured ignore paths during cache rebuilds."
+  ]
+}

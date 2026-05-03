@@ -1,5 +1,12 @@
 # v2 Execution Backlog
 
+## Status Note
+
+This backlog is now partly historical. Many M1-M6 contracts are implemented in the current repo and summarized in
+[Project Implementation Story Plan](./22-project-implementation-story-plan.md) and [Implementation Blueprint v2](./11-implementation-blueprint-v2.md).
+Use this file for original milestone intent and remaining hardening themes, not as proof that every listed work package
+is still unstarted.
+
 ## Purpose
 
 This document turns [Implementation Blueprint v2](./11-implementation-blueprint-v2.md) into an execution-facing backlog.

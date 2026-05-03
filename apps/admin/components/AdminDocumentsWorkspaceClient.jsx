@@ -11,6 +11,7 @@ export function AdminDocumentsWorkspaceClient() {
     status: "loading",
     repositories: [],
     submissions: [],
+    statusSummary: null,
     error: "",
   });
 
@@ -26,6 +27,7 @@ export function AdminDocumentsWorkspaceClient() {
             status: "ready",
             repositories: payload.repositories ?? [],
             submissions: payload.submissions ?? [],
+            statusSummary: payload.status_summary ?? null,
             error: "",
           });
         }
@@ -35,6 +37,7 @@ export function AdminDocumentsWorkspaceClient() {
             status: "error",
             repositories: [],
             submissions: [],
+            statusSummary: null,
             error: loadError.message,
           });
         }
@@ -71,6 +74,7 @@ export function AdminDocumentsWorkspaceClient() {
   }
 
   const summary = summarizeDocumentsWorkspace(state.repositories, state.submissions);
+  const documentStatus = state.statusSummary ?? {};
 
   return (
     <>
@@ -86,6 +90,29 @@ export function AdminDocumentsWorkspaceClient() {
           <div><span>Synced Docs</span><strong>{summary.document_count}</strong></div>
           <div><span>Queued Updates</span><strong>{summary.submission_count}</strong></div>
           <div><span>Requirement Docs</span><strong>{summary.requirement_count}</strong></div>
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <div>
+            <h2>Docs/spec posture</h2>
+            <p>Support should be able to tell whether business requirements are synced, stale, restricted, or waiting for CLI import.</p>
+          </div>
+        </div>
+        <div className="admin-stat-grid">
+          <div><span>Status</span><strong>{formatStatusLabel(documentStatus.status)}</strong></div>
+          <div><span>Linked Docs</span><strong>{documentStatus.linked_document_count ?? 0}</strong></div>
+          <div><span>Restricted</span><strong>{documentStatus.restricted_document_count ?? 0}</strong></div>
+          <div><span>Stale Docs</span><strong>{documentStatus.stale_document_count ?? 0}</strong></div>
+        </div>
+        <div className="admin-list">
+          {(documentStatus.next_actions ?? []).map((action) => (
+            <article key={action} className="admin-card">
+              <strong>Next action</strong>
+              <p>{action}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -190,6 +217,10 @@ function formatCategoryCounts(categoryCounts = {}) {
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
     .map(([category, count]) => `${category}: ${count}`)
     .join(" · ");
+}
+
+function formatStatusLabel(value) {
+  return String(value ?? "unknown").replace(/[_-]+/g, " ");
 }
 
 function formatTimestamp(value) {

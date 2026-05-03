@@ -142,7 +142,7 @@ export function PortalOperationsDashboardClient() {
           <header className="portal-command-head">
             <div>
               <span>ROI lane</span>
-              <h3>Benchmark proof that buyers can defend internally</h3>
+              <h3>Buyer proof</h3>
               <p>Portal should show whether the heart is actually reducing token spend, memory refresh, and review cleanup before the customer expands AI usage.</p>
             </div>
             <div className="portal-command-actions">
@@ -242,7 +242,7 @@ export function PortalOperationsDashboardClient() {
           <header className="portal-command-head">
             <div>
               <span>Readiness lane</span>
-              <h3>Which repositories are actually safe to push more AI through?</h3>
+              <h3>AI-ready repos</h3>
               <p>Coverage is only useful if code, documents, and linked intent show up together without policy drift.</p>
             </div>
           </header>
@@ -270,7 +270,7 @@ export function PortalOperationsDashboardClient() {
         <header className="portal-command-head">
           <div>
             <span>Workspace lane</span>
-            <h3>Freshness, queue depth, and expansion posture by workspace</h3>
+            <h3>Workspace posture</h3>
             <p>This is the operating table a customer team should check before relying on BeHeart for larger repo changes or more seats.</p>
           </div>
         </header>

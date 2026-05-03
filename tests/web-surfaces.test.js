@@ -26,6 +26,24 @@ test("website home page separates public marketing and portal access", () => {
   assert.match(html, /Start Trial/);
   assert.match(html, /Open Portal/);
   assert.match(html, /Customer workspace/);
+  assert.match(html, /Local-First Start/);
+  assert.match(html, /heart pack "add SSO login audit logging"/);
+  assert.match(html, /Design Partner Pilot/);
+  assert.match(html, /heart benchmark run --all/);
+  assert.doesNotMatch(html, /30%\+|20%\+|40%\+/);
+});
+
+test("portal onboarding empty states point to the unified enterprise MVP activation path", async () => {
+  const [workflowsSource, overviewSource, trialSource] = await Promise.all([
+    fs.readFile(path.resolve("apps/portal/components/PortalProductWorkflowsClient.jsx"), "utf8"),
+    fs.readFile(path.resolve("apps/portal/components/PortalOverviewEnterpriseClient.jsx"), "utf8"),
+    fs.readFile(path.resolve("apps/website/app/start-trial/page.jsx"), "utf8"),
+  ]);
+
+  assert.match(workflowsSource, /heart sync setup/);
+  assert.match(workflowsSource, /ContextPackPicker/);
+  assert.match(overviewSource, /step.command/);
+  assert.match(trialSource, /heart sync setup --slug your-project/);
 });
 
 test("portal repository profile page renders synced mermaid diagrams for customers", async (t) => {
@@ -59,6 +77,10 @@ test("portal repository profile page renders synced mermaid diagrams for custome
   assert.match(html, /Portal \| sample-repo/);
   assert.match(html, /<div class="mermaid">/);
   assert.match(html, /Synced Diagrams/);
+  assert.match(html, /Context Pack Preview/);
+  assert.match(html, /Model preset/);
+  assert.match(html, /Command box/);
+  assert.match(html, /heart pack &quot;add SSO login audit logging&quot;|heart pack "add SSO login audit logging"/);
   assert.match(html, /sequenceDiagram|flowchart LR/);
 });
 
@@ -92,5 +114,6 @@ test("admin repository support page renders internal support-oriented repository
   assert.match(html, /Internal Admin/);
   assert.match(html, /Support view for sample-repo/);
   assert.match(html, /Customer-Synced Diagrams/);
+  assert.match(html, /Context Pack Support Signals/);
   assert.match(html, /Operational Signals/);
 });

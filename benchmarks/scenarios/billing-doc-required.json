@@ -1,0 +1,151 @@
+{
+  "schema_version": 2,
+  "id": "billing-doc-required",
+  "title": "Billing Requirement Required Feature",
+  "category": "document-required-change",
+  "design_partner_type": "document_required",
+  "description": "Measures whether a team can implement a product-sensitive feature only after retrieving current PRD, CLI/MCP, benchmark, and planning context.",
+  "repo": "be-ai-heart",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "dataset_id": "auth-audit-memory",
+  "task": {
+    "statement": "Add a local-first context preview for a billing audit workflow and update the docs that define supported behavior.",
+    "follow_up_prompts": [
+      "Confirm which business requirements and CLI/MCP docs were used.",
+      "Explain why hosted preview must not execute arbitrary repository commands."
+    ]
+  },
+  "expected_documents": [
+    "README.md",
+    "docs/02-prd.md",
+    "docs/03-technical-architecture.md",
+    "docs/04-mcp-cli-spec.md",
+    "docs/23-enterprise-startup-replan.md"
+  ],
+  "reuse_targets": [
+    "services/api/src/repository-services.js",
+    "apps/portal/components/PortalRepositoryServicesWorkspace.jsx",
+    "tests/service-http-repository-detail.test.js"
+  ],
+  "architecture_rules": [
+    "Keep preview generation on synced sanitized artifacts.",
+    "Do not execute arbitrary commands from hosted UI.",
+    "Keep final context pack generation in local CLI or MCP."
+  ],
+  "expected_evidence": [
+    "docs search returns current PRD and architecture constraints",
+    "context pack cites repository services and portal tests",
+    "service test proves preview payload omits absolute local paths"
+  ],
+  "rubric": {
+    "must_pass": [
+      "Feature behavior is grounded in current docs",
+      "Hosted preview is clearly local-first and non-executing",
+      "Service/UI tests cover safe preview output"
+    ]
+  },
+  "evaluation": {
+    "targets": {
+      "max_tokens": 1800,
+      "max_minutes": 25,
+      "max_memory_refreshes": 2,
+      "max_token_cost_usd": 0.36,
+      "max_duplicates": 1,
+      "max_policy_violations": 0,
+      "max_review_edits": 3
+    }
+  },
+  "baseline": {
+    "tokens": 3100,
+    "minutes": 42,
+    "duplicates": 3,
+    "policy_violations": 2,
+    "review_edits": 8,
+    "memory_refreshes": 5,
+    "token_cost_usd": 0.62,
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 4,
+      "document_hits": 1,
+      "document_targets": 5,
+      "handoff_successes": 0,
+      "handoff_attempts": 1
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 3,
+      "checks_passed": 1,
+      "checks_total": 3,
+      "duplicate_introductions": 3
+    },
+    "code_quality": {
+      "tests_passed": 2,
+      "tests_total": 5,
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 2,
+        "reuse": 2,
+        "testing": 2,
+        "intent_alignment": 2
+      }
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2
+    }
+  },
+  "assisted": {
+    "tokens": 1620,
+    "minutes": 24,
+    "duplicates": 1,
+    "policy_violations": 0,
+    "review_edits": 3,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.32,
+    "context_retention": {
+      "checkpoints_passed": 4,
+      "checkpoints_total": 4,
+      "document_hits": 5,
+      "document_targets": 5,
+      "handoff_successes": 1,
+      "handoff_attempts": 1
+    },
+    "duplicate_work": {
+      "reuse_hits": 3,
+      "reuse_targets": 3,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "duplicate_introductions": 1
+    },
+    "code_quality": {
+      "tests_passed": 5,
+      "tests_total": 5,
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 5,
+        "reuse": 5,
+        "testing": 4,
+        "intent_alignment": 5
+      }
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2
+    },
+    "tool_outputs": [
+      {
+        "tool": "project_overview",
+        "status": "ok"
+      },
+      {
+        "tool": "context_pack",
+        "status": "ok"
+      },
+      {
+        "tool": "docs_search",
+        "status": "ok"
+      }
+    ]
+  }
+}
