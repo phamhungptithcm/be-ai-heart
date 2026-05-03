@@ -1514,7 +1514,8 @@ Use this content for `benchmarks/scenarios/tolling-trip-posting-dedupe.json`:
   "schema_version": 2,
   "id": "tolling-trip-posting-dedupe",
   "title": "Duplicate Toll Trip Posting Prevention",
-  "category": "domain-pack-context",
+  "category": "bug-fix",
+  "design_partner_type": "bug_fix",
   "description": "Measures whether the Tolling Management domain pack reduces repeated domain explanation and improves correctness for a high-risk duplicate toll posting task.",
   "repo": "be-ai-heart",
   "provider": "openai",
@@ -1543,6 +1544,20 @@ Use this content for `benchmarks/scenarios/tolling-trip-posting-dedupe.json`:
     "Do not invent customer-specific toll rates, fee amounts, deadlines, or legal outcomes.",
     "Money-changing actions require audit language."
   ],
+  "expected_evidence": [
+    "context includes trip posting dedupe keys",
+    "context includes money-changing audit requirement",
+    "answer identifies idempotent replay handling",
+    "answer includes tests for duplicate replay and reversal audit"
+  ],
+  "rubric": {
+    "must_pass": [
+      "Duplicate replay cannot create a second customer charge",
+      "Posting decision records audit evidence",
+      "Customer-specific rates, fees, and legal deadlines are not invented",
+      "Pack sections are cited for trip posting, business rules, entities, and security"
+    ]
+  },
   "evaluation": {
     "targets": {
       "max_tokens": 1600,
