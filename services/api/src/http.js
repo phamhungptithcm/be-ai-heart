@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,6 +77,10 @@ import {
   writeRepositoryProfileForActor,
 } from "./index.js";
 import { consumeRequestRateLimit } from "./rate-limit.js";
+import {
+  redactSensitiveString,
+  redactUrlSearch,
+} from "./redaction.js";
 import { buildRepositoryServicesView } from "./repository-services.js";
 import {
   buildChatCommandRecord,
@@ -140,6 +144,7 @@ export async function handleServiceHttpRequest(request, options = {}) {
   const requestUrl = new URL(request.url);
   const route = matchRoute(requestUrl.pathname);
   const startedAtMs = Date.now();
+  const traceId = resolveTraceId(request);
   let response;
 
   try {
@@ -382,10 +387,11 @@ export async function handleServiceHttpRequest(request, options = {}) {
       }
     }
   } catch (error) {
-    response = errorResponse(error, "Service request failed.");
+    response = errorResponse(error, "Service request failed.", { traceId });
   }
 
-  const corsResponse = withCors(response, request, config);
+  const tracedResponse = withTraceHeader(response, traceId);
+  const corsResponse = withCors(tracedResponse, request, config);
   try {
     await writeRequestTraceForResponse({
       config,
@@ -394,6 +400,7 @@ export async function handleServiceHttpRequest(request, options = {}) {
       route,
       response: corsResponse,
       startedAtMs,
+      traceId,
     });
   } catch {
     // Keep hosted traffic available even if request telemetry storage is degraded.
@@ -3419,13 +3426,29 @@ function methodNotAllowed(methods) {
   );
 }
 
-function errorResponse(error, fallbackMessage) {
+function errorResponse(error, fallbackMessage, { traceId } = {}) {
+  const status = Number(error?.statusCode ?? 500);
+  const safeMessage = status >= 500
+    ? fallbackMessage
+    : redactSensitiveString(error?.message || fallbackMessage);
   return jsonResponse(
     {
-      error: error?.message || fallbackMessage,
+      error: safeMessage,
+      error_code: String(error?.errorCode ?? error?.code ?? `HTTP_${status}`),
+      trace_id: traceId,
     },
-    { status: Number(error?.statusCode ?? 500) },
+    { status },
   );
+}
+
+function withTraceHeader(response, traceId) {
+  const nextHeaders = new Headers(response.headers);
+  nextHeaders.set("X-Be-AI-Heart-Trace-Id", traceId);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: nextHeaders,
+  });
 }
 
 function withCors(response, request, config) {
@@ -3448,7 +3471,7 @@ function withCors(response, request, config) {
   );
   nextHeaders.set(
     "Access-Control-Expose-Headers",
-    "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
+    "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Be-AI-Heart-Trace-Id",
   );
   if (allowedOrigin !== "*") {
     nextHeaders.set("Access-Control-Allow-Credentials", "true");
@@ -3746,6 +3769,7 @@ async function writeRequestTraceForResponse({
   route,
   response,
   startedAtMs,
+  traceId,
 } = {}) {
   if (!serviceStorageRoot || !request || !response) {
     return;
@@ -3766,6 +3790,7 @@ async function writeRequestTraceForResponse({
   await writeRequestTrace({
     serviceStorageRoot,
     trace: {
+      trace_id: traceId,
       method: request.method,
       route_kind: route?.kind ?? "unknown",
       path: requestUrl.pathname,
@@ -3780,10 +3805,15 @@ async function writeRequestTraceForResponse({
         .update(resolveRateLimitClientKey(request, config), "utf8")
         .digest("hex"),
       metadata: {
-        query: requestUrl.search,
+        query: redactUrlSearch(requestUrl.search),
       },
     },
   });
+}
+
+function resolveTraceId(request) {
+  const provided = String(request.headers.get("x-be-ai-heart-trace-id") ?? "").trim();
+  return /^[a-zA-Z0-9._:-]{8,120}$/.test(provided) ? provided : randomUUID();
 }
 
 function resolveTraceSurface(route, requestUrl) {

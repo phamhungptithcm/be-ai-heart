@@ -8,6 +8,7 @@ import {
 } from "./database.js";
 import { upsertWorkspaceIdentity } from "./identity.js";
 import { queueObservabilityExport } from "./observability-export.js";
+import { redactSensitiveData } from "./redaction.js";
 import {
   consumeRateLimitWindowInPostgres,
   isPostgresStorageEnabled,
@@ -320,7 +321,7 @@ export async function writeAuditEvent({ serviceStorageRoot, event } = {}) {
     customer_id: String(event.customer_id ?? ""),
     target_type: String(event.target_type ?? ""),
     target_id: String(event.target_id ?? ""),
-    metadata: event.metadata ?? {},
+    metadata: redactSensitiveData(event.metadata ?? {}),
   };
 
   if (isPostgresStorageEnabled()) {
@@ -541,7 +542,7 @@ export async function writeRequestTrace({ serviceStorageRoot, trace } = {}) {
     customer_slug: String(trace.customer_slug ?? ""),
     customer_id: String(trace.customer_id ?? ""),
     client_key_hash: String(trace.client_key_hash ?? ""),
-    metadata: trace.metadata ?? {},
+    metadata: redactSensitiveData(trace.metadata ?? {}),
   };
 
   if (isPostgresStorageEnabled()) {
