@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "tolling-domain-pack",
+  "title": "Tolling Management Domain Pack Dataset",
+  "repo_strategy": "current-repo",
+  "summary": "Static domain-pack benchmark slice covering tolling trip posting, image review, support safety, security, and ROI evidence.",
+  "source_paths": [
+    "packs/tolling-management",
+    "docs/superpowers/specs/2026-05-02-tolling-management-domain-pack-design.md",
+    "docs/06-benchmark-framework.md"
+  ],
+  "documents": [
+    {
+      "path": "packs/tolling-management/trip-posting.md",
+      "title": "Trip Posting",
+      "reason": "Defines idempotent posting, duplicate detection, exceptions, and tests."
+    },
+    {
+      "path": "packs/tolling-management/business-rules.md",
+      "title": "Business Rules",
+      "reason": "Defines audit, idempotency, duplicate, exception, and cost rule categories."
+    },
+    {
+      "path": "packs/tolling-management/security-privacy.md",
+      "title": "Security And Privacy",
+      "reason": "Defines sensitive data and audit requirements for tolling tasks."
+    },
+    {
+      "path": "packs/tolling-management/entities.yaml",
+      "title": "Entity Contract",
+      "reason": "Defines LaneEvent, Trip, TollTransaction, and AuditEvent."
+    }
+  ],
+  "reuse_targets": [
+    {
+      "path": "packs/tolling-management/trip-posting.md",
+      "title": "Trip posting playbook",
+      "reason": "Avoid re-explaining duplicate posting and idempotency every run."
+    },
+    {
+      "path": "packs/tolling-management/entities.yaml",
+      "title": "Tolling entity model",
+      "reason": "Keep transaction and audit vocabulary stable across tasks."
+    }
+  ],
+  "policy_targets": [
+    "Do not invent toll rates, fee amounts, deadlines, or legal outcomes.",
+    "Do not include raw customer PII, raw plate images, card data, or bank data.",
+    "Require audit for money-changing, evidence-changing, account-status, dispute, waiver, and collections actions."
+  ]
+}
