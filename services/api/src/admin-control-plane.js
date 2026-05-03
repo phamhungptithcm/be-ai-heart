@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import {
   METRIC_SOURCE_TYPES,
   resolveActorAccess,
@@ -10,9 +13,10 @@ import {
 } from "./access.js";
 import { listCustomers } from "./customer-registry.js";
 import { listWorkspaceIdentities } from "./identity.js";
+import { listWebsiteIntakeRequestsPage } from "./intake.js";
 import { listOperationalAlerts, summarizeHostedTrafficMetrics } from "./observability.js";
 import { resolveBillingProviderAdapter } from "./provider-adapters.js";
-import { listAuditEvents, listRequestTraces } from "./storage.js";
+import { getServiceStoragePaths, listAuditEvents, listRequestTraces } from "./storage.js";
 
 export async function loadAdminOverviewView({
   serviceStorageRoot,
@@ -51,6 +55,7 @@ export async function loadAdminOverviewView({
       alert_posture: `${alertPosture.status_5xx} 5xx · ${alertPosture.alert_count} alerts`,
       at_risk_accounts: customerInventory.filter((row) => row.risk_level === "high").length,
     },
+    founder_metrics: await buildFounderMetrics(dataset, customerInventory),
     customers: customerInventory.slice(0, 12),
     alerts: dataset.alerts.alerts,
     traffic_summary: dataset.trafficSummary,
@@ -119,7 +124,7 @@ async function loadAdminDataset({
   localDemoAuth,
 } = {}) {
   const viewer = resolveActorAccess(authContext?.actor ?? { surface: "admin" });
-  const [customers, workspaceIdentities, workspacesPage, profilesPage, documents, benchmarksPage, auditEvents, requestTraces, alerts, trafficSummary] =
+  const [customers, workspaceIdentities, workspacesPage, profilesPage, documents, benchmarksPage, auditEvents, requestTraces, alerts, trafficSummary, intakePage] =
     await Promise.all([
       listCustomers({
         serviceStorageRoot,
@@ -177,9 +182,15 @@ async function loadAdminDataset({
         serviceStorageRoot,
         since: toIsoDaysAgo(30),
       }),
+      listWebsiteIntakeRequestsPage({
+        serviceStorageRoot,
+        limit: 500,
+        offset: 0,
+      }),
     ]);
 
   return {
+    serviceStorageRoot,
     viewer,
     customers,
     workspaceIdentities,
@@ -191,6 +202,70 @@ async function loadAdminDataset({
     requestTraces,
     alerts,
     trafficSummary,
+    intakeRequests: intakePage.requests ?? [],
+  };
+}
+
+async function buildFounderMetrics(dataset, customerInventory) {
+  const contextPacksGenerated = await countContextPackRecords(dataset.serviceStorageRoot);
+  const activeCustomers = customerInventory.filter((customer) => customer.status === "active");
+  const activeWorkspaces = dataset.workspaces.length;
+  const activeRepos = dataset.profiles.length;
+  const activatedAccounts = customerInventory.filter((customer) => customer.memory_ready_repositories > 0).length;
+  const trialAccounts = customerInventory.filter((customer) => customer.trial_stage === "trial").length;
+  const paidAccounts = customerInventory.filter((customer) => customer.trial_stage !== "trial").length;
+  const riskyTenants = customerInventory.filter((customer) => customer.risk_level === "high");
+  const riskyRepos = dataset.workspaces.filter((workspace) => isStale(workspace.latest_sync_at));
+  const mrr = customerInventory.reduce((total, customer) => total + estimateMonthlyRevenue(customer.plan_code), 0);
+  const benchmarkRuns = dataset.reports.length;
+  const tokenSavingsValues = dataset.reports
+    .map((report) => Number(report.metrics?.token_savings_pct ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const estimatedCostSavings = dataset.reports.reduce(
+    (total, report) => total + Number(report.metrics?.token_cost_savings_usd ?? 0),
+    0,
+  );
+  const supportIssues = dataset.submissions.length + riskyTenants.length + Number(dataset.alerts.alerts.length ?? 0);
+  const failedSyncJobs = countFailedSyncs(dataset.auditEvents);
+  const securityEvents = dataset.auditEvents.filter((event) =>
+    /auth|security|policy|session|model_settings|chat/.test(String(event.action ?? "")),
+  ).length;
+  const scanEvents = dataset.profiles
+    .map((profile) => profile.generated_at)
+    .filter(Boolean);
+
+  return {
+    schema_version: 1,
+    source_note:
+      "Founder metrics are computed from synced repo artifacts, benchmark reports, intake requests, audit events, and API telemetry. Financial values are estimates until billing provider integration is configured.",
+    total_users: customerInventory.reduce((total, customer) => total + Number(customer.seats_used ?? 0), 0),
+    active_workspaces: activeWorkspaces,
+    active_repos: activeRepos,
+    scans_per_day: countSince(scanEvents, 1),
+    scans_per_week: countSince(scanEvents, 7),
+    context_packs_generated: contextPacksGenerated,
+    mcp_connections: dataset.auditEvents.filter((event) => /mcp|connect/.test(String(event.action ?? ""))).length,
+    benchmark_runs: benchmarkRuns,
+    token_savings_reported: average(tokenSavingsValues),
+    estimated_cost_savings: roundCurrency(estimatedCostSavings),
+    mrr: roundCurrency(mrr),
+    arr: roundCurrency(mrr * 12),
+    churn: percentage(dataset.customers.filter((customer) => customer.status === "churned").length, dataset.customers.length),
+    retention: percentage(activeCustomers.length, customerInventory.length),
+    activation_rate: percentage(activatedAccounts, customerInventory.length),
+    trial_to_active_conversion: percentage(paidAccounts, Math.max(1, trialAccounts + paidAccounts)),
+    design_partner_pipeline: dataset.intakeRequests.filter((request) =>
+      /design|pilot|partner/i.test(`${request.primary_goal ?? ""} ${request.message ?? ""}`),
+    ).length,
+    enterprise_leads: dataset.intakeRequests.filter((request) =>
+      /enterprise|sso|security|procurement|governance/i.test(`${request.primary_goal ?? ""} ${request.message ?? ""}`),
+    ).length,
+    support_issues: supportIssues,
+    failed_sync_jobs: failedSyncJobs,
+    risky_tenants: riskyTenants.length,
+    risky_repos: riskyRepos.length,
+    api_job_health: `${Number(dataset.trafficSummary.status_5xx ?? 0)} 5xx / ${Number(dataset.alerts.alerts.length ?? 0)} alerts`,
+    audit_security_events: securityEvents,
   };
 }
 
@@ -289,6 +364,70 @@ function resolveSeatAllowance(planCode) {
     default:
       return 5;
   }
+}
+
+async function countContextPackRecords(serviceStorageRoot) {
+  const paths = getServiceStoragePaths({ serviceStorageRoot });
+  let repositoryDirs = [];
+  try {
+    repositoryDirs = await fs.readdir(paths.contextPackRepositoryFilesRoot, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  let count = 0;
+  for (const entry of repositoryDirs) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    try {
+      const files = await fs.readdir(path.join(paths.contextPackRepositoryFilesRoot, entry.name), { withFileTypes: true });
+      count += files.filter((file) => file.isFile() && file.name.endsWith(".json")).length;
+    } catch {
+      // Ignore unreadable per-repository context-pack folders.
+    }
+  }
+  return count;
+}
+
+function estimateMonthlyRevenue(planCode) {
+  switch (planCode) {
+    case "enterprise":
+      return 1500;
+    case "team":
+      return 299;
+    case "starter":
+      return 99;
+    default:
+      return 0;
+  }
+}
+
+function countSince(values = [], days) {
+  const cutoff = Date.now() - Number(days ?? 0) * 24 * 60 * 60 * 1000;
+  return values.filter((value) => {
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) && timestamp >= cutoff;
+  }).length;
+}
+
+function percentage(part, total) {
+  const safeTotal = Number(total ?? 0);
+  if (safeTotal <= 0) {
+    return 0;
+  }
+  return Math.round((Number(part ?? 0) / safeTotal) * 1000) / 10;
+}
+
+function average(values = []) {
+  if (values.length === 0) {
+    return 0;
+  }
+  return Math.round((values.reduce((total, value) => total + Number(value ?? 0), 0) / values.length) * 10) / 10;
+}
+
+function roundCurrency(value) {
+  return Math.round(Number(value ?? 0) * 100) / 100;
 }
 
 function groupEntries(entries = [], getKey) {
