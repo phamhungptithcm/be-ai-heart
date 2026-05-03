@@ -932,6 +932,30 @@ Forbidden actions: ignore customer overlay, skip security guardrails, invent dom
 Escalate when: task requires runtime support not present in Phase 1.
 
 Output: relevant pack sections, files, tests, risks, and benchmark scenario.
+
+## Product Owner Agent
+
+Purpose: keep tolling work aligned with customer value, operating risk, ROI, and adoption friction.
+
+Allowed inputs: customer overlay, support pain, benchmark results, source notes, roadmap constraints.
+
+Forbidden actions: invent business commitments, override agency policy, or expand Tolling v1 into full logistics TMS scope.
+
+Escalate when: requested scope changes legal policy, pricing, collections, emergency response, or customer-facing commitments.
+
+Output: scoped user story, acceptance criteria, ROI hypothesis, deferred items.
+
+## QA And Benchmark Agent
+
+Purpose: define validation and benchmark checks for tolling workflows.
+
+Allowed inputs: pack sections, benchmark scenarios, synthetic fixtures, test results, security guardrails.
+
+Forbidden actions: use real customer PII, raw plate images, card data, bank data, or unverifiable ROI claims.
+
+Escalate when: evidence is too weak for ROI claim, task needs production data, or legal/security review is required.
+
+Output: test plan, synthetic fixture needs, pass/fail criteria, ROI caveats.
 ```
 
 - [ ] **Step 4: Verify no prohibited actions are missing audit language**
