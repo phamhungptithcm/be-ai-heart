@@ -430,6 +430,13 @@ entities:
     relationships: [belongs_to Vehicle, appears_in PlateImage]
     validation_rules:
       - plate number must be redacted in context artifacts unless required
+  VehicleClass:
+    description: Customer-owned class used for rate, axle, trailer, HOV, or managed-lane policy.
+    sensitive_fields: []
+    lifecycle_states: [active, deprecated]
+    relationships: [used_by RatePlan, observed_by LaneEvent]
+    validation_rules:
+      - class mapping must come from customer overlay when financial impact exists
   Account:
     description: Customer toll account with vehicles, tags, payment status, and balance.
     sensitive_fields: [customer_name, address, email, phone, account_balance, payment_status]
@@ -451,6 +458,13 @@ entities:
     relationships: [uses PaymentMethod, updates Account]
     validation_rules:
       - failed replenishment must not silently produce duplicate charges
+  RoadsideEvent:
+    description: Incident, safety, closure, equipment, or roadside support event linked to toll facility operations.
+    sensitive_fields: [customer_contact, vehicle_location]
+    lifecycle_states: [reported, triaged, dispatched, resolved, closed]
+    relationships: [occurs_on Facility, may_reference Lane, may_create SupportCase]
+    validation_rules:
+      - safety-critical events must escalate to human or emergency procedures
   LaneEvent:
     description: Raw roadside event containing tag, plate, timestamp, lane, class, and evidence references.
     sensitive_fields: [plate_number, image_reference, tag_serial]
@@ -493,6 +507,20 @@ entities:
     relationships: [contains TripSegment, creates TollTransaction]
     validation_rules:
       - duplicate trip detection must run before posting
+  TripSegment:
+    description: Portion of a trip associated with one lane event, gantry, segment, or facility.
+    sensitive_fields: [trip_history, plate_number]
+    lifecycle_states: [assembled, rated, posted, exception]
+    relationships: [belongs_to Trip, created_from LaneEvent, rated_by RatePlan]
+    validation_rules:
+      - segment timestamps and direction must be deterministic
+  RatePlan:
+    description: Customer-owned toll rate policy for facility, segment, class, account type, time, or managed-lane rule.
+    sensitive_fields: []
+    lifecycle_states: [draft, active, superseded, retired]
+    relationships: [rates Trip, rates TripSegment, uses VehicleClass]
+    validation_rules:
+      - rates, discounts, fees, and effective dates must come from customer overlay
   Invoice:
     description: Customer bill for posted tolls not charged to a valid prepaid account.
     sensitive_fields: [customer_name, address, amount_due, plate_number]
@@ -514,6 +542,41 @@ entities:
     relationships: [references Invoice, references ViolationNotice]
     validation_rules:
       - AI may recommend but not decide legal outcome without authorization
+  WaiverRequest:
+    description: Request to reduce, waive, or adjust fee or penalty based on customer-owned policy.
+    sensitive_fields: [customer_statement, account_reference, plate_number]
+    lifecycle_states: [submitted, reviewed, approved, denied, appealed]
+    relationships: [references ViolationNotice, references Dispute, updates TollTransaction]
+    validation_rules:
+      - waiver outcome requires authorized approval and audit
+  CollectionCase:
+    description: Delinquent case that may be sent to collections or enforcement under customer policy.
+    sensitive_fields: [customer_name, address, amount_due, plate_number]
+    lifecycle_states: [eligible, held, referred, recalled, closed]
+    relationships: [references Invoice, references ViolationNotice, may_reference Dispute]
+    validation_rules:
+      - collections handoff criteria and notices must come from customer overlay
+  InteroperabilityPartner:
+    description: External tolling agency or hub that exchanges tag, plate, transaction, and settlement data.
+    sensitive_fields: [partner_account_reference]
+    lifecycle_states: [active, degraded, suspended, retired]
+    relationships: [partners_with Agency, exchanges AwayAgencyTransaction]
+    validation_rules:
+      - partner-specific rules must live behind interface contracts
+  HomeAgencySettlement:
+    description: Settlement record for transactions owed to or from the agency that owns the customer account.
+    sensitive_fields: [settlement_reference, amount_due]
+    lifecycle_states: [pending, acknowledged, rejected, adjusted, settled]
+    relationships: [references TollTransaction, references InteroperabilityPartner]
+    validation_rules:
+      - settlement adjustments require reconciliation and audit
+  AwayAgencyTransaction:
+    description: Travel transaction observed by an agency other than the customer account home agency.
+    sensitive_fields: [tag_serial, plate_number, settlement_reference]
+    lifecycle_states: [created, sent, acknowledged, rejected, adjusted, settled]
+    relationships: [created_from LaneEvent, sent_to InteroperabilityPartner]
+    validation_rules:
+      - away-agency rejects must route to exception handling
   SupportCase:
     description: Customer or operator case for account, payment, invoice, violation, roadside, or scam issue.
     sensitive_fields: [transcript, customer_contact, account_reference]
@@ -521,6 +584,13 @@ entities:
     relationships: [may_reference Account, Invoice, ViolationNotice, Dispute]
     validation_rules:
       - support answers must cite policy and avoid invented commitments
+  AgentAction:
+    description: AI or automation recommendation, draft, classification, routing action, or tool action.
+    sensitive_fields: [prompt_excerpt, output_excerpt, actor_reference]
+    lifecycle_states: [suggested, approved, rejected, executed, audited]
+    relationships: [recorded_by AuditEvent, may_reference SupportCase, may_reference Dispute]
+    validation_rules:
+      - high-risk agent actions require approval, citation, and audit
   AuditEvent:
     description: Immutable trace of system, human, or AI action.
     sensitive_fields: [actor_reference, case_reference]
@@ -535,7 +605,7 @@ entities:
 Run:
 
 ```bash
-ruby -e 'require "yaml"; doc = YAML.safe_load_file("packs/tolling-management/entities.yaml", permitted_classes: [], aliases: false); abort("missing entities") unless doc["entities"].is_a?(Hash); abort("missing Trip") unless doc["entities"].key?("Trip"); puts "entities.yaml ok"'
+ruby -e 'require "yaml"; doc = YAML.safe_load_file("packs/tolling-management/entities.yaml", permitted_classes: [], aliases: false); entities = doc["entities"] || {}; required = %w[Agency Facility RoadSegment Gantry Lane Transponder Vehicle LicensePlate VehicleClass Account PaymentMethod ReplenishmentEvent RoadsideEvent LaneEvent PlateImage ImageReviewTask OcrCandidate TollTransaction Trip TripSegment RatePlan Invoice ViolationNotice Dispute WaiverRequest CollectionCase InteroperabilityPartner HomeAgencySettlement AwayAgencyTransaction SupportCase AgentAction AuditEvent]; missing = required.reject { |name| entities.key?(name) }; abort("missing entities: #{missing.join(", ")}") unless missing.empty?; puts "entities.yaml ok"'
 ```
 
 Expected:
