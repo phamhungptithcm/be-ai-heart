@@ -280,6 +280,8 @@ export async function writeBenchmarkEvidenceBundle(
     scanProvenance: safeScanProvenance,
     readiness: safeReadiness,
   });
+  const safeScenario = sanitizeEvidenceArtifact(scenario, repoRoot);
+  const safeDataset = sanitizeEvidenceArtifact(dataset, repoRoot);
   const manifest = {
     schema_version: 2,
     bundle_id: report.report_id,
@@ -321,10 +323,10 @@ export async function writeBenchmarkEvidenceBundle(
     fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8"),
   ];
   if (scenarioPath) {
-    writes.push(fs.writeFile(scenarioPath, `${JSON.stringify(scenario, null, 2)}\n`, "utf8"));
+    writes.push(fs.writeFile(scenarioPath, `${JSON.stringify(safeScenario, null, 2)}\n`, "utf8"));
   }
   if (datasetPath) {
-    writes.push(fs.writeFile(datasetPath, `${JSON.stringify(dataset, null, 2)}\n`, "utf8"));
+    writes.push(fs.writeFile(datasetPath, `${JSON.stringify(safeDataset, null, 2)}\n`, "utf8"));
   }
 
   await Promise.all(writes);
@@ -333,8 +335,7 @@ export async function writeBenchmarkEvidenceBundle(
     available: true,
     bundle_id: report.report_id,
     generated_at: report.generated_at,
-    local_root: evidenceRoot,
-    local_manifest_path: manifestPath,
+    local_root: normalizePath(path.relative(repoRoot, evidenceRoot)),
     files: manifest.files,
     baseline_summary: manifest.baseline_summary,
     assisted_summary: manifest.assisted_summary,
@@ -768,6 +769,26 @@ function sanitizePathList(paths = []) {
         .map((value) => sanitizeProvenancePath(value))
         .filter(Boolean)
     : [];
+}
+
+function sanitizeEvidenceArtifact(value, repoRoot = "") {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeEvidenceArtifact(entry, repoRoot));
+  }
+  if (!value || typeof value !== "object") {
+    return typeof value === "string" ? sanitizeProvenancePath(value, repoRoot) : value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "local_manifest_path")
+      .map(([key, entry]) => [
+        key,
+        key === "local_root"
+          ? sanitizeProvenancePath(entry, repoRoot)
+          : sanitizeEvidenceArtifact(entry, repoRoot),
+      ]),
+  );
 }
 
 function sanitizeProvenancePath(candidatePath, repoRoot = "") {
