@@ -82,6 +82,7 @@ import {
   redactUrlSearch,
 } from "./redaction.js";
 import { buildRepositoryServicesView } from "./repository-services.js";
+import { resolveLlmProxySecurity, resolveRuntimeEnvironment } from "./runtime-config.js";
 import {
   buildChatCommandRecord,
   buildContextPackIndexContract,
@@ -419,6 +420,7 @@ export function resolveHttpConfig(options = {}) {
     process.env.BE_AI_HEART_MONOREPO_ROOT ??
     defaultMonorepoRoot;
 
+  const runtime = resolveRuntimeEnvironment(process.env);
   return {
     monorepoRoot,
     serviceStorageRoot: resolveServiceStorageRoot({
@@ -475,6 +477,11 @@ export function resolveHttpConfig(options = {}) {
           60,
       ),
     },
+    runtime,
+    llmProxy: {
+      ...resolveLlmProxySecurity(process.env),
+      ...(options.llmProxy ?? {}),
+    },
     fetchImpl: options.fetchImpl ?? globalThis.fetch,
     localDemoAuth:
       typeof options.localDemoAuth === "boolean"
@@ -505,6 +512,10 @@ export function resolveHttpConfig(options = {}) {
           process.env.BE_AI_HEART_CSRF_HEADER_NAME ??
           "x-be-ai-heart-csrf",
       ),
+      allowQuerySession:
+        typeof options.sessionSecurity?.allowQuerySession === "boolean"
+          ? options.sessionSecurity.allowQuerySession
+          : !runtime.production,
     },
   };
 }

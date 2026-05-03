@@ -468,6 +468,7 @@ export async function resolveRequestAuthContext({
   request,
   sessionCookieName,
   localDemoAuth,
+  allowQuerySession = true,
 } = {}) {
   await ensureDefaultSessions(serviceStorageRoot, { localDemoAuth });
   const requestUrl = resolveRequestUrl(request);
@@ -477,6 +478,7 @@ export async function resolveRequestAuthContext({
     requestUrl.searchParams.get("workspace") || request?.headers?.get?.("x-be-ai-heart-workspace");
   const { token: sessionToken, source: sessionSource } = inferSessionTokenFromRequest(request, {
     sessionCookieName,
+    allowQuerySession,
   });
   const session = sessionToken
     ? await resolveWorkspaceSession({
@@ -537,9 +539,9 @@ export async function resolveRequestAuthContext({
   };
 }
 
-function inferSessionTokenFromRequest(request, { sessionCookieName } = {}) {
+function inferSessionTokenFromRequest(request, { sessionCookieName, allowQuerySession = true } = {}) {
   const queryValue = resolveRequestUrl(request).searchParams.get("session");
-  if (queryValue) {
+  if (queryValue && allowQuerySession) {
     return {
       token: queryValue,
       source: "query",
