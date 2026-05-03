@@ -36,6 +36,7 @@ export async function loadBenchmarkScenarioManifest(scenarioRef, repoRoot) {
     id: String(scenario.id ?? ""),
     title: String(scenario.title ?? scenario.id ?? ""),
     category: String(scenario.category ?? ""),
+    design_partner_type: String(scenario.design_partner_type ?? scenario.scenario_type ?? ""),
     description: String(scenario.description ?? ""),
     repo: String(scenario.repo ?? ""),
     profile_slug: String(scenario.profile_slug ?? ""),
@@ -45,8 +46,10 @@ export async function loadBenchmarkScenarioManifest(scenarioRef, repoRoot) {
     dataset,
     task: scenario.task ?? {},
     expected_documents: normalizePathList(scenario.expected_documents ?? []),
+    expected_evidence: Array.isArray(scenario.expected_evidence) ? scenario.expected_evidence : [],
     reuse_targets: normalizePathList(scenario.reuse_targets ?? []),
     architecture_rules: Array.isArray(scenario.architecture_rules) ? scenario.architecture_rules : [],
+    rubric: scenario.rubric ?? null,
     evaluation: scenario.evaluation ?? {},
     baseline: scenario.baseline ?? {},
     assisted: scenario.assisted ?? {},
@@ -245,6 +248,7 @@ export function buildFrameworkSummary({ scenarioManifest, datasetManifest, evalu
       id: String(scenarioManifest?.id ?? ""),
       title: String(scenarioManifest?.title ?? scenarioManifest?.id ?? ""),
       category: String(scenarioManifest?.category ?? ""),
+      design_partner_type: String(scenarioManifest?.design_partner_type ?? ""),
       dataset_id: String(datasetManifest?.id ?? scenarioManifest?.dataset_id ?? ""),
       description: String(scenarioManifest?.description ?? ""),
       task_statement: String(scenarioManifest?.task?.statement ?? scenarioManifest?.task?.prompt ?? ""),
@@ -257,6 +261,9 @@ export function buildFrameworkSummary({ scenarioManifest, datasetManifest, evalu
       reuse_targets: normalizePathList(scenarioManifest?.reuse_targets ?? datasetManifest?.reuse_targets ?? []),
       architecture_rules: Array.isArray(scenarioManifest?.architecture_rules)
         ? scenarioManifest.architecture_rules
+        : [],
+      expected_evidence: Array.isArray(scenarioManifest?.expected_evidence)
+        ? scenarioManifest.expected_evidence
         : [],
     },
     dataset: {

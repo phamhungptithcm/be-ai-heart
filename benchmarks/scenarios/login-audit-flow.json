@@ -3,6 +3,7 @@
   "id": "login-audit-flow",
   "title": "Login Audit Flow With Follow-Up Handoff",
   "category": "document-aware-follow-up",
+  "design_partner_type": "feature_addition",
   "description": "Measures whether the workflow can preserve product and architecture intent across an initial change plus a follow-up refinement without re-explaining the repository.",
   "repo": "be-ai-heart",
   "provider": "openai",
@@ -27,6 +28,18 @@
     "Keep the benchmark compare engine in packages/benchmark.",
     "Keep command orchestration in packages/cli."
   ],
+  "expected_evidence": [
+    "context pack includes benchmark and CLI files",
+    "document citations include benchmark framework and CLI/MCP spec",
+    "follow-up handoff can identify evidence bundle location"
+  ],
+  "rubric": {
+    "must_pass": [
+      "Extends existing benchmark report flow",
+      "Preserves follow-up context without broad rediscovery",
+      "Keeps evidence bundle storage local-first"
+    ]
+  },
   "evaluation": {
     "targets": {
       "max_tokens": 1700,

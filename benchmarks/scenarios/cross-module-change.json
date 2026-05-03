@@ -3,6 +3,7 @@
   "id": "cross-module-change",
   "title": "Cross Module Benchmark Automation",
   "category": "architecture-constrained-change",
+  "design_partner_type": "cross_module",
   "description": "Measures whether the workflow can automate repeated benchmark runs from the CLI while preserving benchmark package boundaries and sanitized publication behavior.",
   "repo": "be-ai-heart",
   "provider": "openai",
@@ -24,6 +25,18 @@
     "Do not couple scoring logic to portal or admin rendering.",
     "Published reports must remain sanitized."
   ],
+  "expected_evidence": [
+    "CLI orchestration remains in packages/cli",
+    "benchmark scoring remains in packages/benchmark",
+    "published artifacts are sanitized before portal/admin use"
+  ],
+  "rubric": {
+    "must_pass": [
+      "Cross-package changes preserve package boundaries",
+      "Suite output is deterministic",
+      "Portal/admin publication does not expose raw local artifacts"
+    ]
+  },
   "evaluation": {
     "targets": {
       "max_tokens": 2300,

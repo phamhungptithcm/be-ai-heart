@@ -1,0 +1,141 @@
+{
+  "schema_version": 2,
+  "id": "cache-stale-bug-fix",
+  "title": "Cache Stale Bug Fix",
+  "category": "bug-fix",
+  "design_partner_type": "bug_fix",
+  "description": "Measures whether a team can fix a stale cache or readiness regression by using graph, docs, and tests instead of rediscovering the repo.",
+  "repo": "be-ai-heart",
+  "provider": "openai",
+  "model": "gpt-5.4",
+  "dataset_id": "auth-audit-memory",
+  "task": {
+    "statement": "Fix a stale cache readiness regression and add a deterministic test proving doctor output points to the next safe local command.",
+    "follow_up_prompts": [
+      "Identify the docs that need updates because doctor behavior changed.",
+      "Show the tests that prevent the stale-cache bug from returning."
+    ]
+  },
+  "expected_documents": [
+    "docs/03-technical-architecture.md",
+    "docs/04-mcp-cli-spec.md",
+    "docs/10-user-stories.md"
+  ],
+  "reuse_targets": [
+    "packages/core/src/doctor.js",
+    "packages/core/src/storage.js",
+    "tests/cli-contracts.test.js"
+  ],
+  "architecture_rules": [
+    "Keep readiness logic in packages/core.",
+    "Keep CLI output deterministic and concise.",
+    "Do not add hosted dependencies to local doctor checks."
+  ],
+  "expected_evidence": [
+    "impact analysis identifies doctor and storage code",
+    "context pack includes CLI spec and story status",
+    "test proves the regression is fixed"
+  ],
+  "rubric": {
+    "must_pass": [
+      "Fix is covered by deterministic CLI/core test",
+      "Doctor output remains script-safe in JSON mode",
+      "Docs are updated when CLI behavior changes"
+    ]
+  },
+  "evaluation": {
+    "targets": {
+      "max_tokens": 1500,
+      "max_minutes": 20,
+      "max_memory_refreshes": 1,
+      "max_token_cost_usd": 0.3,
+      "max_duplicates": 0,
+      "max_policy_violations": 0,
+      "max_review_edits": 2
+    }
+  },
+  "baseline": {
+    "tokens": 2300,
+    "minutes": 31,
+    "duplicates": 2,
+    "policy_violations": 1,
+    "review_edits": 6,
+    "memory_refreshes": 4,
+    "token_cost_usd": 0.46,
+    "context_retention": {
+      "checkpoints_passed": 1,
+      "checkpoints_total": 3,
+      "document_hits": 1,
+      "document_targets": 3
+    },
+    "duplicate_work": {
+      "reuse_hits": 1,
+      "reuse_targets": 3,
+      "checks_passed": 1,
+      "checks_total": 3,
+      "duplicate_introductions": 2
+    },
+    "code_quality": {
+      "tests_passed": 2,
+      "tests_total": 4,
+      "rubric_scores": {
+        "correctness": 3,
+        "architecture": 3,
+        "reuse": 2,
+        "testing": 2,
+        "intent_alignment": 3
+      }
+    },
+    "delivery": {
+      "tasks_passed": 1,
+      "tasks_total": 2
+    }
+  },
+  "assisted": {
+    "tokens": 1280,
+    "minutes": 18,
+    "duplicates": 0,
+    "policy_violations": 0,
+    "review_edits": 2,
+    "memory_refreshes": 1,
+    "token_cost_usd": 0.26,
+    "context_retention": {
+      "checkpoints_passed": 3,
+      "checkpoints_total": 3,
+      "document_hits": 3,
+      "document_targets": 3
+    },
+    "duplicate_work": {
+      "reuse_hits": 3,
+      "reuse_targets": 3,
+      "checks_passed": 3,
+      "checks_total": 3,
+      "duplicate_introductions": 0
+    },
+    "code_quality": {
+      "tests_passed": 4,
+      "tests_total": 4,
+      "rubric_scores": {
+        "correctness": 5,
+        "architecture": 5,
+        "reuse": 5,
+        "testing": 5,
+        "intent_alignment": 5
+      }
+    },
+    "delivery": {
+      "tasks_passed": 2,
+      "tasks_total": 2
+    },
+    "tool_outputs": [
+      {
+        "tool": "context_pack",
+        "status": "ok"
+      },
+      {
+        "tool": "impact_analysis",
+        "status": "ok"
+      }
+    ]
+  }
+}

@@ -5,11 +5,14 @@ import path from "node:path";
 
 import {
   compareBenchmarkRuns,
+  createBenchmarkSummary,
+  listDesignPartnerScenarios,
   loadBenchmarkDataset,
   prepareBenchmarkReportArtifact,
   publishBenchmarkReport,
   runBenchmarkScenario,
   runBenchmarkSuite,
+  validatePublishedArtifactSafety,
   writeBenchmarkEvidenceBundle,
   writeBenchmarkReport,
   writeBenchmarkSuiteReport,
@@ -133,6 +136,44 @@ test("benchmark comparison summarizes assisted context-pack evidence", () => {
   assert.equal(report.evidence.assisted.context_pack.document_citation_count, 1);
   assert.ok(report.metrics.context_pack_quality_score > 0.4);
   assert.ok(report.metrics.context_pack_task_coverage_pct >= 50);
+});
+
+test("benchmark summary reads bounded local report evidence", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const benchmarkRoot = path.join(repoRoot, ".heart", "benchmarks");
+
+  await fs.mkdir(benchmarkRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(benchmarkRoot, "summary-fixture.json"),
+    `${JSON.stringify({
+      report_id: "summary-fixture",
+      scenario: "login-audit-flow",
+      generated_at: "2026-05-03T00:00:00.000Z",
+      metrics: {
+        token_savings_pct: 35,
+        time_savings_pct: 25,
+        composite_roi_score: 60,
+      },
+      evidence_bundle: {
+        available: true,
+        artifact_list: [{ role: "baseline" }, { role: "assisted" }],
+        provenance_summary: {
+          measurement_mode: "estimated",
+          confidence_label: "low",
+        },
+      },
+    })}\n`,
+    "utf8",
+  );
+
+  const summary = createBenchmarkSummary(repoRoot);
+
+  assert.equal(summary.status, "ready");
+  assert.equal(summary.report_count, 1);
+  assert.equal(summary.latest_report.report_id, "summary-fixture");
+  assert.equal(summary.aggregate_metrics.avg_token_savings_pct, 35);
+  assert.deepEqual(summary.measurement_modes, { estimated: 1 });
+  assert.equal(summary.latest_report.evidence.artifact_count, 2);
 });
 
 test("benchmark artifacts expose measurement provenance and stable scenario manifest contracts", () => {
@@ -382,6 +423,71 @@ test("benchmark report writes locally and publishes sanitized web artifacts", as
   assert.deepEqual(portalEvidenceManifest.repo_snapshot, localEvidenceManifest.repo_snapshot);
   assert.deepEqual(portalEvidenceManifest.run_ids, localEvidenceManifest.run_ids);
   assert.equal(portalEvidenceManifest.assisted.context_pack.top_citations[0].path, undefined);
+  assert.equal(validatePublishedArtifactSafety(portalReport).status, "safe");
+  assert.equal(validatePublishedArtifactSafety(portalEvidenceManifest).status, "safe");
+});
+
+test("published artifact safety validator catches cross-artifact secret and path leaks", () => {
+  const unsafe = validatePublishedArtifactSafety({
+    benchmark: {
+      repo_root: "/Users/customer/private/acme-repo",
+      raw_prompt: "Use api_key=sk-test-secret-1234567890 for this run",
+    },
+    context_pack: {
+      citations: [
+        {
+          path: "/home/customer/acme/src/billing.ts",
+          reason: "local file leak",
+        },
+      ],
+    },
+    graph: {
+      node: "safe-relative-path.ts",
+    },
+  });
+
+  assert.equal(unsafe.status, "unsafe");
+  assert.ok(unsafe.findings.some((finding) => finding.type === "sensitive_field"));
+  assert.ok(unsafe.findings.some((finding) => finding.type === "absolute_local_path"));
+  assert.ok(unsafe.findings.some((finding) => finding.type === "secret_like_value"));
+  assert.doesNotMatch(JSON.stringify(unsafe), /sk-test-secret-1234567890/);
+});
+
+test("benchmark publication refuses unsafe sanitized artifacts", async (t) => {
+  const repoRoot = await createTempRepoCopy(t);
+  const serviceStorageRoot = path.join(repoRoot, ".heart", "service");
+  const report = compareBenchmarkRuns(
+    {
+      tokens: 1000,
+      minutes: 20,
+      duplicates: 1,
+    },
+    {
+      tokens: 700,
+      minutes: 14,
+      duplicates: 0,
+    },
+    {
+      repo: "sample-repo",
+      profile_slug: "sample-repo",
+      scenario: "cache-stale-bug-fix",
+      report_id: "unsafe-publish-test",
+    },
+  );
+
+  await assert.rejects(
+    publishBenchmarkReport({
+      report: {
+        ...report,
+        automation: {
+          raw_prompt: "token=sk-test-secret-1234567890",
+        },
+      },
+      repoRoot,
+      serviceStorageRoot,
+    }),
+    /Refusing to publish unsafe benchmark artifact/,
+  );
 });
 
 test("benchmark scenario runner loads named scenario manifests", async (t) => {
@@ -617,4 +723,32 @@ test("benchmark loader resolves linked datasets and suite writer persists aggreg
   assert.ok(suiteResult.suite.aggregate_metrics.avg_token_savings_pct > 0);
   assert.ok(persisted.report_path.endsWith(".json"));
   assert.ok(persisted.markdown_path.endsWith(".md"));
+});
+
+test("design-partner benchmark catalog covers required pilot task types", async () => {
+  const catalog = await listDesignPartnerScenarios(process.cwd());
+  const requiredTypes = [
+    "bug_fix",
+    "feature_addition",
+    "duplicate_refactor",
+    "cross_module",
+    "document_required",
+  ];
+
+  assert.equal(catalog.status, "ready");
+  assert.ok(catalog.scenario_count >= requiredTypes.length);
+  assert.deepEqual(catalog.missing_types, []);
+  for (const type of requiredTypes) {
+    assert.ok(catalog.covered_types.includes(type), `expected ${type}`);
+  }
+  assert.ok(catalog.scenarios.every((scenario) => scenario.has_rubric));
+  assert.ok(catalog.scenarios.every((scenario) => scenario.expected_evidence_count > 0));
+
+  const suite = await runBenchmarkSuite({
+    repoRoot: process.cwd(),
+    scenarioRefs: ["cache-stale-bug-fix", "billing-doc-required"],
+    profile_slug: "sample-repo",
+  });
+  assert.equal(suite.suite.scenario_count, 2);
+  assert.ok(suite.suite.aggregate_metrics.avg_token_savings_pct > 0);
 });
