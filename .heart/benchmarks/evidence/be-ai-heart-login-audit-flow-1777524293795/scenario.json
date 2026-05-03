@@ -60,7 +60,7 @@
       "Keep CLI orchestration inside packages/cli.",
       "Prefer JSON artifacts plus concise markdown reports."
     ],
-    "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/auth-audit-memory.json"
+    "path": "[repo-root]/benchmarks/datasets/auth-audit-memory.json"
   },
   "task": {
     "statement": "Add benchmark reporting support for login audit visibility and preserve enough context to answer a follow-up request about the same benchmark run.",
@@ -267,5 +267,5 @@
       }
     }
   },
-  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/scenarios/login-audit-flow.json"
+  "path": "[repo-root]/benchmarks/scenarios/login-audit-flow.json"
 }

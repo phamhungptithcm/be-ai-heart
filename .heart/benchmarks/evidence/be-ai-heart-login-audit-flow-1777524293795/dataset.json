@@ -49,5 +49,5 @@
     "Keep CLI orchestration inside packages/cli.",
     "Prefer JSON artifacts plus concise markdown reports."
   ],
-  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/auth-audit-memory.json"
+  "path": "[repo-root]/benchmarks/datasets/auth-audit-memory.json"
 }

@@ -44,5 +44,5 @@
     "Do not couple benchmark scoring logic to portal or admin rendering.",
     "Keep publish artifacts sanitized for hosted surfaces."
   ],
-  "path": "/Users/hunpeo97/Desktop/Workspace/Coder/be-ai-heart/benchmarks/datasets/cross-module-boundaries.json"
+  "path": "[repo-root]/benchmarks/datasets/cross-module-boundaries.json"
 }
